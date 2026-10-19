@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+# 1. 리뷰 언어
+language: ko-KR
+
+# 2. 보조 리뷰: CodeRabbit을 필수 병합 조건으로 사용하지 않습니다.
+# GitHub 브랜치 보호의 필수 검사에도 CodeRabbit을 추가하지 않습니다.
+reviews:
+  profile: chill
+  request_changes_workflow: false
+
+  # PR 템플릿을 유지하고 요약은 봇의 리뷰 댓글에 표시합니다.
+  high_level_summary_in_walkthrough: true
+
+  # 3. PR 자동 리뷰 (Draft는 준비 완료로 전환한 후 리뷰)
+  auto_review:
+    enabled: true
+    drafts: false

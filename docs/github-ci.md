@@ -58,7 +58,7 @@ git -c core.whitespace=blank-at-eof,space-before-tab diff --cached --check
 | Allow deletions | 끄기 |
 
 4. 3절의 CI가 실제로 통과한 뒤 같은 규칙에서 **Require status checks to pass before merging**을 켭니다.
-5. **Repository checks**를 검색해 추가합니다. **Require branches to be up to date before merging**도 켜는 것을 권장합니다.
+5. **Repository checks**를 검색해 추가합니다. **Require branches to be up to date before merging**도 켜는 것을 권장합니다. CodeRabbit 관련 검사는 필수 목록에 추가하지 않습니다.
 6. 저장 후 `main` 보호 규칙과 필수 검사 이름이 표시되는지 확인합니다.
 
 리뷰 승인은 PR 작성자 이외에 저장소 쓰기 권한이 있는 팀원이 해야 합니다. 관리자에게도 규칙을 적용하면 작성자 혼자 승인하고 병합할 수 없습니다.
