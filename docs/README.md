@@ -13,3 +13,5 @@
 
 - [Git 컨벤션](git-convention.md): 브랜치·커밋·이슈·PR·리뷰·병합 규칙
 - [협업 안내](../CONTRIBUTING.md): 코드·환경 설정과 PR 전 확인 사항
+
+- [GitHub CI 안내](github-ci.md): 기본 CI 실행·main 보호 설정·서비스별 검사 확장
