@@ -1,0 +1,27 @@
+name: Auto-assign issue author
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  assign-author:
+    if: >-
+      github.event.issue.user.type != 'Bot' &&
+      github.event.issue.assignees[0] == null
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assign issue to its author
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const issue = context.payload.issue;
+            await github.rest.issues.addAssignees({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              assignees: [issue.user.login],
+            });
