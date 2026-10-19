@@ -1,2 +1,2 @@
-# access-pilot
+# UnlockOps
 AI가 서비스 접근 문제를 진단하고, 담당자 승인 후 필요한 권한 부여를 돕는 서비스
