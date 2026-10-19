@@ -1,0 +1,50 @@
+name: CI
+
+# 1. 실행 조건: main 대상 PR, main 반영, 수동 실행
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 2. 검사에는 저장소 읽기 권한만 사용합니다.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-checks:
+    # 보호 설정에서 선택할 검사 이름입니다. 변경 시 GitHub 설정도 함께 수정합니다.
+    name: Repository checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check changed lines
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            base="$PR_BASE_SHA"
+          elif [[ -n "$PUSH_BEFORE_SHA" && ! "$PUSH_BEFORE_SHA" =~ ^0+$ ]]; then
+            base="$PUSH_BEFORE_SHA"
+          else
+            base="$(git hash-object -t tree /dev/null)"
+          fi
+          # Markdown의 줄 끝 공백 줄바꿈을 허용합니다.
+          # 파일 끝 불필요한 빈 줄, 공백 뒤 탭, 충돌 표시를 검사합니다.
+          git -c core.whitespace=blank-at-eof,space-before-tab diff --check "$base" HEAD
+
+  # 3. 서비스 초기화 후 frontend/backend/python 검사 job을 여기에 추가합니다.
+  # 서비스의 런타임 버전과 실제 명령은 각 README에 기록합니다.

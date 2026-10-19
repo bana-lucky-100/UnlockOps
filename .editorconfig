@@ -1,0 +1,38 @@
+# UnlockOps 공통 편집 설정
+# 변경할 때 해당 언어의 섹션을 수정합니다. 뒤쪽 규칙이 우선합니다.
+# 편집기에 EditorConfig 지원 또는 확장 기능이 필요합니다.
+root = true
+
+# 1. 모든 텍스트 파일의 기본값
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# 2. Vue / JavaScript / TypeScript / 웹 스타일
+[*.{vue,js,mjs,cjs,jsx,ts,mts,cts,tsx,html,css,scss,sass,less}]
+indent_size = 2
+
+# 3. Java / Kotlin / Python
+[*.{java,kt,kts,py,pyi}]
+indent_size = 4
+
+# 4. JSON / YAML / TOML / XML 등 공통 설정
+[*.{json,jsonc,yml,yaml,toml,xml,properties}]
+indent_size = 2
+
+# 5. Markdown: 줄 끝 공백을 이용한 줄바꿈을 보존합니다.
+[*.md]
+trim_trailing_whitespace = false
+
+# 6. Makefile: 명령 실행에 필요한 탭을 보존합니다.
+[{Makefile,makefile,GNUmakefile,*.mk}]
+indent_style = tab
+indent_size = tab
+
+# 7. Windows 실행 파일: .gitattributes와 함께 수정합니다.
+[*.{bat,cmd}]
+end_of_line = crlf
