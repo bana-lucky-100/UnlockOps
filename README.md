@@ -87,7 +87,8 @@ Copy-Item .env.example .env
 | [.gitattributes](.gitattributes) | Git 줄바꿈 정규화, 바이너리 비교 방식 |
 | [.env.example](.env.example) | 필요한 환경변수 이름과 예시 |
 | [.gitignore](.gitignore) | 비밀 설정·캐시·빌드·로컬 데이터 제외 |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 브랜치·커밋·이슈·PR·리뷰 규칙 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 협업 참여 안내와 공통 설정 확인 |
+| [Git 컨벤션](docs/git-convention.md) | 브랜치·커밋·이슈·PR·리뷰·병합 규칙 |
 
 이슈 템플릿, PR 템플릿과 작성자 자동 담당자 지정은 기본 브랜치에 반영한 후 사용할 수 있습니다. 자동 담당자 지정에는 GitHub Actions 실행이 필요합니다.
 

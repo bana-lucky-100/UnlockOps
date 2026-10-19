@@ -8,3 +8,8 @@
 - 설계 및 실행 안내: 서비스 역할, 연동 흐름, 로컬 실행과 데모 절차
 
 계약 문서는 contracts/api, contracts/mcp, contracts/events 경로를 기준으로 추가합니다. 팀 간 연동 방식이 바뀌면 관련 계약 문서도 함께 갱신합니다.
+
+## 문서 목록
+
+- [Git 컨벤션](git-convention.md): 브랜치·커밋·이슈·PR·리뷰·병합 규칙
+- [협업 안내](../CONTRIBUTING.md): 코드·환경 설정과 PR 전 확인 사항
