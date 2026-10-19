@@ -1,0 +1,50 @@
+# UnlockOps Git 파일 속성
+# 기존 파일 전체의 줄바꿈을 변경하거나 다시 스테이징하지는 않습니다.
+# 편집 시 .editorconfig의 줄바꿈 규칙도 함께 확인합니다.
+
+# 1. 텍스트는 자동 판별하고 LF로 정규화합니다.
+* text=auto eol=lf
+
+# 2. 운영체제별 실행 파일
+*.sh text eol=lf
+gradlew text eol=lf
+mvnw text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 3. 이미지 / 폰트: 줄바꿈 변환과 텍스트 비교를 하지 않습니다.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+# SVG는 텍스트이므로 기본 규칙을 사용합니다.
+
+# 4. 문서 / 압축 / Java 패키지
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.7z binary
+*.jar binary
+*.war binary
+
+# 5. RAG 샘플 / 직렬화 데이터
+# 이 규칙은 파일 비교 방식만 지정합니다. Git 제외 여부는 .gitignore에서 관리합니다.
+*.pkl binary
+*.pickle binary
+*.npy binary
+*.npz binary
+*.parquet binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.faiss binary
