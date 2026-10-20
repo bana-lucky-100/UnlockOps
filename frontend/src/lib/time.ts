@@ -9,3 +9,14 @@ export function shortWhen(value: string, now = new Date()) {
   if (diff === 1) return '어제 ' + hm
   return `${d.getMonth() + 1}월 ${d.getDate()}일`
 }
+
+/** "방금" · "18분 전" · "2시간 전", 하루가 넘으면 shortWhen 형식. 승인 대기 경과 시간에 쓴다. */
+export function ago(value: string, now = new Date()) {
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  const min = Math.floor((now.getTime() - d.getTime()) / 60_000)
+  if (min < 1) return '방금'
+  if (min < 60) return `${min}분 전`
+  if (min < 24 * 60) return `${Math.floor(min / 60)}시간 전`
+  return shortWhen(value, now)
+}
