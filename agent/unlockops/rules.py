@@ -46,7 +46,7 @@ def _source(filename):
     """설정된 data 폴더에서 기존 규정 파일을 읽는다. 없으면 임의 기준으로 대체하지 않는다."""
     try:
         return (settings.data_dir / filename).read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeError):
         raise ToolFailure("POLICY_SOURCE_UNAVAILABLE", "권한 규정 원문을 확인할 수 없습니다.") from None
 
 

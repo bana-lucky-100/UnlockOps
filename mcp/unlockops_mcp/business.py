@@ -5,8 +5,9 @@ import os
 
 import uvicorn
 
-from unlockops_rag.search import DocumentIndex
+from unlockops_rag.search import DocumentFormatError, DocumentIndex
 from .repository import Repository
+from unlockops.models import ToolFailure
 from unlockops.rules import ceiling, source_hashes
 from unlockops.settings import settings
 from .auth import TokenAuth
@@ -24,7 +25,11 @@ repo = Repository()
 def index():
     # 규정 인덱스는 재사용하고, 직원·로그인 예시가 있는 절은 검색에서 제외한다.
     """허용한 회사 권한 규정 절만 색인하고 프로세스에서 재사용한다."""
-    return DocumentIndex(settings.data_dir / "company-a-access-matrix.md", "business", {3, 4, 7})
+    try:
+        return DocumentIndex(settings.data_dir / "company-a-access-matrix.md", "business", {3, 4, 7})
+    except (OSError, UnicodeError, DocumentFormatError):
+        # 원문 읽기 실패를 일반 서버 오류와 구분해 Agent가 수동 검토로 보낼 수 있게 한다.
+        raise ToolFailure("POLICY_SOURCE_UNAVAILABLE", "회사 권한 규정 원문을 확인할 수 없습니다.") from None
 
 
 # 직원의 현재 소속·직급·직무를 정확한 ID로 조회한다.

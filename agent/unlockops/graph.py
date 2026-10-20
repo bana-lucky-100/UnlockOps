@@ -18,6 +18,10 @@ from .settings import settings
 from .tools import ScopedTools
 
 
+# 규정 원문·권한표 오류만 수동 검토로 전환한다. DB·통신·응답 계약 오류는 포함하지 않는다.
+POLICY_SOURCE_ERRORS = {"POLICY_SOURCE_UNAVAILABLE", "INVALID_ACCESS_MATRIX"}
+
+
 # 1. State: 각 노드가 읽고 갱신하는 작업 기록. total=False는 단계별 필드 추가를 허용한다.
 class AgentState(TypedDict, total=False):
     job: dict  # 백엔드가 확정한 요청자·플랫폼·원문
@@ -30,6 +34,7 @@ class AgentState(TypedDict, total=False):
     budget: dict | None
     evidence: list[dict]  # 규정 원문과 조회 사실
     evidence_complete: bool
+    policy_error: str | None  # 근거 수집 중 발생한 규정 오류 코드만 저장한다.
 
     plan: dict | None  # 사람에게 승인받을 실행 계획
     result: dict
@@ -136,6 +141,35 @@ async def gather_node(state: AgentState, *, tools) -> dict:
     job, resource = state["job"], state["resource"]
     scoped = ScopedTools(tools, job["requester_id"], job["platform"], resource.get("id"))
     scoped.calls = state.get("tool_calls", 0)
+    try:
+        return await collect_evidence(state, scoped=scoped)
+    except ToolFailure as exc:
+        if exc.code not in POLICY_SOURCE_ERRORS:
+            raise
+        # 불완전한 근거로 제안하거나 승인하지 않는다. 다음 judge가 수동 검토 결과를 만든다.
+        return {
+            "evidence": [],
+            "evidence_complete": False,
+            "policy_error": exc.code,
+            "tool_calls": scoped.calls,
+            "optional_tool_calls": scoped.optional_calls,
+            "events": event(state, "collect_evidence", tools=scoped.trace, policy_error=exc.code),
+        }
+
+
+async def collect_evidence(state: AgentState, *, scoped: ScopedTools) -> dict:
+    """규정·직원 사실 조회를 수행하고, 규정 오류의 결과 변환은 gather 노드에 맡긴다."""
+    job, resource = state["job"], state["resource"]
+
+    async def read_required(name, doc_id):
+        """필수 문서·절의 누락만 규정 오류로 바꾸고 직원·자원 조회 오류는 그대로 둔다."""
+        try:
+            return await scoped.read(name, {"doc_id": doc_id})
+        except ToolFailure as exc:
+            if exc.code == "NOT_FOUND":
+                raise ToolFailure("POLICY_SOURCE_UNAVAILABLE", "필수 규정 원문을 확인할 수 없습니다.") from None
+            raise
+
     evidence = []
     evidence_complete = True
     platform_policy = {
@@ -154,7 +188,7 @@ async def gather_node(state: AgentState, *, tools) -> dict:
     )
     evidence.extend(search.get("hits", []))
     for doc_id in required:
-        document = await scoped.read("read_policy", {"doc_id": doc_id})
+        document = await read_required("read_policy", doc_id)
         if not any(c.get("doc_id") == doc_id and c.get("text") for c in document.get("chunks", [])):
             evidence_complete = False
         evidence.extend(document["chunks"])
@@ -173,7 +207,7 @@ async def gather_node(state: AgentState, *, tools) -> dict:
         evidence.extend(rules.get("hits", []))
         # 검색 유사도가 낮더라도 필수 규정 원문은 확보한다.
         for doc_id in ("A-ACCESS-03", "A-ACCESS-04", "A-ACCESS-07"):
-            chunks = (await scoped.read("read_access_rule", {"doc_id": doc_id}))["chunks"]
+            chunks = (await read_required("read_access_rule", doc_id))["chunks"]
             if not any(c.get("doc_id") == doc_id and c.get("text") for c in chunks):
                 evidence_complete = False
             evidence.extend(chunks)
@@ -200,6 +234,7 @@ async def gather_node(state: AgentState, *, tools) -> dict:
         "tool_calls": scoped.calls,
         "optional_tool_calls": scoped.optional_calls,
         "evidence_complete": evidence_complete,
+        "policy_error": None,
         "events": event(state, "collect_evidence", tools=scoped.trace, investigation=investigation),
     }
 
@@ -212,7 +247,7 @@ async def judge_node(state: AgentState) -> dict:
     if not state.get("evidence_complete"):
         status, code, message, role = (
             "MANUAL_REVIEW",
-            "MISSING_SOURCE_EVIDENCE",
+            state.get("policy_error") or "MISSING_SOURCE_EVIDENCE",
             "필수 규정 근거를 확인할 수 없어 담당자 검토가 필요합니다.",
             "",
         )
@@ -232,24 +267,34 @@ async def judge_node(state: AgentState) -> dict:
         )
     else:
         # 기존 요청 해석·답변 생성과 분리된 권한 제안에 실제 조회 사실과 RAG 근거를 전달한다.
-        verdict, proposal = await assess_permission(
-            mode=settings.mode,
-            contents=state["job"]["contents"],
-            profile=state["profile"],
-            resource=state["resource"],
-            membership=state["membership"],
-            current=state["current"],
-            budget=state["budget"],
-            requested_role=explicit,
-            evidence=state["evidence"],
-        )
-        # 실행 계획과 결과 큐 형식은 유지하고, 제안과 원문 버전은 내부 상태·이력에 남긴다.
-        policy_details = {
-            "source_hashes": verdict.source_hashes,
-            "sources": list(verdict.source_ids),
-            "evidence_ids": list(verdict.evidence_ids),
-        }
-        status, code, message, role = verdict.status, verdict.code, verdict.message, verdict.role
+        try:
+            verdict, proposal = await assess_permission(
+                mode=settings.mode,
+                contents=state["job"]["contents"],
+                profile=state["profile"],
+                resource=state["resource"],
+                membership=state["membership"],
+                current=state["current"],
+                budget=state["budget"],
+                requested_role=explicit,
+                evidence=state["evidence"],
+            )
+        except ToolFailure as exc:
+            if exc.code not in POLICY_SOURCE_ERRORS:
+                raise
+            # 수집 후 로컬 원문을 읽거나 표를 해석하다 실패해도 승인 계획은 만들지 않는다.
+            status, code, message, role = (
+                "MANUAL_REVIEW", exc.code,
+                "권한 규정 원문을 확인할 수 없어 담당자 검토가 필요합니다.", "",
+            )
+        else:
+            # 실행 계획과 결과 큐 형식은 유지하고, 제안과 원문 버전은 내부 상태·이력에 남긴다.
+            policy_details = {
+                "source_hashes": verdict.source_hashes,
+                "sources": list(verdict.source_ids),
+                "evidence_ids": list(verdict.evidence_ids),
+            }
+            status, code, message, role = verdict.status, verdict.code, verdict.message, verdict.role
     result = outcome(
         state, status, code, message, role, True if code == "ALREADY_HAS_ACCESS" else None
     )

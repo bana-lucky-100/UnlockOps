@@ -49,6 +49,9 @@ gather는 필수 사실·규정을 먼저 조회한 뒤 LLM 선택 조회를 실
 권한 판단 근거는 기존 `data/policy_corpus.md`와 `data/company-a-access-matrix.md`입니다.
 `rules.py`의 `ceiling()`은 회사 권한표 3절의 플랫폼·자원·직무·직급에 해당하는 셀을 직접 읽습니다.
 승인자 기준도 같은 문서의 7절에서 확인합니다. 표를 해석할 수 없으면 권한을 추측하지 않고 차단합니다.
+규정 원문 읽기 실패(`POLICY_SOURCE_UNAVAILABLE`)와 권한표 해석 실패(`INVALID_ACCESS_MATRIX`)는
+근거 수집·권한 판정 단계에서 `MANUAL_REVIEW`로 종료하며 승인 계획을 만들지 않습니다.
+DB·통신·응답 계약 오류는 이 규정 오류 처리에 포함하지 않습니다.
 
 `llm` 모드에서는 judge 안에서 RAG 근거와 실제 직원 정보를 읽어 권한 전용 제안을 받습니다.
 실제 직원 정보와 RAG 청크를 입력하고 `decision`, `requested_role`, `reason`, `evidence_ids`를 반환받습니다.
