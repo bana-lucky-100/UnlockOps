@@ -43,10 +43,18 @@ function fixture(t, post, push = async () => {}) {
     return post(options)
   })
   const api = evaluate(apiSource)
+  let composable
+  function useProblemSubmission() {
+    composable ??= evaluate(readFileSync(new URL('../src/composables/useProblemSubmission.ts', import.meta.url), 'utf8'), {
+      '../api': api, '../problemSubmission': submissions, '../session': { currentUser },
+    })
+    return composable.useProblemSubmission()
+  }
   const router = { replace: async () => {}, push: async path => { navigations.push(path); await push(path) } }
   const view = evaluate(viewScript, {
     vue, 'vue-router': { useRouter: () => router, useRoute: () => ({ query: {} }) },
-    '../api': api, '../problemSubmission': submissions, '../session': { currentUser },
+    '../api': api, '../session': { currentUser },
+    '../composables/useProblemSubmission': { useProblemSubmission },
     '../lib/platforms': platforms, '../lib/status': status,
     '../lib/polling': { usePolling: () => ({ restart() {} }) },
     '../components/AppShell.vue': {}, '../components/RequestList.vue': {},
@@ -57,8 +65,31 @@ function fixture(t, post, push = async () => {}) {
     form.contents.value = `  ${draft}  `
     return form
   }
-  return { mount, currentUser, requests, navigations }
+  return { mount, useProblemSubmission, currentUser, requests, navigations }
 }
+
+test('independent composable callers reuse one pending key without depending on a view', async t => {
+  const f = fixture(t, () => f.requests.length === 1
+    ? Response.json({ message: 'temporary failure' }, { status: 503 })
+    : Response.json(accepted, { status: 202 }))
+  const input = { platform: 'GITHUB', contents: draft, simulateJiraFailure: false }
+  await assert.rejects(f.useProblemSubmission().submitProblem(input), /temporary failure/)
+  assert.deepEqual(await f.useProblemSubmission().submitProblem(input), accepted)
+  const keys = f.requests.map(request => request.headers.get('Idempotency-Key'))
+  assert.ok(keys[0])
+  assert.equal(keys[0], keys[1])
+  assert.deepEqual(f.navigations, [])
+})
+
+test('the composable discards a failed response belonging to a previous user', async t => {
+  const f = fixture(t, () => {
+    f.currentUser.value = { id: 'another-user' }
+    return Response.json({ message: 'previous user failure' }, { status: 503 })
+  })
+  const result = await f.useProblemSubmission().submitProblem({ platform: 'GITHUB', contents: draft, simulateJiraFailure: false })
+  assert.equal(result, null)
+  assert.equal(f.requests.length, 1)
+})
 
 test('requester home sends CSRF and a stable submission key after failure and remount', async t => {
   const f = fixture(t, () => f.requests.length === 1

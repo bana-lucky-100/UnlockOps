@@ -13,7 +13,11 @@ npm test
 npm run build
 ```
 
-접수는 `ProblemSubmission`이 사용자와 전송 본문별 키를 관리하고 `Idempotency-Key` 헤더를 보냅니다.
+접수는 `views/RequesterHome.vue`가 `composables/useProblemSubmission.ts`의 `submitProblem(input)`을 호출합니다.
+composable이 로그인 사용자 범위, `Idempotency-Key` 헤더와 API 호출, 사용자 변경 후 이전 응답·오류 무시를 담당합니다.
+뷰는 폼 입력 검증·전송 표시·성공 후 상세 이동을 담당하며, `App.vue`는 라우터 화면만 표시합니다.
+`problemSubmission.ts`의 `ProblemSubmission`은 사용자와 전송 본문별 키 수명을 관리합니다.
+composable 모듈에서 인스턴스를 공유하므로 화면 이동·재진입에도 페이지 내 키를 유지합니다.
 응답 유실·오류 후 같은 접수를 재시도하면 같은 키를 사용하며, 같은 페이지의 동시 제출은 하나의 POST를 공유합니다.
 수락 응답을 확인하면 키를 정리합니다. 이후 목록 조회 실패는 접수 실패로 되돌리지 않으며, 새 제출·다른 본문에는 새 키를 사용합니다.
 
@@ -23,6 +27,8 @@ npm run build
 Web Crypto를 사용하므로 HTTPS 또는 localhost의 보안 컨텍스트에서 실행합니다.
 
 `npm test`는 Node의 테스트 러너와 TypeScript 타입 제거 기능으로 키 수명·재시도·동시 제출·저장소 오류를 검증합니다.
+회귀 테스트는 기존 Vue/TypeScript 컴파일러로 실제 SFC의 `send()`·접수 composable·API 클라이언트를 실행해
+접수 키·CSRF 헤더, 실패 후 화면 재진입, 수락 후 이동 실패, 사용자 변경을 검증합니다. 라우터·주기 조회·HTTP는 대체하며 브라우저 DOM 테스트는 아닙니다.
 별도 테스트 의존성을 추가하지 않으며 Node 22.12 이상을 사용합니다. backend의 기존 키 없는 클라이언트에는 멱등성이 적용되지 않습니다.
 
 Docker 화면은 localhost:8088, Vite 개발 화면은 localhost:5173입니다.

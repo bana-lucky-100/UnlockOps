@@ -8,9 +8,11 @@ import { PLATFORMS, PLATFORM_ORDER } from '../lib/platforms'
 import { usePolling } from '../lib/polling'
 import { groupOf, needsRefresh, type StatusGroup } from '../lib/status'
 import { currentUser } from '../session'
+import { useProblemSubmission } from '../composables/useProblemSubmission'
 
 const router = useRouter()
 const route = useRoute()
+const { submitProblem } = useProblemSubmission()
 const MAX = 500
 // AI는 적힌 이름으로만 자원을 찾는다(이름이 없거나 모호하면 추측하지 않고 담당자 검토로 넘긴다).
 // 그래서 예시에도 이름 자리를 꼭 넣는다.
@@ -86,7 +88,10 @@ async function send() {
   if (contents.value.trim().length < 2) { formError.value = '증상을 2자 이상 적어 주세요'; return }
   sending.value = true
   try {
-    const created = await api<{ id: string }>('/problems', { method: 'POST', body: JSON.stringify({ platform: selected.value, contents: contents.value.trim() }) })
+    const created = await submitProblem({
+      platform: selected.value, contents: contents.value.trim(), simulateJiraFailure: false,
+    })
+    if (!created) return
     // 보낸 요청의 상세로 바로 간다. 진행 단계가 실시간으로 바뀌는 걸 그 자리에서 볼 수 있다.
     // (홈에 '확인하고 있어요' 안내를 남겨 두면, 끝난 뒤에도 아직 확인 중인 것처럼 보였다.)
     contents.value = ''
