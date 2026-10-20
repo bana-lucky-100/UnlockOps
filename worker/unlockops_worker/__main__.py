@@ -1,3 +1,4 @@
+"""큐 작업을 받아 MCP를 연결하고, 저장된 LangGraph를 실행·재개하는 진입점."""
 from __future__ import annotations
 
 import asyncio
@@ -25,6 +26,7 @@ class DeliveryFailure(RuntimeError):
 
 
 async def main():
+    """큐·체크포인트를 준비하고 분석·실행 작업을 순차 소비하는 워커를 실행한다."""
     if settings.mode not in {"demo", "llm"}: raise RuntimeError("AGENT_MODE must be demo or llm")
     Path(settings.checkpoint_path).parent.mkdir(parents=True, exist_ok=True)
     connection = await aio_pika.connect_robust(settings.rabbit_url) if settings.rabbit_url else await aio_pika.connect_robust(
@@ -44,6 +46,7 @@ async def main():
         lock = asyncio.Lock()  # This SQLite checkpoint worker is intentionally single-flight.
 
         async def publish(job, kind, data):
+            """결과 형식을 검증해 영속 메시지로 발행하고 브로커 확인 실패를 알린다."""
             if "result" in data:
                 data = {**data, "result": Result.model_validate(data["result"]).model_dump(mode="json")}
             body = {"event_id": str(uuid4()), "problem_id": job.problem_id,
@@ -56,12 +59,14 @@ async def main():
                 raise DeliveryFailure("Result publication not confirmed") from None
 
         async def consume(message):
+            """작업의 그래프를 실행·재개하고 결과 발행 확인 뒤 원본 메시지를 승인한다."""
             async with lock:
                 try: job = Job.model_validate_json(message.body)
                 except Exception:
                     await message.reject(requeue=False)
                     return
                 try:
+                    # 같은 요청 ID로 승인 대기 상태와 실행 진행 위치를 다시 찾는다.
                     config = {"configurable": {"thread_id": job.problem_id}, "recursion_limit": 40}
                     async with MCPTools() as tools:
                         graph = build_graph(tools, saver)
@@ -86,7 +91,7 @@ async def main():
                             from unlockops.models import Plan
                             if Plan.model_validate(snapshot.values["plan"]).digest() != job.plan_hash:
                                 raise ToolFailure("PLAN_CHANGED", "Execution job differs from saved plan")
-                            # If a worker died after resuming approval, continue the saved node.
+                            # 승인 대기이면 resume 값을 주고, 이미 재개했다면 저장된 다음 노드를 잇는다.
                             waiting = any(getattr(task, "interrupts", ()) for task in snapshot.tasks)
                             input_value = Command(resume={"approved": True,"plan_hash": job.plan_hash,
                                 "idempotency_key": job.idempotency_key}) if waiting else None
