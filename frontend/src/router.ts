@@ -16,8 +16,6 @@ export const router = createRouter({
     { path: '/requests', component: () => import('./views/MyRequests.vue'), meta: { role: 'REQUESTER' } },
     // 요청자(본인 요청)와 지정 승인자 모두 연다. 누가 볼 수 있는지는 서버가 정한다.
     { path: '/requests/:id', component: () => import('./views/RequestDetail.vue') },
-    // 기존 단일 화면. 새 화면이 모두 옮겨지면 지운다 (#6).
-    { path: '/console', component: () => import('./views/LegacyConsole.vue'), meta: { public: true } },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })

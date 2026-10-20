@@ -9,20 +9,24 @@ export function usePolling(tick: () => Promise<boolean | void>, intervalMs = 250
   let timer: ReturnType<typeof setTimeout> | undefined
   let running = false
   let stopped = false
+  // 조회 중에 restart()가 오면 버리지 않고 기억했다가, 끝나는 즉시 다시 조회한다.
+  let again = false
 
   async function run() {
     if (stopped) return
     if (document.hidden) { schedule(); return }
-    if (running) return
+    if (running) { again = true; return }
     running = true
+    again = false
     try {
       const more = await tick()
-      if (more === false) { stopped = true; return }
+      if (more === false && !again) { stopped = true; return }
     } catch {
       // 일시 오류는 다음 주기에 다시 시도한다. 화면 안내는 tick 쪽에서 한다.
     } finally {
       running = false
     }
+    if (again) { void run(); return }
     schedule()
   }
   function schedule() {

@@ -131,6 +131,8 @@ const help = {
       <p class="ah-hello">안녕하세요, {{ currentUser?.name }}님</p>
       <h1 class="ah-title">
         <template v-if="!loaded">승인함을 불러오고 있어요</template>
+        <!-- 못 불러왔을 때 '기다리는 요청이 없어요'로 보이면 승인자가 할 일이 없다고 오해한다. -->
+        <template v-else-if="loadError && !items.length">승인함을 불러오지 못했어요</template>
         <template v-else-if="pending.length">승인을 기다리는 요청이<br><span>{{ pending.length }}건</span> 있어요</template>
         <template v-else>지금은 기다리는 요청이 없어요</template>
       </h1>

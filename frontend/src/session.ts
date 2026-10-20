@@ -28,10 +28,16 @@ export async function login(loginId: string, password: string): Promise<User> {
   return user
 }
 
+/** 서버 세션이 이미 끝났어도(401 · 403) 화면에서는 반드시 로그아웃되게 한다. */
 export async function logout() {
-  await api('/auth/logout', {method: 'POST'})
-  currentUser.value = null
-  await refreshCsrf()
+  try {
+    await api('/auth/logout', {method: 'POST'})
+  } catch (e) {
+    if (!(e instanceof ApiError && (e.status === 401 || e.status === 403))) throw e
+  } finally {
+    currentUser.value = null
+  }
+  await refreshCsrf().catch(() => {})
 }
 
 /** 역할별 첫 화면: 요청자는 홈, 승인자는 승인함. */

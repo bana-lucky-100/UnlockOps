@@ -22,6 +22,14 @@ export function groupOf(status: Status): StatusGroup {
   return STATUS[status].terminal ? 'finished' : 'progress'
 }
 
+/**
+ * 화면이 계속 다시 불러와야 하는지. 담당자 검토는 서버에선 끝난 상태지만
+ * 담당자가 처리하면 결과가 바뀌므로, 열려 있는 화면은 계속 확인한다(탭이 가려지면 쉰다).
+ */
+export function needsRefresh(status: Status) {
+  return !STATUS[status].terminal || status === 'MANUAL_REVIEW'
+}
+
 export function isTerminal(status: Status) {
   return STATUS[status].terminal
 }

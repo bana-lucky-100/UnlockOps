@@ -5,7 +5,7 @@ import { api, ApiError, type Problem } from '../api'
 import AppShell from '../components/AppShell.vue'
 import RequestList from '../components/RequestList.vue'
 import { usePolling } from '../lib/polling'
-import { groupOf, isTerminal, type StatusGroup } from '../lib/status'
+import { groupOf, needsRefresh, type StatusGroup } from '../lib/status'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,7 +37,7 @@ async function load() {
   } finally {
     loaded.value = true
   }
-  return items.value.some(p => !isTerminal(p.status))
+  return items.value.some(p => needsRefresh(p.status))
 }
 const polling = usePolling(load)
 

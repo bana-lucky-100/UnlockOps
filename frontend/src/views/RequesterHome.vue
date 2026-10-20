@@ -6,7 +6,7 @@ import AppShell from '../components/AppShell.vue'
 import RequestList from '../components/RequestList.vue'
 import { PLATFORMS, PLATFORM_ORDER } from '../lib/platforms'
 import { usePolling } from '../lib/polling'
-import { groupOf, isTerminal, type StatusGroup } from '../lib/status'
+import { groupOf, needsRefresh, type StatusGroup } from '../lib/status'
 import { currentUser } from '../session'
 
 const router = useRouter()
@@ -65,7 +65,7 @@ async function load() {
     loaded.value = true
   }
   // 아직 끝나지 않은 요청이 있을 때만 계속 조회한다.
-  return items.value.some(p => !isTerminal(p.status))
+  return items.value.some(p => needsRefresh(p.status))
 }
 const polling = usePolling(load)
 

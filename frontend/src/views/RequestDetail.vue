@@ -7,20 +7,23 @@ import StageBar from '../components/StageBar.vue'
 import { PLATFORMS } from '../lib/platforms'
 import { usePolling } from '../lib/polling'
 import { aiMessageOf, approverEventsOf, evidenceOf, noticeOf, proposalOf, REJECT_CHIPS, stagesOf, summaryOf } from '../lib/requestView'
-import { isTerminal, STATUS } from '../lib/status'
+import { isTerminal, needsRefresh, STATUS } from '../lib/status'
 import { shortWhen } from '../lib/time'
 import { currentUser } from '../session'
 
 const route = useRoute()
 const id = String(route.params.id)
+// 요청 번호는 UUID다. 다른 값(예: ..%2Fauth%2Fme)이 API 경로로 들어가지 않게 먼저 거른다.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const item = ref<Problem | null>(null)
 const error = ref('')
 const isRequester = computed(() => currentUser.value?.role !== 'APPROVER')
 const back = computed(() => isRequester.value ? '/' : '/approvals')
 
 async function load() {
+  if (!UUID.test(id)) { error.value = '요청을 찾을 수 없어요.'; return false }
   try {
-    item.value = await api<Problem>(`/problems/${id}`)
+    item.value = await api<Problem>(`/problems/${encodeURIComponent(id)}`)
     error.value = ''
   } catch (e) {
     const status = e instanceof ApiError ? e.status : 0
@@ -31,7 +34,7 @@ async function load() {
     if (status === 403 || status === 404) return false
     throw e
   }
-  return !isTerminal(item.value.status)
+  return needsRefresh(item.value.status)
 }
 const polling = usePolling(load)
 
@@ -102,7 +105,7 @@ async function decide(approved: boolean) {
   decideError.value = ''
   try {
     // 승인 카드에 보이는 계획(plan_hash)에 대해서만 결정한다. 그사이 계획이 바뀌면 서버가 409로 막는다.
-    await api(`/problems/${x.id}/decision`, {
+    await api(`/problems/${encodeURIComponent(x.id)}/decision`, {
       method: 'POST',
       body: JSON.stringify({ approved, expectedPlanHash: x.plan_hash, reason: approved ? memo.value.trim() : rejReason.value }),
     })
