@@ -42,6 +42,12 @@ State에는 원본 작업, 해석 결과, 직원 사실, 자원, TF 소속, 현�
 불변 실행 계획, 실행·검증 시도 횟수와 진행 이벤트가 들어갑니다.
 의도에는 사용법 문의·오류 해결·권한 신청을 구분하는 request_type이 있고,
 판정 후 handling에는 ANSWER / APPROVAL / REJECT / MANUAL_REVIEW를 기록합니다.
+judge는 비동기 노드 하나로 동작합니다. 사용법 문의는 권한 제안 없이 ANSWER로 보내고,
+금지 역할·대상 불명확·필수 규정 누락은 먼저 판정합니다. 나머지는 assess_permission에서
+현재 원문과 RAG 근거를 확인하고, LLM 모드에서는 권한 제안을 받은 뒤 rules.evaluate로
+실제 자격·원문 상한·승인 조건을 검증합니다. 이미 필요한 권한이 있으면 재부여 대신 ANSWER로 연결합니다.
+permission_proposal은 내부 권한 검토안이고 result.proposal은 사용자 안내 문구입니다.
+judge 이벤트에는 handling과 함께 권한 검토안·근거 ID·원문 해시를 보존합니다.
 prepare_response는 조회·LLM 호출 없이 사실·판정·문서·작성 기준을 묶고 별도 response_context에 저장합니다.
 현재 권한·상한·직무·직급과 자원별 조건을 포함하고, 미확인은 null로 유지합니다.
 예산은 충족 여부만 전달하고 직원 ID·승인자 ID·실행 키는 답변 입력에서 제외합니다.

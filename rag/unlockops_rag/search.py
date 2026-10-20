@@ -16,6 +16,10 @@ import re
 import httpx
 
 
+class DocumentFormatError(ValueError):
+    """원문에서 규정 청크를 구성할 수 없을 때 설정·통신 오류와 구분한다."""
+
+
 @dataclass(frozen=True)
 class Chunk:
     chunk_id: str
@@ -86,7 +90,7 @@ class DocumentIndex:
                     self._add(Chunk(f"{doc_id}:{i}", doc_id, "section " + match.group(1),
                                     "COMMON", "draft-2026-10-20", path.name, digest, block))
         if not self.chunks:
-            raise ValueError(f"No source chunks found in {path.name}")
+            raise DocumentFormatError(f"No source chunks found in {path.name}")
         counts = [features(c.text) for c in self.chunks]
         document_frequency = Counter(t for counter in counts for t in counter)
         self.idf = {t: math.log((1 + len(counts)) / (1 + n)) + 1 for t, n in document_frequency.items()}
