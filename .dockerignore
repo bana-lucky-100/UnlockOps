@@ -1,0 +1,74 @@
+# Root build context: infra/python.Dockerfile (agent / rag / mcp / worker).
+# Service contexts have their own frontend/backend .dockerignore files.
+.git
+**/.git
+.github
+.vscode
+.idea
+**/.DS_Store
+
+# Local credentials and environment files are injected at runtime.
+.env
+.env.*
+**/.env
+**/.env.*
+secrets
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.jks
+**/*.keystore
+**/application-local.*
+**/application-secret.*
+
+# Installed dependencies, downloaded artifacts and generated packages.
+.cache
+**/.cache
+**/.venv
+**/venv
+**/.uv-cache
+**/.m2
+**/.gradle
+**/node_modules
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+**/.eggs
+**/build
+**/target
+**/dist
+**/dist-ssr
+**/.vite
+**/.vite-temp
+
+# Local test output and logs.
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+**/.coverage.*
+**/coverage
+**/htmlcov
+**/test-results
+**/playwright-report
+**/logs
+**/*.log
+
+# Runtime data must not enter an image layer. Keep original policy documents.
+runtime
+state
+checkpoints.sqlite
+checkpoints.sqlite-*
+data/cache
+data/checkpoints
+data/runtime
+data/indexes
+data/embeddings
+data/vectorstore
+data/models
+data/private
+data/uploads
+infra/volumes
+infra/runtime
+infra/.data
