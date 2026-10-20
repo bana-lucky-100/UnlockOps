@@ -1,101 +1,84 @@
 # UnlockOps
 
-AI가 서비스 접근 문제를 진단하고, 담당자 승인 후 필요한 권한 부여를 돕는 서비스입니다.
+서비스 접근 문제를 진단하고, 지정 승인자의 승인 후 모의 SaaS에 권한을 부여하는 프로젝트입니다.
+바탕화면 `mcp_project 2`의 코드를 기존 팀별 폴더 구조로 이식했습니다. 원본 폴더는 수정하지 않았습니다.
 
-## 1. 현재 상태
+## 현재 구현 범위
 
-팀별 폴더, 기본 협업 설정, 이슈·PR 템플릿과 기본 CI 파일을 준비한 초기 레포지토리입니다. 서비스 코드, 패키지 설정, DB·큐 실행 환경과 전체 실행 명령은 아직 추가하지 않았습니다.
+- Vue 3 → Spring Boot → RabbitMQ → LangGraph worker → Policy MCP / Business MCP로 처리합니다.
+- 한 요청은 한 플랫폼·한 자원만 처리합니다. S1-a~d는 독립 요청이며 S1 통합 승인 카드는 아직 없습니다.
+- 정보 부족·복수 자원은 `MANUAL_REVIEW`, 예산 부족은 `REJECTED / BUDGET_INSUFFICIENT`로 종료합니다.
+- 지정 승인자·계획 해시 검증, 승인 대기 체크포인트, 실행 키 기반 중복 방지, 부여 후 재조회를 유지합니다.
+- Jira 실패 시 최초 실행을 포함해 총 3회 시도합니다. 여러 플랫폼의 부분 성공 처리는 아직 없습니다.
+- 기본 `AGENT_MODE=demo`는 규칙 기반이며 유료 모델을 호출하지 않습니다. LLM 도구 선택은 `llm` 모드에서 동작합니다.
+- 두 개의 독립 Agent가 구현된 상태는 아닙니다. 현재는 해석·조회·판정·승인·실행·검증을 연결한 하나의 그래프입니다.
 
-서비스 프로젝트를 초기화할 때 해당 폴더의 README에 설치·실행·테스트 방법을 추가합니다.
+## 폴더와 코드 위치
 
-## 2. 기술 구성
-
-| 영역 | 사용 계획 | 확정이 필요한 항목 |
-| --- | --- | --- |
-| Frontend | Vue, Vite | Node 버전, 패키지 관리 도구 |
-| Backend | Spring Boot, Java | JDK·Spring Boot 버전, Gradle 또는 Maven, 업무 DB |
-| Agent | Python, LangChain, LangGraph | Python 버전, 패키지 관리 도구, LLM·임베딩 모델 |
-| RAG | 문서 정제·색인·검색 | 문서 형식, 임베딩·벡터 저장소 |
-| MCP | business MCP, rag MCP | 서버 구현 방식과 전송 방식 |
-| 비동기 실행 | RabbitMQ, Python worker | 메시지 계약, 재시도·중복 처리 기준 |
-| 개발 환경 | Docker Compose | 서비스 구성, 포트, 볼륨 |
-
-버전과 실행 도구는 담당 팀 합의 후 서비스별 설정 파일과 README에 명시합니다. 현재 `.env.example`의 주소와 포트는 제안값이며 확정된 연동 계약이 아닙니다.
-
-## 3. 폴더별 역할
-
-| 폴더 | 역할 |
+| 폴더 | 구현 내용 |
 | --- | --- |
-| [frontend](frontend/README.md) | Vue 사용자 화면 |
-| [backend](backend/README.md) | 인증·업무 API·승인 상태·DB 관리 |
-| [agent](agent/README.md) | 두 Agent, LangGraph, 프롬프트·상태 관리 |
-| [rag](rag/README.md) | 문서 정제·색인·검색 구현 |
-| [mcp](mcp/README.md) | 업무·검색 기능을 제공하는 MCP 서버 |
-| [worker](worker/README.md) | RabbitMQ 작업 소비·실행·재시도 |
-| [data](data/README.md) | 데모 정책·샘플 데이터·문서 출처 |
-| [infra](infra/README.md) | RabbitMQ 등 공통 실행 환경 |
-| [docs](docs/README.md) | API·MCP·이벤트 계약, 설계·실행 안내 |
-| [tests](tests/README.md) | 서비스 간 통합·시나리오 검증 |
-| [.github](.github/README.md) | 이슈·PR 템플릿과 GitHub 자동화 |
+| [agent](agent/README.md) | `unlockops`: 그래프, 의도 해석, MCP 클라이언트, 상태 모델, 정책 판정, 공통 설정 |
+| [rag](rag/README.md) | `unlockops_rag`: 문서 청킹, TF-IDF/선택적 임베딩 검색, 원문 조항 조회 |
+| [mcp](mcp/README.md) | `unlockops_mcp`: Policy/Business MCP, 토큰 인증, 모의 SaaS DB 저장소 |
+| [worker](worker/README.md) | `unlockops_worker`: RabbitMQ 소비·결과 발행, 체크포인트 재개 |
+| [backend](backend/README.md) | Java 21 / Spring Boot 3.5.7 / Maven, 인증·승인·업무 DB·outbox/inbox |
+| [frontend](frontend/README.md) | Vue 3 / Vite / TypeScript, 접수·본인 조회·승인 카드·부서 요약 |
+| [data](data/README.md) | 정책 원문, 회사 접근 권한표; 생성 체크포인트는 Git 제외 |
+| [infra](infra/README.md) | 공통 Python Dockerfile, 로컬 디버깅용 Compose override |
+| [docs](docs/README.md) | 아키텍처, 상태·메시지 계약, 실행·검증 안내 |
+| [tests](tests/README.md) | 실행 중인 전체 스택을 대상으로 하는 선택적 통합 테스트 |
 
-업무 규칙과 승인 상태의 최종 검증은 backend에서, 문서 검색 구현은 rag에서 관리합니다. MCP는 이 기능들을 도구로 제공하며, worker는 승인된 작업의 비동기 실행 흐름을 담당합니다.
+Python 의존성은 루트 `pyproject.toml`과 `uv.lock`으로 함께 관리합니다.
+폴더 이름 `mcp/`와 SDK 패키지 `mcp`가 충돌하지 않도록 실제 프로젝트 패키지는 `unlockops_mcp`입니다.
 
-## 4. 개발 준비
+## 전체 서비스 실행
 
-1. 레포지토리를 받은 뒤 [협업 안내](CONTRIBUTING.md)를 확인합니다.
-2. 편집기에서 EditorConfig 지원을 활성화합니다. 필요하면 확장을 설치합니다.
-3. 레포 루트에서 환경변수 예시를 복사합니다.
+Docker Desktop을 실행한 뒤 루트에서 실행합니다.
 
 ```sh
 cp .env.example .env
+docker compose up --build
 ```
 
-Windows PowerShell에서는 다음 명령을 사용합니다.
+화면: <http://localhost:8088>, RabbitMQ 관리: <http://localhost:15672>.
+데모 비밀번호는 `.env`의 `DEMO_PASSWORD`입니다.
+`kim_dev`는 신청자, `park_lead`는 결제 TF 승인자, `yoon_head`는 개발팀 부서장,
+`song_ops`는 전체 이력 조회 담당자입니다. `song_ops`가 지정 승인자를 대신할 수는 없습니다.
 
-```powershell
-Copy-Item .env.example .env
+중단은 `docker compose stop`입니다. DB·체크포인트 볼륨은 유지됩니다.
+
+## 로컬 개발과 에이전트 디버깅
+
+Python 3.11, uv, Node 22.12 이상, Java 21, Maven을 사용합니다.
+
+```sh
+uv --cache-dir .cache/uv sync --extra test
+.venv/bin/python -m pytest -q
 ```
 
-4. 작업할 서비스에 필요한 값만 채웁니다. API 키와 비밀번호는 실제 사용 시 개인 `.env`에 입력합니다.
-5. 서비스 초기화 후 해당 폴더의 README를 따라 의존성을 설치하고 실행합니다.
+가상환경 설치 후 아래 세 명령을 각각 별도 터미널에서 실행합니다.
+DB·RabbitMQ·backend 준비와 VS Code F5 순서는 [디버깅 안내](docs/debugging.md)를 참고하세요.
 
-현재는 앱 실행이나 `docker compose up`을 위한 설정이 없습니다. 서비스 초기화와 `compose.yaml` 추가 후 이 절차에 실제 실행 명령을 연결합니다.
+```sh
+.venv/bin/python -m unlockops_mcp.policy
+.venv/bin/python -m unlockops_mcp.business
+.venv/bin/python -m unlockops_worker
+```
 
-## 5. 환경변수 관리
+Policy MCP는 8001, Business MCP는 8002를 사용합니다.
+VS Code에서는 `.venv` 인터프리터를 선택하고 제공된 디버그 구성을 실행합니다.
+Windows에서는 `.venv/bin/python` 대신 `.venv/Scripts/python.exe`를 사용합니다.
 
-[.env.example](.env.example)은 공통·Frontend·Backend·인증·DB·RabbitMQ·LLM·LangSmith·MCP·RAG 항목으로 나뉩니다. DB와 인증 방식 등 미정인 설정은 주석으로 예시를 남겼습니다.
+## 설정과 책임 경계
 
-| 대상 | 적용 방법 |
-| --- | --- |
-| Vue / Vite | 프로젝트 초기화 후 `frontend/.env.local`에 필요한 `VITE_*` 값만 복사합니다. 이 값은 브라우저에 공개됩니다. |
-| Spring Boot | 실행 프로세스에 환경변수를 전달합니다. 표준 `SERVER_PORT`, `SPRING_*` 값 외에 프로젝트 공통 변수는 별도 설정 연결이 필요합니다. |
-| Python 서비스 | 실행 환경변수 또는 경로를 지정한 dotenv 로딩을 구현합니다. |
-| Docker Compose | 파일 추가 시 환경변수 치환과 컨테이너의 `environment` 또는 `env_file` 전달을 설정합니다. |
+Python은 루트 `.env`를 로드하되 프로세스에 이미 설정된 환경변수를 우선합니다.
+상대 데이터·체크포인트 경로는 프로젝트 루트 기준이며, Compose는 컨테이너 전용 주소를 전달합니다.
+Spring을 직접 실행할 때는 VS Code의 `envFile` 또는 환경변수 전달이 필요합니다.
+API 키가 필요한 모드는 사용자가 명시적으로 활성화해야 하며 demo 모드는 외부 모델을 호출하지 않습니다.
 
-루트 `.env`는 각 서비스에 자동 적용되지 않습니다. 환경변수 로딩 방식은 서비스 초기화 시 README에 기록합니다.
+현재 이식 버전의 Business MCP는 backend API를 경유하지 않고 동일 PostgreSQL의 모의 SaaS 테이블을 사용합니다.
+Spring이 승인·요청 상태를 관리하고 Business MCP가 실행 직전 DB 승인·계획·자격을 재검증합니다.
+이는 초기 폴더 README에 계획했던 backend API 경유 방식과 다르며 이번 이식에서는 원본 동작을 유지했습니다.
 
-- `localhost` 예시는 호스트에서 서비스를 실행하는 상황을 기준으로 합니다. 컨테이너 간 통신은 Compose 서비스 이름을 사용하도록 설정합니다.
-- RAG 경로 예시는 레포 루트 기준입니다. 구현에서 루트 경로를 명시적으로 해석하거나 개인 `.env`에 절대경로를 입력합니다.
-- Python worker의 `RABBITMQ_URL`과 Spring RabbitMQ 설정은 같은 브로커·계정·vhost를 가리키도록 맞춥니다.
-- 원본 문서와 데모 데이터는 추적하고, 생성된 색인·임베딩·모델 캐시는 `.gitignore`에 지정된 폴더에 저장합니다.
-
-## 6. 공통 설정 수정 위치
-
-| 파일 | 관리하는 내용 |
-| --- | --- |
-| [.editorconfig](.editorconfig) | 인코딩, 들여쓰기, 파일 저장 형식 |
-| [.gitattributes](.gitattributes) | Git 줄바꿈 정규화, 바이너리 비교 방식 |
-| [.env.example](.env.example) | 필요한 환경변수 이름과 예시 |
-| [.gitignore](.gitignore) | 비밀 설정·캐시·빌드·로컬 데이터 제외 |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 협업 참여 안내와 공통 설정 확인 |
-| [Git 컨벤션](docs/git-convention.md) | 브랜치·커밋·이슈·PR·리뷰·병합 규칙 |
-| [GitHub CI 안내](docs/github-ci.md) | 기본 검사 실행·main 보호 설정·서비스별 CI 확장 |
-
-이슈 템플릿, PR 템플릿과 작성자 자동 담당자 지정은 기본 브랜치에 반영한 후 사용할 수 있습니다. 자동 담당자 지정에는 GitHub Actions 실행이 필요합니다.
-
-## 7. 서비스 초기화 시 추가할 내용
-
-- 각 서비스의 버전, 패키지 관리 도구와 설치·실행·테스트 명령
-- 전체 실행을 위한 `compose.yaml`과 서비스 상태 확인 방법
-- `docs/contracts/` 아래 API·MCP·이벤트 계약
-- 실제 서비스가 준비된 뒤 빌드·테스트·코드 검사 자동화
+실행 결과는 [검증 안내](docs/verification.md), 공통 계약은 [계약 문서](docs/contracts/README.md)를 참고하세요.
+협업 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md)와 [Git 컨벤션](docs/git-convention.md)을 따릅니다.

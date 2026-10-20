@@ -1,0 +1,26 @@
+# Backend build context: retain pom.xml, src and any Maven wrapper files.
+.git
+.idea
+.vscode
+.DS_Store
+.env
+.env.*
+**/.env
+**/.env.*
+secrets
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.jks
+**/*.keystore
+**/application-local.*
+**/application-secret.*
+.cache
+.m2
+.gradle
+target
+build
+out
+logs
+**/*.log

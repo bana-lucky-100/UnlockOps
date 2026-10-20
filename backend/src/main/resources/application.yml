@@ -1,0 +1,36 @@
+server:
+  port: 8080
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        http-only: true
+        same-site: lax
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/${POSTGRES_DB:unlockops}}
+    username: ${DB_USER:${POSTGRES_USER:unlockops}}
+    password: ${DB_PASSWORD:${POSTGRES_PASSWORD:unlockops-local-only}}
+  flyway:
+    enabled: true
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    username: ${RABBIT_USER:${RABBITMQ_USER:unlockops}}
+    password: ${RABBIT_PASSWORD:${RABBITMQ_PASSWORD:unlockops-local-only}}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        concurrency: 1
+        prefetch: 1
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000ms
+          multiplier: 2
+app:
+  demo-enabled: ${DEMO_ENABLED:false}
+  demo-password: ${DEMO_PASSWORD:}

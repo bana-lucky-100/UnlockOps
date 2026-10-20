@@ -1,0 +1,27 @@
+# Frontend build context: retain source, package.json and package-lock.json.
+.git
+.idea
+.vscode
+.DS_Store
+.env
+.env.*
+**/.env
+**/.env.*
+secrets
+**/*.pem
+**/*.key
+.cache
+.npm
+.pnpm-store
+node_modules
+dist
+dist-ssr
+.vite
+.vite-temp
+**/*.tsbuildinfo
+coverage
+.nyc_output
+test-results
+playwright-report
+logs
+**/*.log

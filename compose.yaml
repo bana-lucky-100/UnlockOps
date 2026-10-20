@@ -1,0 +1,107 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-unlockops}
+      POSTGRES_USER: ${POSTGRES_USER:-unlockops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-unlockops-local-only}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-unlockops}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-unlockops-local-only}
+    ports:
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbit-data:/var/lib/rabbitmq
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  backend:
+    build: ./backend
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-unlockops}
+      DB_USER: ${POSTGRES_USER:-unlockops}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-unlockops-local-only}
+      RABBIT_HOST: rabbitmq
+      RABBIT_USER: ${RABBITMQ_USER:-unlockops}
+      RABBIT_PASSWORD: ${RABBITMQ_PASSWORD:-unlockops-local-only}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-demo1234}
+      DEMO_ENABLED: "true"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    healthcheck:
+      test: [CMD-SHELL, 'wget -q -O /dev/null http://localhost:8080/api/health']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  policy-mcp:
+    build: {context: ., dockerfile: infra/python.Dockerfile}
+    command: [python, -m, unlockops_mcp.policy]
+    environment:
+      MCP_TOKEN: ${MCP_TOKEN:-replace-this-local-mcp-token}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+    volumes:
+      - ./data:/app/data:ro
+  business-mcp:
+    build: {context: ., dockerfile: infra/python.Dockerfile}
+    command: [python, -m, unlockops_mcp.business]
+    environment:
+      DB_HOST: postgres
+      DB_NAME: ${POSTGRES_DB:-unlockops}
+      DB_USER: ${POSTGRES_USER:-unlockops}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-unlockops-local-only}
+      MCP_TOKEN: ${MCP_TOKEN:-replace-this-local-mcp-token}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+    volumes:
+      - ./data:/app/data:ro
+    depends_on:
+      backend: {condition: service_healthy}
+  agent:
+    build: {context: ., dockerfile: infra/python.Dockerfile}
+    command: [python, -m, unlockops_worker]
+    environment:
+      RABBIT_HOST: rabbitmq
+      RABBIT_USER: ${RABBITMQ_USER:-unlockops}
+      RABBIT_PASSWORD: ${RABBITMQ_PASSWORD:-unlockops-local-only}
+      POLICY_MCP_URL: http://policy-mcp:8000/mcp
+      BUSINESS_MCP_URL: http://business-mcp:8000/mcp
+      MCP_TOKEN: ${MCP_TOKEN:-replace-this-local-mcp-token}
+      AGENT_MODE: ${AGENT_MODE:-demo}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_MODEL: ${LLM_MODEL:-}
+      CHECKPOINT_PATH: /state/checkpoints.sqlite
+    volumes:
+      - agent-state:/state
+    depends_on:
+      backend: {condition: service_healthy}
+      policy-mcp: {condition: service_healthy}
+      business-mcp: {condition: service_healthy}
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8088:80"
+    depends_on:
+      backend: {condition: service_healthy}
+volumes:
+  postgres-data:
+  rabbit-data:
+  agent-state:
