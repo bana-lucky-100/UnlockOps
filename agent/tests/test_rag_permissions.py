@@ -162,5 +162,3 @@ def test_current_permissions_are_compared_only_within_the_resource_role_family()
     assert rules.role_satisfies(RESOURCE, "Write", "Read") is True
     assert rules.role_satisfies(RESOURCE, "Developer", "Read") is False
     assert rules.role_satisfies({"platform": "GITHUB", "access_scope": "SEAT"}, "Read", "Seat") is False
-
-
