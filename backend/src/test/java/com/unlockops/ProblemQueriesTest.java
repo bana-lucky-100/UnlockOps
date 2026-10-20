@@ -1,10 +1,17 @@
 package com.unlockops;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.unlockops.approval.repository.ApprovalRepository;
+import com.unlockops.approval.service.ApprovalService;
+import com.unlockops.auth.model.*;
+import com.unlockops.grant.service.GrantPolicy;
+import com.unlockops.messaging.service.JobService;
+import com.unlockops.problem.repository.*;
+import com.unlockops.problem.service.ProblemService;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import static org.junit.jupiter.api.Assertions.*;
@@ -12,57 +19,69 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class ProblemQueriesTest {
-    JdbcTemplate jdbc;
-    GrantRules rules;
+    ProblemRepository problems;
+    ProblemEventRepository events;
+    ApprovalRepository approvals;
+    GrantPolicy policy;
     ProblemService service;
-    UUID requester=UUID.randomUUID(),approver=UUID.randomUUID(),id=UUID.randomUUID();
-    Map<String,Object> row;
+    UUID requester = UUID.randomUUID(), approver = UUID.randomUUID(), id = UUID.randomUUID();
+    ObjectNode row;
+
     @BeforeEach void setup() {
-        jdbc=mock(JdbcTemplate.class); rules=mock(GrantRules.class);
-        service=new ProblemService(jdbc,new Jsons(new ObjectMapper()),rules,true);
-        row=new HashMap<>(); row.put("id",id); row.put("requester_id",requester); row.put("approver_id",approver);
-        row.put("status","WAITING_APPROVAL"); row.put("evidence_json","[\"private-source\"]");
-        row.put("plan_json","{\"resource_key\":\"payment-core\"}"); row.put("plan_hash","private-hash");
-        when(jdbc.queryForList(contains("p.*"),eq(id))).thenReturn(List.of(row));
-        when(jdbc.queryForList(contains("FROM problem_events"),eq(id))).thenReturn(List.of());
+        problems = mock(ProblemRepository.class);
+        events = mock(ProblemEventRepository.class);
+        approvals = mock(ApprovalRepository.class);
+        policy = mock(GrantPolicy.class);
+        service = new ProblemService(problems, events, mock(JobService.class), ProblemFixtures.JSON, policy, true);
+        row = ProblemFixtures.row(id, requester, approver);
+        when(problems.find(id)).thenAnswer(invocation -> Optional.of(ProblemFixtures.problem(row)));
+        when(events.findByProblem(id)).thenReturn(List.of());
     }
-    AppUser actor(UUID user,String role) { return new AppUser(user,"actor","hash",role); }
+
+    AppUser actor(UUID user, UserRole role) { return new AppUser(user, "actor", "hash", role); }
+    JsonNode detail(AppUser user) { return ProblemFixtures.MAPPER.valueToTree(service.detail(user, id)); }
 
     @Test void requesterReadsOwnRequestWithoutApproverPrivileges() {
-        var result=service.detail(actor(requester,"REQUESTER"),id);
-        assertEquals(id,result.get("id"));
-        assertFalse(result.containsKey("evidence_json")); assertFalse(result.containsKey("plan_hash"));
-        assertEquals(List.of(),result.get("events"));
-        verify(rules,never()).requireApprover(any());
+        var result = detail(actor(requester, UserRole.REQUESTER));
+        assertEquals(id.toString(), result.path("id").asText());
+        assertFalse(result.has("evidence"));
+        assertFalse(result.has("plan_hash"));
+        assertTrue(result.path("events").isEmpty());
+        verify(policy, never()).requireApprover(any());
     }
+
     @Test void anotherApproverCannotReadAnUnassignedRequest() {
-        var error=assertThrows(ResponseStatusException.class,
-            ()->service.detail(actor(UUID.randomUUID(),"APPROVER"),id));
-        assertEquals(403,error.getStatusCode().value());
+        var error = assertThrows(ResponseStatusException.class, () -> detail(actor(UUID.randomUUID(), UserRole.APPROVER)));
+        assertEquals(403, error.getStatusCode().value());
     }
+
     @Test void assignedApproverRetainsEvidenceAndPlanHash() {
-        var result=service.detail(actor(approver,"APPROVER"),id);
-        assertEquals(List.of("private-source"),result.get("evidence"));
-        assertEquals("private-hash",result.get("plan_hash"));
+        var result = detail(actor(approver, UserRole.APPROVER));
+        assertEquals("private-source", result.path("evidence").get(0).asText());
+        assertEquals("private-hash", result.path("plan_hash").asText());
     }
+
     @Test void mineAlwaysFiltersUsingTheAuthenticatedUser() {
-        when(jdbc.queryForList(contains("WHERE p.requester_id=?"),eq(requester))).thenReturn(List.of(row));
-        var result=service.list(actor(requester,"REQUESTER"),true);
-        assertEquals(1,result.size()); assertFalse(result.getFirst().containsKey("plan_hash"));
-        verify(jdbc).queryForList(contains("WHERE p.requester_id=?"),eq(requester));
-        verify(rules,never()).requireApprover(any());
+        when(problems.findMine(requester)).thenReturn(List.of(ProblemFixtures.problem(row)));
+        var result = service.list(actor(requester, UserRole.REQUESTER), true);
+        assertEquals(1, result.size());
+        assertFalse(ProblemFixtures.MAPPER.valueToTree(result.getFirst()).has("plan_hash"));
+        verify(problems).findMine(requester);
+        verify(policy, never()).requireApprover(any());
     }
+
     @Test void requesterCannotReadOthersEvenWhenTheyKnowTheId() {
-        var user=actor(UUID.randomUUID(),"REQUESTER");
-        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN)).when(rules).requireApprover(user);
-        var error=assertThrows(ResponseStatusException.class,()->service.detail(user,id));
-        assertEquals(403,error.getStatusCode().value());
-        verify(jdbc,never()).queryForList(contains("FROM problem_events"),any(UUID.class));
+        var user = actor(UUID.randomUUID(), UserRole.REQUESTER);
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN)).when(policy).requireApprover(user);
+        var error = assertThrows(ResponseStatusException.class, () -> detail(user));
+        assertEquals(403, error.getStatusCode().value());
+        verifyNoInteractions(events);
     }
+
     @Test void summaryRequiresApproverBeforeReadingDepartmentData() {
-        var user=actor(requester,"REQUESTER");
-        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN)).when(rules).requireApprover(user);
-        assertThrows(ResponseStatusException.class,()->service.approvalSummary(user));
-        verifyNoInteractions(jdbc);
+        var user = actor(requester, UserRole.REQUESTER);
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN)).when(policy).requireApprover(user);
+        assertThrows(ResponseStatusException.class, () -> new ApprovalService(approvals, policy).summary(user));
+        verifyNoInteractions(approvals);
     }
 }

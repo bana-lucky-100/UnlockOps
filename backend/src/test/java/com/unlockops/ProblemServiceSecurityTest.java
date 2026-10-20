@@ -1,67 +1,87 @@
 package com.unlockops;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.unlockops.auth.model.*;
+import com.unlockops.grant.model.GrantPlan;
+import com.unlockops.grant.service.GrantPolicy;
+import com.unlockops.messaging.model.JobType;
+import com.unlockops.messaging.repository.OutboxRepository;
+import com.unlockops.messaging.service.JobService;
+import com.unlockops.problem.dto.ProblemRequests.Decision;
+import com.unlockops.problem.model.*;
+import com.unlockops.problem.repository.*;
+import com.unlockops.problem.service.ProblemService;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class ProblemServiceSecurityTest {
-    JdbcTemplate jdbc;
-    GrantRules rules;
-    Jsons json;
+    ProblemRepository problems;
+    ProblemEventRepository events;
+    OutboxRepository outbox;
+    GrantPolicy policy;
     ProblemService service;
-    UUID id=UUID.randomUUID(),requester=UUID.randomUUID(),approver=UUID.randomUUID();
-    Map<String,Object> row;
+    UUID id = UUID.randomUUID(), requester = UUID.randomUUID(), approver = UUID.randomUUID();
+    ObjectNode row;
     String hash;
+
     @BeforeEach void setup() {
-        jdbc=mock(JdbcTemplate.class); rules=mock(GrantRules.class); json=new Jsons(new ObjectMapper());
-        service=new ProblemService(jdbc,json,rules,true);
-        Map<String,Object> plan=new HashMap<>();
-        plan.put("problem_id",id.toString()); plan.put("requester_id",requester.toString());
-        plan.put("platform","GITHUB"); plan.put("resource_id",UUID.randomUUID().toString());
-        plan.put("resource_key","payment-core"); plan.put("requested_role","Write");
-        hash=json.planHash(plan);
-        row=new HashMap<>(); row.put("id",id); row.put("requester_id",requester); row.put("approver_id",approver);
-        row.put("status","WAITING_APPROVAL"); row.put("plan_hash",hash); row.put("plan_json",json.write(plan));
-        row.put("platform","GITHUB"); row.put("contents","payment-core push가 안 됩니다");
-        when(jdbc.queryForList(contains("FOR UPDATE"),eq(id))).thenReturn(List.of(row));
-        when(rules.validatePlan(anyMap(),anyMap())).thenReturn(approver);
+        problems = mock(ProblemRepository.class);
+        events = mock(ProblemEventRepository.class);
+        outbox = mock(OutboxRepository.class);
+        policy = mock(GrantPolicy.class);
+        service = new ProblemService(problems, events, new JobService(outbox), ProblemFixtures.JSON, policy, true);
+        row = ProblemFixtures.row(id, requester, approver);
+        hash = ProblemFixtures.JSON.planHash(ProblemFixtures.problem(row).plan());
+        row.put("plan_hash", hash);
+        when(problems.lock(id)).thenAnswer(invocation -> Optional.of(ProblemFixtures.problem(row)));
+        when(policy.validatePlan(any(Problem.class), any(GrantPlan.class))).thenReturn(approver);
     }
-    AppUser actor(UUID actor) { return new AppUser(actor,"reviewer","hash","APPROVER"); }
+
+    AppUser actor(UUID user) { return new AppUser(user, "reviewer", "hash", UserRole.APPROVER); }
+    void assertNoWrites() {
+        verify(problems, never()).decide(any(), any());
+        verifyNoInteractions(events, outbox);
+    }
 
     @Test void anotherApproverCannotExecuteDesignatedPlan() {
-        var error=assertThrows(ResponseStatusException.class,()->service.decide(actor(UUID.randomUUID()),id,true,hash,""));
-        assertEquals(403,error.getStatusCode().value());
-        verify(jdbc,never()).update(anyString(),any(Object[].class));
+        var error = assertThrows(ResponseStatusException.class,
+            () -> service.decide(actor(UUID.randomUUID()), id, new Decision(true, hash, "")));
+        assertEquals(403, error.getStatusCode().value());
+        assertNoWrites();
     }
+
     @Test void requesterCannotApproveTheirOwnPlanEvenIfAssigned() {
-        row.put("approver_id",requester);
-        assertThrows(ResponseStatusException.class,()->service.decide(actor(requester),id,true,hash,""));
-        verify(jdbc,never()).update(anyString(),any(Object[].class));
+        row.put("approver_id", requester.toString());
+        assertThrows(ResponseStatusException.class, () -> service.decide(actor(requester), id, new Decision(true, hash, "")));
+        assertNoWrites();
     }
+
     @Test void changedCardCannotBeApproved() {
-        assertThrows(ResponseStatusException.class,()->service.decide(actor(approver),id,true,"0".repeat(64),""));
-        verify(rules,never()).validatePlan(anyMap(),anyMap());
-        verify(jdbc,never()).update(anyString(),any(Object[].class));
+        assertThrows(ResponseStatusException.class, () -> service.decide(actor(approver), id, new Decision(true, "0".repeat(64), "")));
+        verify(policy, never()).validatePlan(any(), any());
+        assertNoWrites();
     }
+
     @Test void duplicateDecisionCannotEnqueueAnotherExecution() {
-        row.put("status","EXECUTING");
-        assertThrows(ResponseStatusException.class,()->service.decide(actor(approver),id,true,hash,""));
-        verify(jdbc,never()).update(anyString(),any(Object[].class));
+        row.put("status", "EXECUTING");
+        assertThrows(ResponseStatusException.class, () -> service.decide(actor(approver), id, new Decision(true, hash, "")));
+        assertNoWrites();
     }
+
     @Test void rejectionRequiresAReason() {
-        assertThrows(ResponseStatusException.class,()->service.decide(actor(approver),id,false,hash,""));
-        verify(jdbc,never()).update(anyString(),any(Object[].class));
+        assertThrows(ResponseStatusException.class, () -> service.decide(actor(approver), id, new Decision(false, hash, "")));
+        assertNoWrites();
     }
+
     @Test void validApprovalCreatesOneOutboxExecution() {
-        var result=service.decide(actor(approver),id,true,hash,"업무상 필요 확인");
-        assertEquals("EXECUTING",result.get("status"));
-        verify(jdbc,times(1)).update(eq("INSERT INTO outbox(event_id,routing_key,payload) VALUES (?,?,?::jsonb)"),
-            any(UUID.class),eq("execution"),anyString());
+        var result = service.decide(actor(approver), id, new Decision(true, hash, "업무상 필요 확인"));
+        assertEquals(ProblemStatus.EXECUTING, result.status());
+        verify(outbox, times(1)).enqueue(argThat(job -> job.jobType() == JobType.EXECUTE &&
+            job.problemId().equals(id) && job.planHash().equals(hash) && job.idempotencyKey().equals(id + ":" + hash)));
     }
 }
