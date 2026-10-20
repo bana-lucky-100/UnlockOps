@@ -6,7 +6,7 @@ import AppShell from '../components/AppShell.vue'
 import StageBar from '../components/StageBar.vue'
 import { PLATFORMS } from '../lib/platforms'
 import { usePolling } from '../lib/polling'
-import { aiMessageOf, noticeOf, proposalOf, stagesOf, summaryOf } from '../lib/requestView'
+import { aiMessageOf, approverEventsOf, evidenceOf, noticeOf, proposalOf, REJECT_CHIPS, stagesOf, summaryOf } from '../lib/requestView'
 import { isTerminal, STATUS } from '../lib/status'
 import { shortWhen } from '../lib/time'
 import { currentUser } from '../session'
@@ -33,19 +33,27 @@ async function load() {
   }
   return !isTerminal(item.value.status)
 }
-usePolling(load)
+const polling = usePolling(load)
 
 
 const p = computed(() => item.value)
 const platform = computed(() => p.value ? PLATFORMS[p.value.platform] : null)
 const stages = computed(() => p.value ? stagesOf(p.value) : [])
 const summary = computed(() => p.value ? summaryOf(p.value) : '')
-const aiMessage = computed(() => p.value ? aiMessageOf(p.value) : null)
-const proposal = computed(() => p.value && platform.value ? proposalOf(p.value, platform.value.label) : null)
+// 거절 · 담당자 검토에서 진단을 숨기는 건 요청자 화면만이다. 승인자는 판단 근거와 함께 그대로 본다.
+const aiMessage = computed(() => !p.value ? null : isRequester.value ? aiMessageOf(p.value) : p.value.diagnosis?.trim() || null)
+// 승인자는 plan의 자원 이름(resource_key)까지 받는다. 요청자 응답에는 plan이 없다.
+const resourceName = computed(() => (!isRequester.value && p.value?.plan?.resource_key) || '')
+const proposal = computed(() => p.value && platform.value ? proposalOf(p.value, resourceName.value || platform.value.label) : null)
+const evidence = computed(() => !isRequester.value && p.value ? evidenceOf(p.value) : { facts: [], docs: [] })
 const notice = computed(() => p.value ? noticeOf(p.value) : null)
-const events = computed(() => (p.value?.events ?? [])
-  .map(e => ({ at: e.created_at, text: typeof e.payload?.message === 'string' ? e.payload.message : '' }))
-  .filter(e => e.text))
+const events = computed(() => {
+  if (!p.value) return []
+  if (!isRequester.value) return approverEventsOf(p.value)
+  return (p.value.events ?? [])
+    .map(e => ({ at: e.created_at, text: typeof e.payload?.message === 'string' ? e.payload.message : '' }))
+    .filter(e => e.text)
+})
 const perm = computed(() => {
   const x = p.value
   if (!x?.requested_role) return null
@@ -71,7 +79,58 @@ const record = computed(() => {
   ]
 })
 
-const help = {
+/* ---------- 승인 카드 (승인자 · 승인 대기일 때만) ---------- */
+const canDecide = computed(() => !isRequester.value && p.value?.status === 'WAITING_APPROVAL')
+const memoOpen = ref(false)
+const memo = ref('')
+const rejecting = ref(false)
+const rejPick = ref('')
+const rejText = ref('')
+const rejErr = ref(false)
+const deciding = ref(false)
+const decideError = ref('')
+const rejReason = computed(() => [rejPick.value, rejText.value.trim()].filter(Boolean).join(' · '))
+
+function pickChip(t: string) { rejPick.value = rejPick.value === t ? '' : t; rejErr.value = false }
+function cancelReject() { rejecting.value = false; rejErr.value = false }
+
+async function decide(approved: boolean) {
+  const x = p.value
+  if (!x || deciding.value) return
+  if (!approved && !rejReason.value) { rejErr.value = true; return }
+  deciding.value = true
+  decideError.value = ''
+  try {
+    // 승인 카드에 보이는 계획(plan_hash)에 대해서만 결정한다. 그사이 계획이 바뀌면 서버가 409로 막는다.
+    await api(`/problems/${x.id}/decision`, {
+      method: 'POST',
+      body: JSON.stringify({ approved, expectedPlanHash: x.plan_hash, reason: approved ? memo.value.trim() : rejReason.value }),
+    })
+    rejecting.value = false
+  } catch (e) {
+    const status = e instanceof ApiError ? e.status : 0
+    decideError.value = status === 409 ? '그사이 이미 처리됐거나 승인 내용이 바뀌었어요. 최신 내용을 다시 불러왔어요. 확인하고 다시 결정해 주세요.'
+      : status === 403 ? '이 요청의 지정 승인자만 결정할 수 있어요.'
+      : status === 400 ? (e as Error).message
+      : '결정을 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.'
+  } finally {
+    deciding.value = false
+    polling.restart()
+  }
+}
+
+const help = computed(() => isRequester.value ? requesterHelp : approverHelp)
+const approverHelp = {
+  howto: [
+    { t: '원인과 근거를 확인하세요', d: 'AI가 조회한 요청자 정보와 사내 규정 원문이 왼쪽 판단 근거에 있어요' },
+    { t: '승인하거나 거절하세요', d: '승인하면 바로 부여되고 다시 조회해 반영을 확인해요. 거절할 땐 사유가 필요해요' },
+  ],
+  faqs: [
+    { q: '승인 메모 · 거절 사유는 누가 보나요?', a: '요청자에게 그대로 보여요. 판단 근거(규정 · 조회 결과)는 승인자에게만 보여요.' },
+    { q: '결정하려는데 내용이 바뀌었다고 나와요', a: '그사이 AI가 계획을 다시 만들었거나 다른 곳에서 처리된 경우예요. 새로 불러온 내용을 확인하고 다시 결정해 주세요.' },
+  ],
+}
+const requesterHelp = {
   howto: [
     { t: '진행 단계를 보세요', d: '접수 → AI 진단 → 승인 → 권한 부여 → 반영 확인 순서로 진행돼요. 이 화면을 닫아도 계속 진행돼요' },
     { t: '거절 · 실패 때는 안내를 따르세요', d: '오른쪽 카드에 다음에 할 일이 나와요' },
@@ -88,8 +147,8 @@ const help = {
     <div class="rd-top">
       <div>
         <RouterLink :to="back" class="rd-back">← {{ isRequester ? '홈으로' : '승인함으로' }}</RouterLink>
-        <h1 v-if="p && platform">{{ platform.label }}<template v-if="p.requested_role"> · {{ p.requested_role }}</template></h1>
-        <p v-if="p" class="rd-meta"><span class="rd-en">{{ p.id.slice(0, 8) }}</span> · {{ p.requester_name }} · {{ shortWhen(p.created_at) }} 요청</p>
+        <h1 v-if="p && platform">{{ platform.label }}<template v-if="resourceName"> · {{ resourceName }}</template><template v-if="p.requested_role"> · {{ p.requested_role }}</template></h1>
+        <p v-if="p" class="rd-meta"><span class="rd-en">{{ p.id.slice(0, 8) }}</span> · {{ p.requester_name }}<template v-if="!isRequester"> ({{ p.employee_no }})</template> · {{ shortWhen(p.created_at) }} 요청</p>
       </div>
       <span v-if="p" class="rd-badge" :class="STATUS[p.status].tone"><svg v-if="STATUS[p.status].tone === 'review'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -2px"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 19a5.5 5.5 0 0 1 11 0" /></svg>{{ STATUS[p.status].label }}</span>
     </div>
@@ -107,6 +166,7 @@ const help = {
             <h2 id="rd-dg">{{ aiMessage || proposal ? '요청 내용과 AI 진단' : '요청 내용' }}</h2>
             <div class="rd-facts">
               <span>{{ platform.label }}</span>
+              <span v-if="resourceName">{{ resourceName }}</span>
               <span v-if="p.requested_role">{{ p.requested_role }}</span>
             </div>
             <div class="rd-msgs">
@@ -116,6 +176,20 @@ const help = {
             <div v-if="proposal" class="rd-proposal">
               <p class="rd-proposal-k">AI 제안</p>
               <p>{{ proposal }}</p>
+            </div>
+          </section>
+
+          <section v-if="evidence.facts.length || evidence.docs.length" class="rd-card" aria-labelledby="rd-bs">
+            <h2 id="rd-bs">판단 근거 <span class="rd-only">승인자에게만 보여요</span></h2>
+            <dl v-if="evidence.facts.length" class="rd-facts-dl">
+              <template v-for="f in evidence.facts" :key="f.k"><dt>{{ f.k }}</dt><dd>{{ f.v }}</dd></template>
+            </dl>
+            <div v-if="evidence.docs.length" class="rd-docs">
+              <p class="rd-docs-k">AI가 확인한 규정 원문</p>
+              <details v-for="d in evidence.docs" :key="d.id" class="rd-doc">
+                <summary><span class="rd-en">{{ d.id }}</span><span v-if="d.parts.some(x => x.article)" class="rd-doc-art">{{ d.parts.map(x => x.article).filter(Boolean).join(' · ') }}</span></summary>
+                <p v-for="(x, i) in d.parts" :key="i">{{ x.text }}</p>
+              </details>
             </div>
           </section>
 
@@ -139,6 +213,7 @@ const help = {
                 </span>
                 <span class="rd-pstate" :class="perm.tone">{{ perm.label }}</span>
               </div>
+              <h3 v-if="resourceName" class="rd-perm-target rd-en">{{ resourceName }}</h3>
               <p class="rd-perm-role">요청 권한 <strong>{{ perm.role }}</strong></p>
               <p v-if="p.status === 'FAILED'" class="rd-perm-fail">총 3회 시도했지만 실패 · 운영 담당자가 확인 중</p>
             </article>
@@ -155,18 +230,60 @@ const help = {
         </div>
 
         <aside class="rd-side">
-          <section v-if="['RECEIVED', 'DIAGNOSING', 'EXECUTING', 'WAITING_APPROVAL'].includes(p.status)" class="rd-progress">
+          <section v-if="canDecide" class="rd-approve" aria-labelledby="rd-ap">
+            <h2 id="rd-ap">승인 요청</h2>
+            <dl>
+              <dt>요청자</dt><dd>{{ p.requester_name }} <span class="rd-en">{{ p.employee_no }}</span></dd>
+              <dt>권한</dt><dd><span class="rd-chip" :style="{ background: platform.soft, color: platform.color }"><strong>{{ platform.label }}</strong><template v-if="resourceName"> · {{ resourceName }}</template> · {{ p.requested_role }}</span></dd>
+              <template v-if="evidence.docs.length"><dt>근거</dt><dd class="rd-en">{{ evidence.docs.map(d => d.id).slice(0, 4).join(' · ') }}<template v-if="evidence.docs.length > 4"> 외 {{ evidence.docs.length - 4 }}</template></dd></template>
+            </dl>
+            <p class="rd-ap-note"><strong>승인하면</strong> 이 권한이 바로 부여되고, 다시 조회해 반영을 확인한 뒤 {{ p.requester_name }} 님에게 결과를 보여줘요.</p>
+
+            <template v-if="!rejecting">
+              <button v-if="!memoOpen" type="button" class="rd-link" @click="memoOpen = true">+ 메모 남기기 <span>(선택)</span></button>
+              <div v-else>
+                <label for="rd-memo" class="rd-label">승인 메모 <span>(선택 · {{ p.requester_name }} 님에게 보여요)</span></label>
+                <input id="rd-memo" v-model="memo" class="rd-input" maxlength="200" placeholder="예: 이번 분기까지만 쓰고 회수 요청할게요">
+              </div>
+              <div class="rd-ap-actions">
+                <button type="button" class="rd-ok-btn" :aria-disabled="deciding" @click="decide(true)">{{ deciding ? '보내는 중…' : '승인' }}</button>
+                <button type="button" class="rd-no-btn" :disabled="deciding" @click="rejecting = true">거절</button>
+              </div>
+            </template>
+            <div v-else class="rd-reject">
+              <p class="rd-reject-h">거절 사유 <span>필수 · {{ p.requester_name }} 님에게 그대로 보여요</span></p>
+              <div role="group" aria-label="자주 쓰는 사유" class="rd-chips">
+                <button v-for="t in REJECT_CHIPS" :key="t" type="button" class="rd-rchip" :aria-pressed="rejPick === t" @click="pickChip(t)">{{ t }}</button>
+              </div>
+              <label for="rd-rej" class="rd-sr">거절 사유 직접 입력</label>
+              <textarea id="rd-rej" v-model="rejText" rows="2" maxlength="200" class="rd-input" placeholder="직접 입력하거나, 고른 사유에 덧붙여 주세요" @input="rejErr = false" />
+              <p v-if="rejErr" class="rd-err" role="alert">사유를 고르거나 적어 주세요</p>
+              <div class="rd-ap-actions">
+                <button type="button" class="rd-send-no" :class="{ on: rejReason && !deciding }" :aria-disabled="!rejReason || deciding" @click="decide(false)">{{ deciding ? '보내는 중…' : '거절 보내기' }}</button>
+                <button type="button" class="rd-link muted" @click="cancelReject">취소</button>
+              </div>
+            </div>
+            <p v-if="decideError" class="rd-err" role="alert">{{ decideError }}</p>
+          </section>
+
+          <section v-else-if="['RECEIVED', 'DIAGNOSING', 'EXECUTING', 'WAITING_APPROVAL'].includes(p.status)" class="rd-progress">
             <h2>{{ p.status === 'WAITING_APPROVAL' ? '승인을 기다리고 있어요' : p.status === 'EXECUTING' ? '권한을 넣고 있어요' : '진단 중이에요' }}</h2>
             <p>{{ p.status === 'WAITING_APPROVAL' ? '원인과 규정 근거를 정리해 승인자에게 올렸어요. 승인되면 바로 부여돼요.'
               : p.status === 'EXECUTING' ? '부여한 뒤 다시 조회해 반영됐는지 확인해요.'
               : '끝나면 원인을 정리해서 승인자에게 승인을 요청해요.' }}</p>
-            <div class="rd-todo"><p class="k">지금 할 일</p><p>없어요. 이 화면을 닫아도 진행되고, 결과는 홈의 '내 요청'에서 볼 수 있어요</p></div>
+            <div v-if="isRequester" class="rd-todo"><p class="k">지금 할 일</p><p>없어요. 이 화면을 닫아도 진행되고, 결과는 홈의 '내 요청'에서 볼 수 있어요</p></div>
           </section>
 
-          <section v-if="notice" class="rd-notice" :class="`n-${notice.tone}`" aria-labelledby="rd-nt">
+          <section v-if="!isRequester && p.decided_at" class="rd-decided" :class="p.status === 'REJECTED' ? 'no' : 'yes'">
+            <p class="rd-decided-h">{{ p.status === 'REJECTED' ? '거절함' : '승인함' }} · {{ shortWhen(p.decided_at) }}</p>
+            <p v-if="p.decision_reason" class="rd-decided-memo"><strong>{{ p.status === 'REJECTED' ? '사유' : '메모' }}</strong> {{ p.decision_reason }}</p>
+          </section>
+
+          <!-- 승인자가 직접 거절한 건 위 결정 카드에 이미 보이므로 겹쳐 보이지 않는다. -->
+          <section v-if="notice && (isRequester || !(p.status === 'REJECTED' && p.decided_at))" class="rd-notice" :class="`n-${notice.tone}`" aria-labelledby="rd-nt">
             <h2 id="rd-nt">{{ notice.title }}</h2>
-            <div v-if="notice.memo" class="rd-memo"><p class="k">승인자 메모</p><p>{{ notice.memo }}</p></div>
-            <div class="rd-todo"><p class="k">다음에 할 일</p><p>{{ notice.next }}</p></div>
+            <div v-if="notice.memo && isRequester" class="rd-memo"><p class="k">승인자 메모</p><p>{{ notice.memo }}</p></div>
+            <div v-if="isRequester" class="rd-todo"><p class="k">다음에 할 일</p><p>{{ notice.next }}</p></div>
             <RouterLink :to="back" class="rd-cta">{{ isRequester ? '내 요청으로 돌아가기' : '승인함으로 돌아가기' }}</RouterLink>
           </section>
 
@@ -247,6 +364,49 @@ const help = {
 .rd-memo { background: rgba(255,255,255,0.75); border-radius: 12px; padding: 12px 14px; }
 .rd-memo p:last-child { font-weight: 400; }
 .rd-cta { height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: var(--nfg); background: #fff; border: 1.5px solid var(--nfg); text-decoration: none; }
+.rd-only { margin-left: 8px; font-size: 12px; font-weight: 700; color: #5B3FD6; background: #F1ECFF; border-radius: 999px; padding: 3px 9px; vertical-align: 2px; }
+.rd-facts-dl { margin: 0 0 16px; display: grid; grid-template-columns: 140px minmax(0, 1fr); row-gap: 10px; font-size: 15px; }
+.rd-facts-dl dt { color: var(--uo-muted); }
+.rd-facts-dl dd { margin: 0; font-weight: 600; }
+.rd-docs-k { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--uo-muted); }
+.rd-doc { border: 0; margin: 0; padding: 12px 0; border-top: 1px solid #EEF0F6; }
+.rd-doc summary { cursor: pointer; font-size: 15px; font-weight: 600; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.rd-doc-art { font-size: 13px; font-weight: 500; color: var(--uo-muted); }
+.rd-doc p { margin: 10px 0 0; font-size: 14px; line-height: 1.65; color: var(--uo-ink-2); white-space: pre-line; }
+.rd-perm-target { margin: 14px 0 0; font-size: 19px; font-weight: 700; word-break: keep-all; }
+.rd-perm-target + .rd-perm-role { margin-top: 6px; }
+.rd-approve { border-radius: 24px; padding: 24px; background: linear-gradient(100deg, #EEF0FF 0%, #F2EDFF 60%, #F7F3FF 100%); border: 1px solid var(--uo-primary-ink); box-shadow: 0 10px 34px rgba(59,75,216,0.12); display: flex; flex-direction: column; gap: 14px; }
+.rd-approve h2 { margin: 0; }
+.rd-approve dl { margin: 0; display: grid; grid-template-columns: 72px minmax(0, 1fr); row-gap: 10px; font-size: 14px; }
+.rd-approve dt { color: var(--uo-muted); }
+.rd-approve dd { margin: 0; word-break: break-all; }
+.rd-chip { display: inline-block; font-size: 13px; padding: 4px 8px; border-radius: 6px; }
+.rd-ap-note { margin: 0; font-size: 14px; line-height: 1.6; }
+.rd-link { align-self: flex-start; padding: 0; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 600; color: var(--uo-primary); cursor: pointer; min-height: 32px; }
+.rd-link span { font-weight: 400; color: var(--uo-muted); }
+.rd-link.muted { color: var(--uo-muted); align-self: center; }
+.rd-label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--uo-ink-2); }
+.rd-label span { font-weight: 400; color: var(--uo-muted); }
+.rd-input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--uo-line-strong); border-radius: 12px; background: #fff; font: inherit; font-size: 14px; line-height: 1.5; color: var(--uo-ink); box-sizing: border-box; resize: vertical; }
+.rd-ap-actions { display: flex; gap: 10px; align-items: center; }
+.rd-ok-btn { flex: 1; height: 48px; border: 0; border-radius: 12px; font: inherit; font-size: 15px; font-weight: 700; color: #fff; background: var(--uo-gradient); cursor: pointer; }
+.rd-no-btn { height: 48px; padding: 0 18px; border-radius: 12px; font: inherit; font-size: 15px; font-weight: 600; color: var(--uo-bad); background: #fff; border: 1px solid #F0C9CF; cursor: pointer; }
+.rd-reject { background: #fff; border: 1px solid #F0C9CF; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.rd-reject-h { margin: 0; font-size: 15px; font-weight: 700; color: var(--uo-bad); }
+.rd-reject-h span { font-size: 13px; font-weight: 400; color: var(--uo-muted); }
+.rd-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rd-rchip { min-height: 36px; padding: 0 12px; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 600; background: #fff; color: var(--uo-ink-2); border: 1px solid #D5D9EA; cursor: pointer; }
+.rd-rchip[aria-pressed="true"] { background: var(--uo-bad-bg); color: var(--uo-bad); border-color: var(--uo-bad); }
+.rd-send-no { flex: 1; height: 46px; border: 0; border-radius: 12px; font: inherit; font-size: 15px; font-weight: 700; color: #fff; background: #D9A3AB; cursor: not-allowed; }
+.rd-send-no.on { background: var(--uo-bad); cursor: pointer; }
+.rd-err { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.5; color: var(--uo-bad); }
+.rd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.rd-decided { border-radius: 20px; padding: 18px 20px; }
+.rd-decided.yes { background: var(--uo-ok-bg); border: 1px solid #BFE3CC; --dfg: var(--uo-ok); }
+.rd-decided.no { background: var(--uo-bad-bg); border: 1px solid #F0C9CF; --dfg: var(--uo-bad); }
+.rd-decided-h { margin: 0; font-size: 15px; font-weight: 700; color: var(--dfg); }
+.rd-decided-memo { margin: 8px 0 0; font-size: 14px; line-height: 1.6; background: rgba(255,255,255,0.8); border-radius: 10px; padding: 10px 12px; }
+.rd-decided-memo strong { color: var(--uo-ink-2); margin-right: 4px; }
 .rd-success { border-radius: 20px; padding: 24px; background: var(--uo-ok-bg); border: 1px solid #BFE3CC; }
 .rd-success h2 { margin: 0 0 10px; font-size: 20px; color: var(--uo-ok); }
 .rd-success p { margin: 0; font-size: 15px; line-height: 1.65; }

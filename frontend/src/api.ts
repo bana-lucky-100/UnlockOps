@@ -8,8 +8,8 @@ export interface Problem {
   proposal?: string; diagnosis?: string; reason_code?: string; requested_role?: string; approver_id?: string;
   plan_hash?: string; verification_ok?: boolean|null; agent_mode?: string;
   created_at: string; updated_at: string; evidence?: Evidence[];
-  decision_reason?: string|null; decided_at?: string|null;
-  plan?: {resource_key: string; requested_role: string};
+  decision_reason?: string|null; decided_at?: string|null; decided_by?: string|null;
+  plan?: {resource_key: string; requested_role: string; resource_id?: string} | null;
   events?: {kind: string; payload: Record<string, unknown>; created_at: string}[]
 }
 

@@ -83,3 +83,68 @@ export function noticeOf(p: Problem): Notice | null {
   if (p.status === 'FAILED') return { tone: 'bad', title: '부여 실패 · 운영 담당자 확인 중', memo: null, next: '처음 시도를 포함해 총 3번 시도했어요. 처리되면 이 화면과 홈에서 알려드릴게요. 다른 플랫폼 요청에는 영향이 없어요' }
   return null
 }
+
+/* ---------- 승인자에게만 보이는 것 (명세: 판단 근거는 승인자에게만) ---------- */
+
+export interface EvidenceDoc { id: string; parts: { article: string; text: string }[] }
+export interface EvidenceFact { k: string; v: string }
+
+const FAMILY: Record<string, string> = { DEV: '개발', NON_DEV: '비개발' }
+
+/**
+ * evidence 배열(RAG 조각 + 직원 사실)을 승인자가 읽기 쉬운 두 묶음으로 나눈다.
+ * - facts: Business MCP가 조회한 직원 사실(소속 · TF · 현재 권한 · 허용 상한)
+ * - docs: 같은 문서(POL-03, A-ACCESS-04 …)끼리 모은 규정 원문
+ */
+export function evidenceOf(p: Problem): { facts: EvidenceFact[]; docs: EvidenceDoc[] } {
+  const list = Array.isArray(p.evidence) ? p.evidence : []
+  const raw = list.find(e => e.kind === 'employee_facts') as Record<string, unknown> | undefined
+  const facts: EvidenceFact[] = []
+  if (raw) {
+    const who = [raw.department, raw.grade, FAMILY[String(raw.job_family)] ?? raw.job_family].filter(Boolean).join(' · ')
+    if (who) facts.push({ k: '요청자 소속', v: who })
+    facts.push({ k: 'TF 구성원', v: raw.tf_member ? '예' : '아니요' })
+    facts.push({ k: '현재 권한', v: raw.current_role ? String(raw.current_role) : '없음' })
+    if (raw.maximum_role) facts.push({ k: '규정상 허용 상한', v: String(raw.maximum_role) })
+  }
+  const docs = new Map<string, EvidenceDoc>()
+  for (const e of list) {
+    if (typeof e.doc_id !== 'string' || typeof e.text !== 'string' || !e.text.trim()) continue
+    const doc = docs.get(e.doc_id) ?? { id: e.doc_id, parts: [] }
+    const article = typeof e.article === 'string' && /^제\d+조$/.test(e.article) ? e.article : ''
+    if (!doc.parts.some(x => x.text === e.text)) doc.parts.push({ article, text: e.text.trim() })
+    docs.set(e.doc_id, doc)
+  }
+  // 회사 규정(POL)을 먼저, 접근 권한표(A-ACCESS)를 뒤에.
+  const order = (id: string) => (id.startsWith('POL') ? 0 : 1)
+  return { facts, docs: [...docs.values()].sort((a, b) => order(a.id) - order(b.id) || a.id.localeCompare(b.id)) }
+}
+
+/** 승인자는 원본 이벤트를 받는다. 요청자 화면과 같은 말투의 짧은 문장으로 바꾼다. */
+export function approverEventsOf(p: Problem): { at: string; text: string }[] {
+  const STATUS_TEXT: Partial<Record<Status, string>> = {
+    WAITING_APPROVAL: 'AI가 원인을 찾아 승인을 요청했어요',
+    MANUAL_REVIEW: '담당자 검토가 필요하다고 판단했어요',
+    REJECTED: '규정상 자동으로 줄 수 없어 거절됐어요',
+    DONE: '다시 조회해 반영을 확인했어요',
+    FAILED: '권한을 넣지 못했어요',
+  }
+  const out: { at: string; text: string }[] = []
+  let prev = ''
+  for (const e of p.events ?? []) {
+    const pl = (e.payload ?? {}) as Record<string, unknown>
+    const result = pl.result as Record<string, unknown> | undefined
+    const text = e.kind === 'PROGRESS' ? (pl.job_type === 'EXECUTE' ? '권한을 넣고 있어요' : 'AI가 요청을 분석하고 있어요')
+      : e.kind === 'HUMAN_DECISION' ? (pl.approved ? '승인했어요' : '거절했어요')
+      : (e.kind === 'ANALYZED' || e.kind === 'EXECUTED') && result ? STATUS_TEXT[result.status as Status] ?? ''
+      : e.kind === 'FAILED' ? '처리하지 못해 운영 담당자 확인이 필요해요'
+      : ''
+    if (!text || text === prev) continue
+    out.push({ at: e.created_at, text })
+    prev = text
+  }
+  return out
+}
+
+/** 거절 사유 칩. 고른 칩과 직접 쓴 문장을 합쳐 decision_reason으로 보낸다. */
+export const REJECT_CHIPS = ['업무에 필요하지 않음', '더 낮은 권한으로 충분', '보안 검토 필요'] as const
