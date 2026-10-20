@@ -37,12 +37,12 @@ const selected = ref<string[]>([])
 const allOn = computed(() => pending.value.length > 0 && selected.value.length === pending.value.length)
 function toggle(id: string) {
   notice.value = null
-  confirming.value = false
+  cancelConfirm()
   selected.value = selected.value.includes(id) ? selected.value.filter(x => x !== id) : [...selected.value, id]
 }
 function toggleAll() {
   notice.value = null
-  confirming.value = false
+  cancelConfirm()
   selected.value = allOn.value ? [] : pending.value.map(p => p.id)
 }
 
@@ -72,22 +72,53 @@ const polling = usePolling(load)
 const approving = ref(false)
 // 근거를 보지 않고 여러 건을 누르는 실수를 막으려고, 한 번 더 확인한 뒤에 승인한다.
 const confirming = ref(false)
-function askConfirm() { if (selected.value.length && !approving.value) confirming.value = true }
+// 확인 단계에서 보여 줄 실제 승인 대상. 목록 응답에는 자원 이름이 없어서, 고른 요청마다 상세(plan)를 불러온다.
+// 승인도 화면에 보여 준 이 계획(plan_hash)으로만 보낸다 — 승인자가 본 대상과 승인되는 대상이 같도록.
+interface Target { id: string; platform: Problem['platform']; resource: string; role: string; requester: string; planHash: string }
+const targets = ref<Target[]>([])
+const checking = ref(false)
+const checkError = ref('')
+async function askConfirm() {
+  if (!selected.value.length || approving.value || checking.value) return
+  checking.value = true
+  checkError.value = ''
+  notice.value = null
+  try {
+    const details = await Promise.all(selected.value.map(id => api<Problem>(`/problems/${encodeURIComponent(id)}`)))
+    const ready = details.filter(d => d.status === 'WAITING_APPROVAL' && d.plan?.resource_key && d.plan_hash)
+    targets.value = ready.map(d => ({
+      id: d.id, platform: d.platform, resource: d.plan!.resource_key, role: d.requested_role || d.plan!.requested_role,
+      requester: d.requester_name, planHash: d.plan_hash!,
+    }))
+    if (ready.length < details.length) {
+      checkError.value = `${details.length - ready.length}건은 그사이 처리됐거나 대상을 확인할 수 없어 빼고 보여 드려요.`
+      selected.value = ready.map(d => d.id)
+    }
+    confirming.value = targets.value.length > 0
+  } catch {
+    checkError.value = '승인 대상을 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.'
+  } finally {
+    checking.value = false
+  }
+}
+function cancelConfirm() { confirming.value = false; targets.value = []; checkError.value = '' }
 const notice = ref<{ tone: 'ok' | 'warn'; text: string } | null>(null)
 async function approveSelected() {
-  if (approving.value || !selected.value.length) return
+  if (approving.value || !targets.value.length) return
+  const list = targets.value
   confirming.value = false
+  targets.value = []
+  checkError.value = ''
   approving.value = true
   notice.value = null
-  const targets = pending.value.filter(p => selected.value.includes(p.id))
   let ok = 0
   let changed = 0
   let other = 0
-  for (const p of targets) {
+  for (const t of list) {
     try {
-      await api(`/problems/${p.id}/decision`, {
+      await api(`/problems/${encodeURIComponent(t.id)}/decision`, {
         method: 'POST',
-        body: JSON.stringify({ approved: true, expectedPlanHash: p.plan_hash, reason: '' }),
+        body: JSON.stringify({ approved: true, expectedPlanHash: t.planHash, reason: '' }),
       })
       ok++
     } catch (e) {
@@ -102,7 +133,7 @@ async function approveSelected() {
     ? { tone: 'ok', text: `${ok}건을 승인했어요. 요청마다 따로 부여되고 결과가 기록돼요.` }
     : {
         tone: 'warn',
-        text: `${targets.length}건 중 ${ok}건을 승인했어요. `
+        text: `${list.length}건 중 ${ok}건을 승인했어요. `
           + (changed ? `${changed}건은 이미 처리됐거나 내용이 바뀌어 승인하지 않았어요. 상세에서 다시 확인해 주세요. ` : '')
           + (other ? `${other}건은 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.` : ''),
       }
@@ -148,22 +179,33 @@ const help = {
         </button>
         <div class="ah-bar-right">
           <template v-if="confirming">
-            <span class="ah-bar-note ah-bar-ask" role="status">{{ selected.length }}건을 승인할까요? 승인하면 바로 권한이 부여돼요</span>
-            <button type="button" class="ah-cancel" @click="confirming = false">취소</button>
-            <button type="button" class="ah-bulk on" @click="approveSelected">{{ selected.length }}건 승인</button>
+            <button type="button" class="ah-cancel" @click="cancelConfirm">취소</button>
+            <button type="button" class="ah-bulk on" @click="approveSelected">{{ targets.length }}건 승인</button>
           </template>
           <template v-else>
             <span class="ah-bar-note">선택한 요청마다 따로 승인 기록이 남아요</span>
             <button
               type="button" class="ah-bulk" :class="{ on: selected.length && !approving }"
-              :aria-disabled="!selected.length || approving" @click="askConfirm"
+              :aria-disabled="!selected.length || approving || checking" @click="askConfirm"
             >
-              {{ approving ? '승인하는 중…' : selected.length ? `선택한 ${selected.length}건 승인` : '승인할 요청을 고르세요' }}
+              {{ approving ? '승인하는 중…' : checking ? '대상을 확인하는 중…' : selected.length ? `선택한 ${selected.length}건 승인` : '승인할 요청을 고르세요' }}
             </button>
           </template>
         </div>
       </div>
 
+      <section v-if="confirming" class="ah-confirm" aria-labelledby="ah-cf-h" role="region">
+        <h3 id="ah-cf-h">이 {{ targets.length }}건을 승인할까요? <span>승인하면 바로 권한이 부여돼요</span></h3>
+        <ul>
+          <li v-for="t in targets" :key="t.id">
+            <span class="ah-tag" :style="{ '--c': PLATFORMS[t.platform].color, '--s': PLATFORMS[t.platform].soft }">{{ PLATFORMS[t.platform].label }}</span>
+            <strong class="ah-en">{{ t.resource }}</strong>
+            <span class="ah-role">{{ t.role }}</span>
+            <span class="ah-cf-who">{{ t.requester }}</span>
+          </li>
+        </ul>
+      </section>
+      <p v-if="checkError" class="ah-notice warn" role="status">{{ checkError }}</p>
       <p v-if="notice" class="ah-notice" :class="notice.tone" role="status">{{ notice.text }}</p>
 
       <div class="ah-list">
@@ -251,7 +293,13 @@ const help = {
 .ah-req > .ah-box::after { content: ''; position: absolute; inset: -10px; }
 .ah-bulk { height: 44px; padding: 0 18px; border: 0; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 700; color: #fff; background: #B4B9CE; cursor: not-allowed; }
 .ah-bulk.on { background: var(--uo-gradient); cursor: pointer; }
-.ah-bar-ask { color: var(--uo-ink); font-weight: 600; }
+.ah-confirm { margin: 0 0 12px; padding: 16px 20px; background: #fff; border: 1.5px solid var(--uo-primary); border-radius: 14px; }
+.ah-confirm h3 { margin: 0 0 10px; font-size: 15px; font-weight: 700; }
+.ah-confirm h3 span { margin-left: 6px; font-size: 13px; font-weight: 500; color: var(--uo-muted); }
+.ah-confirm ul { list-style: none; margin: 0; padding: 0; }
+.ah-confirm li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid #EEF0F6; font-size: 15px; }
+.ah-confirm li:first-child { border-top: 0; }
+.ah-cf-who { margin-left: auto; font-size: 13px; color: var(--uo-muted); }
 .ah-cancel { height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid #D5D9EA; background: #fff; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 .ah-notice { margin: 0 0 12px; font-size: 14px; font-weight: 600; border-radius: 12px; padding: 10px 14px; }
 .ah-notice.ok { color: var(--uo-ok); background: var(--uo-ok-bg); }

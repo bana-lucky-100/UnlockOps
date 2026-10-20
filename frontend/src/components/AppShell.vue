@@ -27,7 +27,7 @@ defineExpose({ openHelp })
 
 async function signOut() {
   error.value = ''
-  try { await logout(); await router.replace('/login') } catch (e) { error.value = (e as Error).message }
+  try { await logout(); await router.replace('/login') } catch { error.value = '로그아웃하지 못했어요. 잠시 뒤 다시 시도해 주세요.' }
 }
 </script>
 

@@ -28,15 +28,25 @@ export async function login(loginId: string, password: string): Promise<User> {
   return user
 }
 
-/** 서버 세션이 이미 끝났어도(401 · 403) 화면에서는 반드시 로그아웃되게 한다. */
+/**
+ * 로그아웃은 서버 세션이 실제로 끝났을 때만 화면에서도 로그아웃으로 처리한다.
+ * - 401: 서버 세션이 이미 끝남 → 로그아웃된 것으로 본다.
+ * - 403: 보안 토큰(CSRF)이 낡은 경우라 세션은 살아 있을 수 있다 → 토큰을 새로 받아 한 번 더 시도한다.
+ * - 그 밖의 실패: 세션이 남아 있으니 화면도 로그인 상태로 두고 오류를 알린다.
+ */
 export async function logout() {
+  const post = () => api('/auth/logout', {method: 'POST'})
   try {
-    await api('/auth/logout', {method: 'POST'})
+    await post()
   } catch (e) {
-    if (!(e instanceof ApiError && (e.status === 401 || e.status === 403))) throw e
-  } finally {
-    currentUser.value = null
+    if (e instanceof ApiError && e.status === 403) {
+      await refreshCsrf()
+      try { await post() } catch (e2) { if (!(e2 instanceof ApiError && e2.status === 401)) throw e2 }
+    } else if (!(e instanceof ApiError && e.status === 401)) {
+      throw e
+    }
   }
+  currentUser.value = null
   await refreshCsrf().catch(() => {})
 }
 
