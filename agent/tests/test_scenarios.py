@@ -200,6 +200,15 @@ async def test_verification_retry_policy_never_reexecutes_grant(
     assert (result["result"]["status"], result["result"]["reasonCode"]) == (expected_status, expected_code)
     assert tools.verify_calls == expected_calls
     assert tools.writes == 1
+    if expected_status == "FAILED" and expected_code != "VERIFICATION_FAILED":
+        assert result["result"]["proposal"] == "승인된 권한 변경 요청을 정상적으로 전달했습니다."
+        assert result["result"]["verification_ok"] is None
+        assert result["verify_error"]["code"] == expected_code
+        assert "실제 반영을 확인하지 못했습니다" in result["result"]["diagnosis"]
+    elif expected_status == "DONE":
+        assert result["result"]["proposal"] == "payment-core의 권한을 Write 권한으로 변경했습니다."
+    else:
+        assert result["result"]["proposal"] == result["result"]["diagnosis"]
 
 
 @pytest.mark.parametrize("tool_name,payload,contents", [

@@ -413,6 +413,15 @@ def finish_node(state: AgentState) -> dict:
     result = outcome(
         state, status, code, message, state["plan"]["requested_role"], state.get("verified")
     )
+    if not state.get("execution_error") and state.get("verified") is True:
+        plan = state["plan"]
+        result["proposal"] = (
+            f"{plan['resource_key']}의 권한을 {plan['requested_role']} 권한으로 변경했습니다."
+        )
+    elif not state.get("execution_error") and state.get("verify_error"):
+        # 조회 오류는 진단·진행 기록에 보존하고 사용자에게는 요청 전달 사실만 안내한다.
+        # 변경 요청 성공을 실제 권한 반영 완료로 표현하지 않는다.
+        result["proposal"] = "승인된 권한 변경 요청을 정상적으로 전달했습니다."
     return {"result": result, "events": event(state, "finish", status=status, reason_code=code)}
 
 
