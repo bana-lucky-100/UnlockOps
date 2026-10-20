@@ -1,0 +1,69 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "UnlockOps: Policy MCP",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "unlockops_mcp.policy",
+      "cwd": "${workspaceFolder}",
+      "python": "${command:python.interpreterPath}",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {"MCP_HOST": "127.0.0.1", "MCP_PORT": "8001"},
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "UnlockOps: Business MCP",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "unlockops_mcp.business",
+      "cwd": "${workspaceFolder}",
+      "python": "${command:python.interpreterPath}",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {"MCP_HOST": "127.0.0.1", "MCP_PORT": "8002"},
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "UnlockOps: Agent worker",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "unlockops_worker",
+      "cwd": "${workspaceFolder}",
+      "python": "${command:python.interpreterPath}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "UnlockOps: Python current test",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-q", "-s"],
+      "cwd": "${workspaceFolder}",
+      "python": "${command:python.interpreterPath}",
+      "env": {"AGENT_MODE": "demo", "EMBEDDING_BASE_URL": "", "EMBEDDING_MODEL": ""},
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "UnlockOps: Spring Boot",
+      "type": "java",
+      "request": "launch",
+      "mainClass": "com.unlockops.Application",
+      "projectName": "backend",
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "UnlockOps: MCP servers",
+      "configurations": ["UnlockOps: Policy MCP", "UnlockOps: Business MCP"],
+      "stopAll": true
+    }
+  ]
+}

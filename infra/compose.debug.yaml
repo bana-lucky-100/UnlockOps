@@ -1,0 +1,18 @@
+# Local host debugging. Start only postgres/rabbitmq before running local services.
+# docker compose -f compose.yaml -f infra/compose.debug.yaml up -d postgres rabbitmq
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+  rabbitmq:
+    ports:
+      - "127.0.0.1:5672:5672"
+  backend:
+    ports:
+      - "127.0.0.1:8080:8080"
+  policy-mcp:
+    ports:
+      - "127.0.0.1:8001:8000"
+  business-mcp:
+    ports:
+      - "127.0.0.1:8002:8000"

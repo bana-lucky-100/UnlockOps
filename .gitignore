@@ -72,6 +72,7 @@ node_modules/
 # 5. Spring Boot / Java / Gradle / Maven
 # ==================================================
 .gradle/
+.m2/
 /backend/**/build/
 /backend/**/target/
 /backend/**/out/
@@ -116,6 +117,7 @@ ENV/
 /worker/**/build/
 /worker/**/dist/
 .pip-cache/
+.uv-cache/
 .pypirc
 .ipynb_checkpoints/
 # requirements*.txt, pyproject.toml, uv.lock, poetry.lock, Pipfile.lock는 추적합니다.
@@ -167,6 +169,11 @@ langchain.db-*
 /data/runtime/
 /data/private/
 /data/uploads/
+# 이식 전 실행 경로와 로컬 CHECKPOINT_PATH에서 사용하는 상태 파일입니다.
+/runtime/
+/state/
+/checkpoints.sqlite
+/checkpoints.sqlite-*
 # 로컬 DB는 위 생성물 폴더에 저장합니다.
 # *.db, *.sqlite*, *.pkl, *.faiss는 일괄 제외하지 않습니다.
 # data의 데모 정책, 샘플 데이터, 원본 문서, 출처 목록은 추적합니다.

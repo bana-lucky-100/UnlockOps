@@ -1,0 +1,8 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv",
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.cwd": "${workspaceFolder}",
+  "python.testing.pytestArgs": ["agent/tests", "mcp/tests", "tests"],
+  "python.analysis.extraPaths": ["agent", "rag", "mcp", "worker"]
+}

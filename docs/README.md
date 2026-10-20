@@ -1,17 +1,11 @@
 # Docs
 
-팀 공통 계약과 설계·실행 안내를 관리합니다.
+- [아키텍처](architecture.md): 요청·승인·실행·상태 재개 흐름
+- [API·MCP·이벤트 계약](contracts/README.md): 공통 상태·HTTP·큐 메시지
+- [로컬 디버깅](debugging.md): 설치·시작 순서·F5 구성
+- [검증](verification.md): 수행 결과와 전체 스택 시연 절차
+- [DB 스키마](schema.md), [정책 해석](policy-decisions.md), [평가 항목 대응](rubric.md)
+- [이식 전 원본 README](imported-project-v2.md): 원본의 과거 실행 상태·경로 기록
+- [Git 컨벤션](git-convention.md), [GitHub CI](github-ci.md), [협업 안내](../CONTRIBUTING.md)
 
-- API 계약: 요청·응답, 인증 방식, 오류 형식
-- MCP 계약: 도구 이름, 입력·출력, 오류 형식
-- 이벤트 계약: 메시지 구조, 발행·소비 주체, 재시도 및 중복 처리 기준
-- 설계 및 실행 안내: 서비스 역할, 연동 흐름, 로컬 실행과 데모 절차
-
-계약 문서는 contracts/api, contracts/mcp, contracts/events 경로를 기준으로 추가합니다. 팀 간 연동 방식이 바뀌면 관련 계약 문서도 함께 갱신합니다.
-
-## 문서 목록
-
-- [Git 컨벤션](git-convention.md): 브랜치·커밋·이슈·PR·리뷰·병합 규칙
-- [협업 안내](../CONTRIBUTING.md): 코드·환경 설정과 PR 전 확인 사항
-
-- [GitHub CI 안내](github-ci.md): 기본 CI 실행·main 보호 설정·서비스별 검사 확장
+API·MCP·이벤트를 변경하면 공통 계약과 영향을 받는 서비스 README를 함께 갱신합니다.
