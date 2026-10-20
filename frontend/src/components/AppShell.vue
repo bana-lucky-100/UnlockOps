@@ -18,7 +18,7 @@ const nav = computed(() => currentUser.value?.role === 'APPROVER'
   ? [{ to: '/approvals', label: '승인함', icon: 'M4 13l3-8h10l3 8v6H4z' }]
   : [
       { to: '/', label: '홈', icon: 'M3 11l9-7 9 7M5 10v10h14V10' },
-      { to: { path: '/', hash: '#mine' }, label: '내 요청', icon: 'M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 8h8M8 12h8M8 16h5' },
+      { to: '/requests', label: '내 요청', icon: 'M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 8h8M8 12h8M8 16h5' },
     ])
 const home = computed(() => currentUser.value?.role === 'APPROVER' ? '/approvals' : '/')
 

@@ -3,10 +3,10 @@ import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { api, ApiError, type Platform, type Problem } from '../api'
 import AppShell from '../components/AppShell.vue'
+import RequestList from '../components/RequestList.vue'
 import { PLATFORMS, PLATFORM_ORDER } from '../lib/platforms'
 import { usePolling } from '../lib/polling'
-import { groupOf, isTerminal, STATUS, type StatusGroup } from '../lib/status'
-import { shortWhen } from '../lib/time'
+import { groupOf, isTerminal, type StatusGroup } from '../lib/status'
 import { currentUser } from '../session'
 
 const MAX = 500
@@ -27,7 +27,6 @@ const sentNotice = ref('')
 const items = ref<Problem[]>([])
 const loaded = ref(false)
 const loadError = ref('')
-const filter = ref<StatusGroup | null>(null)
 
 const ready = computed(() => !!selected.value && contents.value.trim().length >= 2)
 const placeholder = computed(() => selected.value
@@ -45,7 +44,8 @@ const steps = computed(() => [
   { key: 'waiting' as const, no: '02', name: '승인 대기', desc: '규정 근거와 함께 승인자에게 올라갔어요', bg: '#FDF0E4', fg: '#9A4A08' },
   { key: 'finished' as const, no: '03', name: '끝난 요청', desc: '완료 · 거절 · 실패 · 담당자 검토 — 결과를 확인해 주세요', bg: '#E6F4EC', fg: '#1A7340' },
 ].map(s => ({ ...s, count: counts.value[s.key] })))
-const visible = computed(() => filter.value ? items.value.filter(p => groupOf(p.status) === filter.value) : items.value)
+// 홈에는 최근 5건만. 전체 · 상태별 목록은 '내 요청' 페이지에서 본다.
+const recent = computed(() => items.value.slice(0, 5))
 
 function toggle(p: Platform) {
   formError.value = ''
@@ -79,7 +79,6 @@ async function send() {
     sentNotice.value = `${PLATFORMS[selected.value].label} 요청을 보냈어요. AI가 확인하고 있어요.`
     contents.value = ''
     selected.value = null
-    filter.value = null
     polling.restart()
   } catch (e) {
     // 실패하면 입력은 그대로 두고 다시 보낼 수 있게 한다.
@@ -143,46 +142,31 @@ const help = {
       </div>
     </section>
 
-    <section id="mine" aria-labelledby="rh-mine-h">
+    <section aria-labelledby="rh-mine-h">
       <div class="rh-mine-head">
         <h2 id="rh-mine-h">내 요청</h2>
-        <button v-if="filter" type="button" class="rh-all" @click="filter = null">
+        <RouterLink to="/requests" class="rh-all">
           전체 보기<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-        </button>
+        </RouterLink>
       </div>
 
       <div class="rh-steps">
-        <button
-          v-for="s in steps" :key="s.key" type="button" class="rh-step"
-          :style="{ background: s.bg, '--fg': s.fg }" :aria-pressed="filter === s.key"
-          :aria-label="`${s.name} ${s.count}건만 보기`" @click="filter = filter === s.key ? null : s.key"
+        <RouterLink
+          v-for="s in steps" :key="s.key" :to="{ path: '/requests', query: { group: s.key } }" class="rh-step"
+          :style="{ background: s.bg, '--fg': s.fg }" :aria-label="`${s.name} ${s.count}건 보기`"
         >
           <span class="rh-step-name"><span class="rh-en">{{ s.no }}</span>{{ s.name }}</span>
           <span class="rh-step-count"><b>{{ s.count }}</b>건</span>
           <span class="rh-step-desc">{{ s.desc }}</span>
           <span class="rh-cut" aria-hidden="true" /><span class="rh-cut-a" aria-hidden="true" /><span class="rh-cut-b" aria-hidden="true" />
           <span class="rh-arr" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8" /></svg></span>
-        </button>
-      </div>
-
-      <div class="rh-recent">
-        <h3>{{ filter ? steps.find(s => s.key === filter)?.name : '최근 요청' }}</h3>
-        <p v-if="!loaded" class="rh-empty">불러오는 중…</p>
-        <div v-else-if="loadError && !items.length" class="rh-empty" role="alert">
-          {{ loadError }} <button type="button" class="rh-all" @click="polling.restart()">다시 불러오기</button>
-        </div>
-        <p v-else-if="!items.length" class="rh-empty">아직 보낸 요청이 없어요. 위에서 막힌 플랫폼을 고르고 증상을 적어 보세요.</p>
-        <p v-else-if="!visible.length" class="rh-empty">이 상태의 요청이 없어요.</p>
-        <RouterLink v-for="p in visible" :key="p.id" :to="`/requests/${p.id}`" class="rh-row">
-          <span class="rh-badge" :class="STATUS[p.status].tone"><svg v-if="STATUS[p.status].tone === 'review'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -2px"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 19a5.5 5.5 0 0 1 11 0" /></svg>{{ STATUS[p.status].label }}</span>
-          <span class="rh-what">
-            <span class="rh-row-title">{{ p.contents.split('\n')[0] }}</span>
-            <span class="rh-row-sub">{{ PLATFORMS[p.platform].label }}<template v-if="p.requested_role"> · {{ p.requested_role }}</template> · <span class="rh-en">{{ p.id.slice(0, 8) }}</span></span>
-          </span>
-          <span class="rh-when">{{ shortWhen(p.created_at) }}</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#868CA5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
         </RouterLink>
       </div>
+
+      <RequestList
+        class="rh-recent" title="최근 요청" :items="recent" :loaded="loaded" :error="loadError"
+        empty="아직 보낸 요청이 없어요. 위에서 막힌 플랫폼을 고르고 증상을 적어 보세요." @retry="polling.restart()"
+      />
     </section>
   </AppShell>
 </template>
@@ -213,12 +197,10 @@ const help = {
 .rh-tip strong { color: var(--uo-ink-2); font-weight: 600; }
 .rh-mine-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; min-height: 36px; }
 .rh-mine-head h2 { margin: 0; font-size: 22px; font-weight: 700; }
-.rh-all { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 16px; border-radius: 999px; background: #fff; border: 1px solid #D5D9EA; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.rh-all { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 16px; border-radius: 999px; background: #fff; border: 1px solid #D5D9EA; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 .rh-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-.rh-step { position: relative; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; padding: 28px 28px 32px; border: 0; border-radius: 20px; color: var(--uo-ink); min-height: 200px; text-align: left; font: inherit; cursor: pointer; }
-/* 선택 표시를 카드 테두리로 하면 오른쪽 아래 홈(파낸 모서리) 둘레에 선이 비쳐 보여서, 화살표 원을 채우는 방식으로 표시한다. */
+.rh-step { text-decoration: none; position: relative; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; padding: 28px 28px 32px; border: 0; border-radius: 20px; color: var(--uo-ink); min-height: 200px; text-align: left; font: inherit; cursor: pointer; }
 .rh-step:focus-visible { outline: none; }
-.rh-step[aria-pressed="true"] .rh-arr { background: var(--fg); color: #fff; border-color: var(--fg); }
 .rh-step:focus-visible .rh-arr { outline: 2px solid var(--uo-primary); outline-offset: 2px; }
 .rh-step-name { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--fg); }
 .rh-step-count { margin-top: 14px; display: flex; align-items: baseline; gap: 4px; font-size: 18px; font-weight: 600; }
@@ -230,22 +212,8 @@ const help = {
 .rh-arr { position: absolute; right: 10px; bottom: 10px; width: 60px; height: 60px; border-radius: 50%; background: #fff; color: var(--fg); border: 1px solid var(--uo-line); box-shadow: 0 4px 14px rgba(20,26,51,0.08); box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
 .rh-arr svg { transition: transform .2s ease; }
 .rh-step:hover .rh-arr svg, .rh-step:focus-visible .rh-arr svg { transform: translate(3px, -3px); }
-.rh-recent { margin-top: 16px; background: #fff; border: 1px solid var(--uo-line); border-radius: 20px; overflow-x: auto; }
-.rh-recent h3 { margin: 0; padding: 16px 24px; font-size: 15px; font-weight: 700; color: var(--uo-ink-2); border-bottom: 1px solid #EEF0F6; }
-.rh-empty { margin: 0; padding: 24px; color: var(--uo-muted); font-size: 15px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.rh-row { display: grid; grid-template-columns: 116px minmax(0, 1fr) auto 18px; align-items: center; gap: 16px; padding: 16px 24px; border-bottom: 1px solid #EEF0F6; text-decoration: none; color: var(--uo-ink); min-width: 600px; }
-.rh-row:last-child { border-bottom: 0; }
-.rh-row:hover { background: #FAFBFE; }
-.rh-badge { justify-self: start; font-size: 13px; font-weight: 700; padding: 5px 12px; border-radius: 999px; white-space: nowrap; }
-.rh-badge.run { background: var(--uo-primary-soft); color: var(--uo-primary-ink); }
-.rh-badge.warn { background: var(--uo-warn-bg); color: var(--uo-warn); }
-.rh-badge.review { background: var(--uo-review-bg); color: var(--uo-review); }
-.rh-badge.ok { background: var(--uo-ok-bg); color: var(--uo-ok); }
-.rh-badge.bad { background: var(--uo-bad-bg); color: var(--uo-bad); }
-.rh-what { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.rh-row-title { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rh-row-sub { font-size: 13px; color: var(--uo-muted); }
-.rh-when { font-size: 14px; color: var(--uo-ink-2); white-space: nowrap; }
+.rh-step:hover .rh-arr { background: var(--fg); color: #fff; border-color: var(--fg); }
+.rh-recent { margin-top: 16px; }
 .rh-en { font-family: var(--uo-font-en); }
 @media (max-width: 720px) {
   .rh-hero { padding: 32px 0 28px; }
