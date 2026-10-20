@@ -14,7 +14,7 @@ Agent와 두 MCP 서버 사이의 도구별 입출력·오류 형식은 [MCP 도
 | POST /api/auth/login | loginId/password. 성공 시 세션 회전 및 안전한 사용자 프로필 반환 |
 | GET /api/auth/me | 비밀번호 해시 없는 로그인 사용자 |
 | POST /api/auth/logout | CSRF 필수, 세션 만료 |
-| POST /api/problems | platform, contents, simulateJiraFailure(데모 Jira만). requester_id는 서버가 확정. 202 {id,status} |
+| POST /api/problems | platform, contents, simulateJiraFailure(데모 Jira만). 선택 Idempotency-Key 헤더. requester_id는 서버가 확정. 202 {id,status} |
 | GET /api/problems | 담당자만. 지정 요청 최근 100건. 운영 담당자는 이력 전체 열람 |
 | GET /api/problems?mine=true | 로그인 사용자의 본인 요청 최근 100건. 요청자용 응답 필드만 반환. APPROVER도 본인 요청 조회 가능 |
 | GET /api/problems/{id} | 본인 또는 지정 담당자·운영 담당자. 본인은 공개 응답, 담당자는 기존 plan/evidence/events 포함 |
@@ -23,6 +23,24 @@ Agent와 두 MCP 서버 사이의 도구별 입출력·오류 형식은 [MCP 도
 
 요청자는 `/api/problems`(mine 생략/false) 및 승인 현황에 접근할 수 없습니다. 본인 조회 허용은 승인 권한을 부여하지 않습니다.
 추가 정보를 제출하는 대화·PATCH API는 없습니다.
+
+### 요청 접수 멱등성
+
+`POST /api/problems`는 선택 헤더 `Idempotency-Key`를 지원합니다. 공식 UI는 항상 전송하며,
+응답 유실·네트워크 오류 후 같은 접수를 재시도할 때 동일한 키를 사용합니다.
+
+- 키는 대소문자를 구분하는 1~128자의 영문·숫자·`._:-` 문자열입니다. 잘못된 값은 400이며 공백을 자동 제거하지 않습니다.
+- 범위는 **로그인 사용자 ID + 접수 키**입니다. 다른 사용자의 같은 키는 독립이며 요청자 ID를 본문으로 지정할 수 없습니다.
+- 같은 키와 같은 유효 입력(`platform`, 서버에서 strip한 `contents`, 기본값 false를 적용한 `simulateJiraFailure`)은
+  최초 `202 {id,status:RECEIVED}`를 그대로 재사용합니다. 현재 업무 상태는 바꾸지 않으며 GET으로 조회합니다.
+- 같은 사용자의 키를 다른 유효 입력에 재사용하면 409와 `{message}` 오류를 반환합니다. 기존 요청과 outbox는 수정하지 않습니다.
+- 동시 요청은 DB UNIQUE 인덱스와 원자적 INSERT로 판정하고, 요청 생성에 성공한 트랜잭션만 ANALYZE outbox를 저장합니다.
+  요청·접수 키·outbox 저장은 함께 커밋/롤백됩니다. 키는 요청 행이 보존되는 동안 유효하며 서버 재기동에도 유지됩니다.
+- 키 없는 기존 클라이언트는 이전처럼 매번 새 요청을 생성합니다. 새 키로 같은 본문을 보내는 것도 새로운 접수입니다.
+- `client_request_key`는 내부 저장 값으로 API 응답이나 worker 메시지에 추가하지 않습니다.
+  기존 `idempotency_key`는 승인 후 권한 부여용 실행 키이며 별개입니다.
+
+이 기능은 중복 **작업 생성**을 방지합니다. RabbitMQ 재전달이나 Agent 호출 자체의 정확히 한 번 실행을 보장하지 않습니다.
 
 ### 요청자 응답
 
