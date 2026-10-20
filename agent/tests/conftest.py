@@ -63,7 +63,7 @@ class FakeTools:
             if self.fail_jira: raise ToolFailure("MOCK_JIRA_UNAVAILABLE","outage",True)
             self.current["jira-uuid"]="Developer"
             self.current["repo-uuid"]="Write"
-            return {"ok":True}
+            return {"ok":True,"changed":True,"role":"Write"}
         if name=="verify_permission": return {"verified":self.current.get(args["resource_id"])==args["requested_role"]}
         raise AssertionError("Unexpected tool "+name)
 
