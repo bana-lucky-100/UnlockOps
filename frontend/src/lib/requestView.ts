@@ -23,8 +23,8 @@ export function rejectedByApprover(p: Problem) {
 export function stagesOf(p: Problem): Stage[] {
   const s: Status = p.status
   switch (s) {
-    case 'RECEIVED': return stages(['cur', 'todo', 'todo', 'todo', 'todo'], ['접수됨', '', '부서 승인자', '자동 부여', '다시 조회해 확인'])
-    case 'DIAGNOSING': return stages(['done', 'cur', 'todo', 'todo', 'todo'], ['', '확인 중', '부서 승인자', '자동 부여', '다시 조회해 확인'])
+    case 'RECEIVED': return stages(['cur', 'todo', 'todo', 'todo', 'todo'], ['접수됨', '', '승인자 검토', '자동 부여', '다시 조회해 확인'])
+    case 'DIAGNOSING': return stages(['done', 'cur', 'todo', 'todo', 'todo'], ['', '확인 중', '승인자 검토', '자동 부여', '다시 조회해 확인'])
     case 'WAITING_APPROVAL': return stages(['done', 'done', 'cur', 'todo', 'todo'], ['', '원인 찾음', '승인자 검토 중', '자동 부여', '다시 조회해 확인'])
     case 'EXECUTING': return stages(['done', 'done', 'done', 'cur', 'todo'], ['', '원인 찾음', '승인됨', '부여 중', '다시 조회해 확인'])
     case 'DONE': return p.decided_at
@@ -76,7 +76,7 @@ export function noticeOf(p: Problem): Notice | null {
     const memo = p.decision_reason?.trim() || null
     return rejectedByApprover(p)
       ? { tone: 'bad', title: '승인자가 거절했어요', memo, next: '메모를 확인하고, 필요하면 내용을 보완해 다시 요청하세요' }
-      : { tone: 'bad', title: '거절됐어요', memo: null, next: '업무에 꼭 필요하면 부서 승인자에게 문의하세요' }
+      : { tone: 'bad', title: '거절됐어요', memo: null, next: '업무에 꼭 필요하면 승인자에게 문의하세요' }
   }
   if (p.status === 'MANUAL_REVIEW') return { tone: 'warn', title: '담당자가 확인하고 있어요', memo: null, next: '확인이 끝나면 이 화면과 홈에서 알려드릴게요. 따로 할 일은 없어요' }
   if (p.status === 'FAILED') return { tone: 'bad', title: '부여 실패 · 운영 담당자 확인 중', memo: null, next: '처음 시도를 포함해 총 3번 시도했어요. 처리되면 이 화면과 홈에서 알려드릴게요. 다른 플랫폼 요청에는 영향이 없어요' }

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { api, ApiError, type Platform, type Problem } from '../api'
-import AppShell, { type AgentItem } from '../components/AppShell.vue'
+import AppShell from '../components/AppShell.vue'
 import { PLATFORMS, PLATFORM_ORDER } from '../lib/platforms'
 import { usePolling } from '../lib/polling'
 import { groupOf, isTerminal, STATUS, type StatusGroup } from '../lib/status'
@@ -11,15 +11,14 @@ import { currentUser } from '../session'
 
 const MAX = 500
 const EXAMPLE: Record<Platform, string> = {
-  GITHUB: 'payment-core에 git push 하면 권한이 없다고 나와요',
-  JIRA: 'Jira 로그인은 되는데 PAY 프로젝트가 목록에 안 떠요',
-  SLACK: '#proj-payment 채널이 검색이 안 돼요',
-  NOTION: '결제 개편 TF 위키 페이지를 열면 접근 권한이 없다고 떠요',
+  GITHUB: '저장소에 push하면 권한이 없다고 나와요',
+  JIRA: '로그인은 되는데 팀 프로젝트가 목록에 안 보여요',
+  SLACK: '팀 채널이 검색되지 않아요',
+  NOTION: '팀 위키 페이지를 열면 접근 권한이 없다고 나와요',
 }
 
-const shell = ref<InstanceType<typeof AppShell>>()
-const ask = ref<HTMLTextAreaElement>()
-const selected = ref<Platform[]>([])
+// 요청 1건 = 플랫폼 1개. 화면에서도 한 번에 하나만 고르게 해서 헷갈리지 않게 한다.
+const selected = ref<Platform | null>(null)
 const contents = ref('')
 const sending = ref(false)
 const formError = ref('')
@@ -30,9 +29,9 @@ const loaded = ref(false)
 const loadError = ref('')
 const filter = ref<StatusGroup | null>(null)
 
-const ready = computed(() => selected.value.length > 0 && contents.value.trim().length >= 2)
-const placeholder = computed(() => selected.value.length
-  ? '예: ' + EXAMPLE[selected.value[0]]
+const ready = computed(() => !!selected.value && contents.value.trim().length >= 2)
+const placeholder = computed(() => selected.value
+  ? '예: ' + EXAMPLE[selected.value]
   : '무엇이 안 되나요? 플랫폼을 먼저 골라 주세요')
 const rows = computed(() => Math.min(4, Math.max(1, Math.ceil(contents.value.length / 40) + contents.value.split('\n').length - 1)))
 
@@ -42,7 +41,7 @@ const counts = computed(() => {
   return c
 })
 const steps = computed(() => [
-  { key: 'progress' as const, no: '01', name: '진단 중', desc: 'AI가 소속 TF · 현재 권한 · 사내 규정을 대조하고 있어요', bg: '#EEF0FF', fg: '#2F3DB8' },
+  { key: 'progress' as const, no: '01', name: '진단 중', desc: 'AI가 소속 · 현재 권한 · 사내 규정을 대조하고 있어요', bg: '#EEF0FF', fg: '#2F3DB8' },
   { key: 'waiting' as const, no: '02', name: '승인 대기', desc: '규정 근거와 함께 승인자에게 올라갔어요', bg: '#FDF0E4', fg: '#9A4A08' },
   { key: 'finished' as const, no: '03', name: '끝난 요청', desc: '완료 · 거절 · 실패 · 담당자 검토 — 결과를 확인해 주세요', bg: '#E6F4EC', fg: '#1A7340' },
 ].map(s => ({ ...s, count: counts.value[s.key] })))
@@ -50,7 +49,7 @@ const visible = computed(() => filter.value ? items.value.filter(p => groupOf(p.
 
 function toggle(p: Platform) {
   formError.value = ''
-  selected.value = selected.value.includes(p) ? selected.value.filter(x => x !== p) : [...selected.value, p]
+  selected.value = selected.value === p ? null : p
 }
 
 async function load() {
@@ -68,88 +67,70 @@ async function load() {
 }
 const polling = usePolling(load)
 
-// 요청 1건 = 플랫폼 1개. 여러 개를 고르면 플랫폼마다 따로 보내고, 일부만 실패해도 성공한 건은 그대로 둔다.
 async function send() {
   if (sending.value) return
   formError.value = ''
   sentNotice.value = ''
-  if (!selected.value.length) { formError.value = '어디에서 막혔는지 플랫폼을 하나 이상 골라 주세요'; return }
+  if (!selected.value) { formError.value = '어디에서 막혔는지 플랫폼을 골라 주세요'; return }
   if (contents.value.trim().length < 2) { formError.value = '증상을 2자 이상 적어 주세요'; return }
   sending.value = true
-  const text = contents.value.trim()
-  const targets = [...selected.value]
-  const results = await Promise.allSettled(targets.map(platform =>
-    api<{ id: string }>('/problems', { method: 'POST', body: JSON.stringify({ platform, contents: text }) })))
-  sending.value = false
-
-  const failed = targets.filter((_, i) => results[i].status === 'rejected')
-  const ok = targets.filter((_, i) => results[i].status === 'fulfilled')
-  if (ok.length) {
-    sentNotice.value = failed.length
-      ? `${ok.map(p => PLATFORMS[p].label).join(' · ')} 요청을 보냈어요.`
-      : `요청 ${ok.length}건을 보냈어요. AI가 플랫폼마다 따로 확인해요.`
+  try {
+    await api<{ id: string }>('/problems', { method: 'POST', body: JSON.stringify({ platform: selected.value, contents: contents.value.trim() }) })
+    sentNotice.value = `${PLATFORMS[selected.value].label} 요청을 보냈어요. AI가 확인하고 있어요.`
     contents.value = ''
+    selected.value = null
     filter.value = null
+    polling.restart()
+  } catch (e) {
+    // 실패하면 입력은 그대로 두고 다시 보낼 수 있게 한다.
+    formError.value = `요청을 보내지 못했어요. ${(e as Error).message}`
+  } finally {
+    sending.value = false
   }
-  if (failed.length) {
-    const first = results.find(r => r.status === 'rejected') as PromiseRejectedResult
-    formError.value = `${failed.map(p => PLATFORMS[p].label).join(' · ')} 요청은 보내지 못했어요. ${(first.reason as Error).message}`
-  }
-  // 못 보낸 플랫폼만 선택으로 남겨 다시 보내기 쉽게 한다.
-  selected.value = failed
-  polling.restart()
 }
 
 function onKey(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); void send() }
 }
 
-async function focusAsk() { await nextTick(); ask.value?.focus() }
-function showProgress() { filter.value = 'progress'; document.getElementById('mine')?.scrollIntoView({ behavior: 'smooth' }) }
-
-const agentItems = computed<AgentItem[]>(() => [
-  { label: '진행 중인 요청 보기', sub: `진단 중 ${counts.value.progress} · 승인 대기 ${counts.value.waiting}`, icon: 'M4 6h16M4 12h16M4 18h10', action: showProgress },
-  { label: '새로 요청하기', sub: '막힌 곳을 알려주세요', icon: 'M12 5v14M5 12h14', action: focusAsk },
-  { label: '도움말', sub: '사용법과 자주 묻는 질문', icon: 'M9.5 9.5a2.5 2.5 0 0 1 4.9.7c0 1.7-2.4 2.1-2.4 3.6M12 17h.01', action: () => shell.value?.openHelp() },
-])
 const help = {
   howto: [
-    { t: '막힌 플랫폼을 고르세요', d: '여러 개 고르면 플랫폼마다 요청이 따로 만들어지고, 각각 승인돼요' },
+    { t: '막힌 플랫폼을 고르세요', d: '한 번에 하나씩 보내요. 다른 플랫폼도 막혔다면 이어서 한 번 더 보내 주세요' },
     { t: '증상을 적어 주세요', d: '저장소 · 프로젝트 이름은 몰라도 AI가 소속 부서 정보로 찾아요' },
-    { t: '승인을 기다리세요', d: 'AI가 찾은 원인과 규정 근거가 부서 승인자에게 올라가고, 승인되면 자동으로 열려요' },
+    { t: '승인을 기다리세요', d: 'AI가 찾은 원인과 규정 근거가 승인자에게 올라가고, 승인되면 자동으로 열려요' },
   ],
   faqs: [
-    { q: '플랫폼을 여러 개 골랐는데 요청이 여러 건이에요', a: '권한은 플랫폼마다 따로 승인되고 따로 열려요. 그래서 요청도 플랫폼마다 하나씩 만들어져요.' },
+    { q: '여러 플랫폼이 다 막혔어요', a: '권한은 플랫폼마다 따로 승인되고 따로 열려요. 플랫폼마다 한 번씩 보내 주세요.' },
     { q: 'Admin 권한은 왜 안 되나요?', a: '관리자 권한은 보안 위험이 커서 이 서비스에서 자동으로 주지 않아요. 보안팀에 따로 요청해 주세요.' },
     { q: '실패하면 어떻게 되나요?', a: '처음 시도를 포함해 총 3번까지 자동으로 시도해요. 그래도 안 되면 실패로 표시되고 운영 담당자가 확인해요. 다른 플랫폼 요청에는 영향이 없어요.' },
-    { q: '거절되면 어디서 이유를 보나요?', a: '승인자가 메모를 남겼다면 요청 상세에 그대로 보여요. 메모가 없으면 부서 승인자에게 문의해 주세요.' },
+    { q: '거절되면 어디서 이유를 보나요?', a: '승인자가 메모를 남겼다면 요청 상세에 그대로 보여요. 메모가 없으면 승인자에게 문의해 주세요.' },
   ],
 }
 </script>
 
 <template>
-  <AppShell ref="shell" :agent-items="agentItems" :help="help" show-lock>
+  <AppShell :help="help" show-lock>
     <section class="rh-hero">
       <p class="rh-hello">안녕하세요, {{ currentUser?.name }}님</p>
       <h1 class="rh-title">막힌 권한, 편리하게<br>근거와 함께 열어드려요</h1>
 
       <div class="rh-ask">
         <fieldset class="rh-chips">
-          <legend>어디에서 막혔나요? <span>여러 개 고르면 플랫폼마다 요청이 따로 만들어져요</span></legend>
+          <legend>어디에서 막혔나요? <span>하나만 골라 주세요</span></legend>
           <button
             v-for="p in PLATFORM_ORDER" :key="p" type="button" class="rh-chip"
-            :aria-pressed="selected.includes(p)"
+            :aria-pressed="selected === p"
             :style="{ '--c': PLATFORMS[p].color, '--s': PLATFORMS[p].soft }"
             @click="toggle(p)"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="PLATFORMS[p].icon" /></svg>
-            {{ selected.includes(p) ? '✓ ' : '' }}{{ PLATFORMS[p].label }}
+            {{ selected === p ? '✓ ' : '' }}{{ PLATFORMS[p].label }}
           </button>
         </fieldset>
 
         <form class="rh-form" novalidate @submit.prevent="send">
           <label for="rh-ask" class="rh-sr">무엇이 안 되나요?</label>
-          <textarea id="rh-ask" ref="ask" v-model="contents" :rows="rows" :maxlength="MAX" :placeholder="placeholder" @keydown="onKey" />
+          <textarea id="rh-ask" v-model="contents" :rows="rows" :maxlength="MAX" :placeholder="placeholder" @keydown="onKey" />
           <span class="rh-count">Enter로 보내기 · {{ contents.length }}/{{ MAX }}</span>
           <button type="submit" class="rh-send" aria-label="요청 보내기" :aria-disabled="!ready || sending" :class="{ on: ready && !sending }">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>

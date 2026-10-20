@@ -1,19 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import agentImg from '../assets/agent.png'
 import lockImg from '../assets/lock.jpg'
 import { currentUser, logout } from '../session'
 
-export interface AgentItem { label: string; sub: string; icon: string; action: () => void }
 export interface HelpContent { howto: { t: string; d: string }[]; faqs: { q: string; a: string }[] }
 
-const props = defineProps<{ agentItems: AgentItem[]; help: HelpContent; showLock?: boolean }>()
+const props = defineProps<{ help: HelpContent; showLock?: boolean }>()
 
 const route = useRoute()
 const router = useRouter()
 const helpOpen = ref(false)
-const agentOpen = ref(false)
 const error = ref('')
 
 // 왼쪽 메뉴는 역할마다 다르다. 메뉴를 숨겨도 실제 차단은 서버가 한다.
@@ -25,8 +22,7 @@ const nav = computed(() => currentUser.value?.role === 'APPROVER'
     ])
 const home = computed(() => currentUser.value?.role === 'APPROVER' ? '/approvals' : '/')
 
-function openHelp() { agentOpen.value = false; helpOpen.value = true }
-function runAgent(item: AgentItem) { agentOpen.value = false; item.action() }
+function openHelp() { helpOpen.value = true }
 defineExpose({ openHelp })
 
 async function signOut() {
@@ -69,23 +65,6 @@ async function signOut() {
       </div>
     </main>
 
-    <div class="sh-fab">
-      <section v-if="agentOpen" class="sh-agent" role="dialog" aria-labelledby="sh-agent-t">
-        <div class="sh-agent-head">
-          <img :src="agentImg" alt="" width="40" height="40">
-          <span><strong id="sh-agent-t">UnlockOps Agent</strong><span>무엇을 도와드릴까요?</span></span>
-        </div>
-        <button v-for="it in agentItems" :key="it.label" type="button" class="sh-agent-item" @click="runAgent(it)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B4BD8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="it.icon" /></svg>
-          <span><strong>{{ it.label }}</strong><span>{{ it.sub }}</span></span>
-        </button>
-      </section>
-      <button type="button" class="sh-agent-btn" :aria-expanded="agentOpen" aria-label="UnlockOps Agent 열기" @click="agentOpen = !agentOpen">
-        <span class="sh-agent-face" aria-hidden="true"><img :src="agentImg" alt="" width="44" height="44"></span>
-        {{ agentOpen ? '닫기' : 'Agent' }}
-      </button>
-    </div>
-
     <div v-if="helpOpen" class="sh-help">
       <button type="button" class="sh-scrim" aria-label="도움말 닫기" @click="helpOpen = false" />
       <aside class="sh-drawer" role="dialog" aria-modal="true" aria-labelledby="sh-help-t">
@@ -119,7 +98,7 @@ async function signOut() {
 .sh-main { flex: 999 1 560px; min-width: 0; position: relative; overflow: hidden; }
 .sh-glow { position: absolute; top: -220px; right: -160px; width: 820px; height: 720px; border-radius: 50%; background: radial-gradient(closest-side at 55% 50%, rgba(122,92,240,0.38), rgba(59,75,216,0.22) 45%, rgba(246,247,252,0) 100%); filter: blur(10px); pointer-events: none; }
 .sh-lock { position: absolute; top: 140px; right: 142px; width: 284px; height: 284px; object-fit: contain; mix-blend-mode: multiply; pointer-events: none; }
-.sh-inner { position: relative; max-width: 1180px; margin: 0 auto; padding: 44px 48px 120px; box-sizing: border-box; }
+.sh-inner { position: relative; max-width: 1180px; margin: 0 auto; padding: 44px 48px 64px; box-sizing: border-box; }
 .sh-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .sh-brand { font-family: var(--uo-font-en); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; }
 .sh-brand span { font-family: var(--uo-font); font-weight: 500; font-size: 14px; color: var(--uo-muted); letter-spacing: 0; }
@@ -127,17 +106,6 @@ async function signOut() {
 .sh-pill { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 12px; border: 1px solid #D5D9EA; border-radius: 999px; background: #fff; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 .sh-avatar { width: 36px; height: 36px; border-radius: 50%; background: #DDE2FF; color: var(--uo-primary); display: flex; align-items: center; justify-content: center; font-weight: 600; }
 .sh-err { color: var(--uo-bad); font-weight: 600; }
-.sh-fab { position: fixed; right: 28px; bottom: 28px; z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
-.sh-agent { width: 320px; background: linear-gradient(100deg, #EEF0FF 0%, #F2EDFF 60%, #F7F3FF 100%); border: 1px solid var(--uo-primary-ink); border-radius: 24px; box-shadow: 0 18px 50px rgba(20,26,51,0.18); padding: 18px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; }
-.sh-agent-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.sh-agent-head img { border-radius: 50%; }
-.sh-agent-head strong { display: block; font-size: 15px; }
-.sh-agent-head span span, .sh-agent-item span span { font-size: 13px; color: var(--uo-muted); }
-.sh-agent-item { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font: inherit; color: var(--uo-ink); background: #fff; border: 0; border-radius: 12px; padding: 12px 14px; cursor: pointer; }
-.sh-agent-item strong { display: block; font-size: 15px; font-weight: 600; }
-.sh-agent-btn { display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 20px 0 8px; border-radius: 999px; border: 0; background: var(--uo-gradient); box-shadow: 0 10px 30px rgba(59,75,216,0.35); font: inherit; font-size: 15px; font-weight: 700; color: #fff; cursor: pointer; transition: box-shadow .25s ease, transform .25s ease; }
-.sh-agent-btn:hover, .sh-agent-btn:focus-visible { box-shadow: 0 0 0 6px rgba(122,92,240,.18), 0 0 28px rgba(122,92,240,.65), 0 12px 34px rgba(59,75,216,.45); transform: translateY(-2px); }
-.sh-agent-face { width: 44px; height: 44px; border-radius: 50%; background: #fff; overflow: hidden; display: flex; }
 .sh-help { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end; }
 .sh-scrim { position: absolute; inset: 0; border: 0; padding: 0; background: rgba(20,26,51,0.32); cursor: pointer; }
 .sh-drawer { position: relative; width: 440px; max-width: 100%; height: 100%; overflow-y: auto; background: #fff; box-shadow: -12px 0 40px rgba(20,26,51,0.18); padding: 28px 28px 40px; box-sizing: border-box; }
@@ -159,11 +127,9 @@ async function signOut() {
   .sh-nav { position: static; height: auto; width: 100%; flex-direction: row; justify-content: flex-start; padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--uo-line); }
   .sh-logo { margin: 0 12px 0 0; }
   .sh-nav-link::after { display: none; }
-  .sh-inner { padding: 20px 16px 120px; }
+  .sh-inner { padding: 20px 16px 48px; }
   .sh-who { display: none; }
   .sh-lock { display: none; }
-  .sh-fab { right: 16px; bottom: 16px; }
-  .sh-agent { width: calc(100vw - 32px); }
 }
-@media (prefers-reduced-motion: reduce) { .sh-nav-link, .sh-nav-link::after, .sh-agent-btn { transition: none; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .sh-nav-link, .sh-nav-link::after { transition: none; } }
 </style>

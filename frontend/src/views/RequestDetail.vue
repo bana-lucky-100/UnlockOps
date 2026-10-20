@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import { api, ApiError, type Problem } from '../api'
-import AppShell, { type AgentItem } from '../components/AppShell.vue'
+import AppShell from '../components/AppShell.vue'
 import StageBar from '../components/StageBar.vue'
 import { PLATFORMS } from '../lib/platforms'
 import { usePolling } from '../lib/polling'
@@ -12,12 +12,9 @@ import { shortWhen } from '../lib/time'
 import { currentUser } from '../session'
 
 const route = useRoute()
-const router = useRouter()
 const id = String(route.params.id)
-const shell = ref<InstanceType<typeof AppShell>>()
 const item = ref<Problem | null>(null)
 const error = ref('')
-const siblings = ref<Problem[]>([])
 const isRequester = computed(() => currentUser.value?.role !== 'APPROVER')
 const back = computed(() => isRequester.value ? '/' : '/approvals')
 
@@ -38,18 +35,6 @@ async function load() {
 }
 usePolling(load)
 
-// 같은 시각에 함께 보낸 요청(여러 플랫폼을 한 번에 골라 보낸 것). 요청자 본인 목록에서 찾는다.
-async function loadSiblings() {
-  if (!isRequester.value) return
-  try {
-    const mine = await api<Problem[]>('/problems?mine=true')
-    const me = mine.find(p => p.id === id)
-    if (!me) return
-    const t = new Date(me.created_at).getTime()
-    siblings.value = mine.filter(p => p.id !== id && p.contents === me.contents && Math.abs(new Date(p.created_at).getTime() - t) < 5000)
-  } catch { /* 보조 정보라 실패해도 화면은 그대로 둔다 */ }
-}
-void loadSiblings()
 
 const p = computed(() => item.value)
 const platform = computed(() => p.value ? PLATFORMS[p.value.platform] : null)
@@ -86,24 +71,20 @@ const record = computed(() => {
   ]
 })
 
-const agentItems = computed<AgentItem[]>(() => [
-  { label: '내 요청으로', sub: '다른 요청 보기', icon: 'M4 6h16M4 12h16M4 18h10', action: () => { void router.push(back.value) } },
-  { label: '도움말', sub: '사용법과 자주 묻는 질문', icon: 'M9.5 9.5a2.5 2.5 0 0 1 4.9.7c0 1.7-2.4 2.1-2.4 3.6M12 17h.01', action: () => shell.value?.openHelp() },
-])
 const help = {
   howto: [
     { t: '진행 단계를 보세요', d: '접수 → AI 진단 → 승인 → 권한 부여 → 반영 확인 순서로 진행돼요. 이 화면을 닫아도 계속 진행돼요' },
     { t: '거절 · 실패 때는 안내를 따르세요', d: '오른쪽 카드에 다음에 할 일이 나와요' },
   ],
   faqs: [
-    { q: '거절되면 어디서 이유를 보나요?', a: '승인자가 메모를 남겼다면 이 화면에 그대로 보여요. 메모가 없으면 부서 승인자에게 문의해 주세요.' },
+    { q: '거절되면 어디서 이유를 보나요?', a: '승인자가 메모를 남겼다면 이 화면에 그대로 보여요. 메모가 없으면 승인자에게 문의해 주세요.' },
     { q: '실패하면 어떻게 되나요?', a: '처음 시도를 포함해 총 3번까지 자동으로 시도해요. 그래도 안 되면 실패로 표시되고 운영 담당자가 확인해요.' },
   ],
 }
 </script>
 
 <template>
-  <AppShell ref="shell" :agent-items="agentItems" :help="help">
+  <AppShell :help="help">
     <div class="rd-top">
       <div>
         <RouterLink :to="back" class="rd-back">← {{ isRequester ? '홈으로' : '승인함으로' }}</RouterLink>
@@ -194,15 +175,6 @@ const help = {
             <p>{{ p.decided_at ? `${platform.label}에서 다시 조회해 반영을 확인했어요. 지금 바로 쓸 수 있어요.` : '이미 필요한 권한이 있어요. 그래도 안 되면 로그아웃 후 다시 로그인해 보세요.' }}</p>
           </section>
 
-          <section v-if="siblings.length" class="rd-card rd-sib" aria-labelledby="rd-sb">
-            <h2 id="rd-sb">같은 시각에 보낸 요청</h2>
-            <p class="rd-sib-sub">플랫폼마다 따로 승인되고 따로 열려요</p>
-            <RouterLink v-for="s in siblings" :key="s.id" :to="`/requests/${s.id}`" class="rd-sib-row">
-              <span class="rd-ptag" :style="{ background: PLATFORMS[s.platform].soft, color: PLATFORMS[s.platform].color }">{{ PLATFORMS[s.platform].label }}</span>
-              <span class="rd-sib-t">{{ s.requested_role ? `요청 권한 ${s.requested_role}` : '확인 중' }}</span>
-              <span class="rd-badge sm" :class="STATUS[s.status].tone">{{ STATUS[s.status].label }}</span>
-            </RouterLink>
-          </section>
         </aside>
       </div>
     </template>
@@ -277,11 +249,6 @@ const help = {
 .rd-success { border-radius: 20px; padding: 24px; background: var(--uo-ok-bg); border: 1px solid #BFE3CC; }
 .rd-success h2 { margin: 0 0 10px; font-size: 20px; color: var(--uo-ok); }
 .rd-success p { margin: 0; font-size: 15px; line-height: 1.65; }
-.rd-sib { padding: 20px 22px; }
-.rd-sib h2 { margin: 0 0 4px; font-size: 16px; }
-.rd-sib-sub { margin: 0 0 10px; font-size: 13px; color: var(--uo-muted); }
-.rd-sib-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid #EEF0F6; text-decoration: none; color: var(--uo-ink); }
-.rd-sib-t { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @keyframes rd-spin { to { transform: rotate(360deg); } }
 @media (max-width: 720px) { .rd-top h1 { font-size: 24px; } .rd-msg { max-width: 92%; } }
 @media (prefers-reduced-motion: reduce) { .last .rd-mark { animation: none; } }
