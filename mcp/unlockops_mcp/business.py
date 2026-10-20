@@ -6,7 +6,7 @@ import uvicorn
 
 from unlockops_rag.search import DocumentIndex
 from .repository import Repository
-from unlockops.rules import ceiling
+from unlockops.rules import ceiling, source_hashes
 from unlockops.settings import settings
 from .auth import TokenAuth
 
@@ -57,8 +57,11 @@ def check_budget(employee_id: str) -> dict:
 def search_access_rules(query: str, employee_id: str, resource_id: str) -> dict:
     """Retrieve company matrix evidence and the explicit grade/job/resource ceiling for this employee."""
     profile, resource = repo.profile(employee_id), repo.resource(resource_id)
+    # hits는 LLM이 읽을 RAG 근거, maximum_role은 같은 원문 표에서 직접 읽은 실행 상한이다.
+    # source_hashes로 캐시된 검색 근거와 현재 파일이 같은 버전인지 확인할 수 있다.
     return {"hits": index().search(query, limit=6),
             "maximum_role": ceiling(profile, resource),
+            "source_hashes": source_hashes(),
             "rule_source": "A-ACCESS-03", "exception_source": "A-ACCESS-04"}
 
 
