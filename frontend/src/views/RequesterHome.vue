@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { api, ApiError, type Platform, type Problem } from '../api'
 import AppShell from '../components/AppShell.vue'
 import RequestList from '../components/RequestList.vue'
@@ -9,12 +9,15 @@ import { usePolling } from '../lib/polling'
 import { groupOf, isTerminal, type StatusGroup } from '../lib/status'
 import { currentUser } from '../session'
 
+const router = useRouter()
 const MAX = 500
+// AI는 적힌 이름으로만 자원을 찾는다(이름이 없거나 모호하면 추측하지 않고 담당자 검토로 넘긴다).
+// 그래서 예시에도 이름 자리를 꼭 넣는다.
 const EXAMPLE: Record<Platform, string> = {
-  GITHUB: '저장소에 push하면 권한이 없다고 나와요',
-  JIRA: '로그인은 되는데 팀 프로젝트가 목록에 안 보여요',
-  SLACK: '팀 채널이 검색되지 않아요',
-  NOTION: '팀 위키 페이지를 열면 접근 권한이 없다고 나와요',
+  GITHUB: '[저장소 이름] 저장소에 push하면 권한이 없다고 나와요',
+  JIRA: '[프로젝트 키] 프로젝트가 목록에 안 보여요',
+  SLACK: '[채널 이름] 채널이 검색되지 않아요',
+  NOTION: '[페이지 이름] 페이지를 열면 접근 권한이 없다고 나와요',
 }
 
 // 요청 1건 = 플랫폼 1개. 화면에서도 한 번에 하나만 고르게 해서 헷갈리지 않게 한다.
@@ -22,7 +25,6 @@ const selected = ref<Platform | null>(null)
 const contents = ref('')
 const sending = ref(false)
 const formError = ref('')
-const sentNotice = ref('')
 
 const items = ref<Problem[]>([])
 const loaded = ref(false)
@@ -70,16 +72,16 @@ const polling = usePolling(load)
 async function send() {
   if (sending.value) return
   formError.value = ''
-  sentNotice.value = ''
   if (!selected.value) { formError.value = '어디에서 막혔는지 플랫폼을 골라 주세요'; return }
   if (contents.value.trim().length < 2) { formError.value = '증상을 2자 이상 적어 주세요'; return }
   sending.value = true
   try {
-    await api<{ id: string }>('/problems', { method: 'POST', body: JSON.stringify({ platform: selected.value, contents: contents.value.trim() }) })
-    sentNotice.value = `${PLATFORMS[selected.value].label} 요청을 보냈어요. AI가 확인하고 있어요.`
+    const created = await api<{ id: string }>('/problems', { method: 'POST', body: JSON.stringify({ platform: selected.value, contents: contents.value.trim() }) })
+    // 보낸 요청의 상세로 바로 간다. 진행 단계가 실시간으로 바뀌는 걸 그 자리에서 볼 수 있다.
+    // (홈에 '확인하고 있어요' 안내를 남겨 두면, 끝난 뒤에도 아직 확인 중인 것처럼 보였다.)
     contents.value = ''
     selected.value = null
-    polling.restart()
+    await router.push(`/requests/${created.id}`)
   } catch (e) {
     // 실패하면 입력은 그대로 두고 다시 보낼 수 있게 한다.
     formError.value = `요청을 보내지 못했어요. ${(e as Error).message}`
@@ -95,7 +97,7 @@ function onKey(e: KeyboardEvent) {
 const help = {
   howto: [
     { t: '막힌 플랫폼을 고르세요', d: '한 번에 하나씩 보내요. 다른 플랫폼도 막혔다면 이어서 한 번 더 보내 주세요' },
-    { t: '증상을 적어 주세요', d: '저장소 · 프로젝트 이름은 몰라도 AI가 소속 부서 정보로 찾아요' },
+    { t: '이름과 증상을 적어 주세요', d: '저장소 · 프로젝트 · 채널 · 페이지 이름을 함께 적어야 AI가 정확히 찾아요. 이름이 없으면 담당자가 확인해요' },
     { t: '승인을 기다리세요', d: 'AI가 찾은 원인과 규정 근거가 승인자에게 올라가고, 승인되면 자동으로 열려요' },
   ],
   faqs: [
@@ -136,9 +138,8 @@ const help = {
           </button>
         </form>
 
-        <p v-if="sentNotice" class="rh-ok" role="status">{{ sentNotice }}</p>
         <p v-if="formError" class="rh-err" role="alert">{{ formError }}</p>
-        <p class="rh-tip">저장소 · 프로젝트 이름은 몰라도 돼요. 잘 찾는 방법: <strong>언제부터 · 어느 화면에서 · 어떤 메시지</strong>가 나오는지</p>
+        <p class="rh-tip"><strong>저장소 · 프로젝트 · 채널 · 페이지 이름</strong>을 꼭 적어 주세요. 이름이 없으면 담당자가 직접 확인해야 해서 오래 걸려요</p>
       </div>
     </section>
 
@@ -192,7 +193,6 @@ const help = {
 .rh-send.on:hover svg { transform: translateX(3px); }
 .rh-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .rh-err { margin: 0; font-size: 14px; font-weight: 500; color: var(--uo-bad); background: var(--uo-bad-bg); border-radius: 10px; padding: 10px 14px; }
-.rh-ok { margin: 0; font-size: 14px; font-weight: 500; color: var(--uo-ok); background: var(--uo-ok-bg); border-radius: 10px; padding: 10px 14px; }
 .rh-tip { margin: 0; font-size: 14px; color: var(--uo-muted); }
 .rh-tip strong { color: var(--uo-ink-2); font-weight: 600; }
 .rh-mine-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; min-height: 36px; }
