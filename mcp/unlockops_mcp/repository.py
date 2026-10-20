@@ -12,7 +12,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from unlockops.models import Plan
-from unlockops.rules import approver_is_eligible, evaluate, role_satisfies
+from unlockops.rules import ROLES, approver_is_eligible, evaluate, role_satisfies
 from unlockops.settings import settings
 
 

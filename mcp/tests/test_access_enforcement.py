@@ -26,6 +26,7 @@ class Connection:
         self.problem, self.actor = problem, actor
         self.receipt = None
         self.writes = []
+        self.teams = []  # current()가 실제 SQL 조회 경로로 읽는 모의 팀 멤버십
 
     def __enter__(self):
         """실제 연결처럼 with 구문에서 사용할 수 있게 한다."""
@@ -46,8 +47,12 @@ class Connection:
             self.row = self.actor
         elif "SELECT id FROM github_teams" in query:
             self.row = {"id": "team"}
+        elif "FROM github_team_members" in query:
+            self.rows = deepcopy(self.teams)
         elif query.lstrip().startswith(("INSERT", "UPDATE", "DELETE")):
             self.writes.append((query, args))
+            if query.startswith("INSERT INTO github_team_members"):
+                self.teams.append({"id": args[0], "saas_role": "Write"})
         elif "pg_advisory_xact_lock" not in query:
             raise AssertionError("Unexpected query: " + query)
         return self
@@ -55,6 +60,10 @@ class Connection:
     def fetchone(self):
         """직전 SELECT에 해당하는 모의 행을 반환한다."""
         return self.row
+
+    def fetchall(self):
+        """실제 current()의 GitHub 팀 조회 결과를 반환한다."""
+        return self.rows
 
 
 @pytest.fixture
@@ -121,4 +130,48 @@ def test_completed_execution_returns_receipt_without_reapplying(repository):
     previous = {"ok": True, "changed": True, "role": "Write"}
     connection.receipt = {"result": previous}
     assert repo.grant("problem", "execution-key") == previous
+    assert connection.writes == []
+
+
+@pytest.mark.parametrize("roles,expected", [
+    ([], None), (["Read"], "Read"), (["Write"], "Write"),
+    (["Write", "Read"], "Write"), (["Read", "Write"], "Write"),
+])
+def test_github_current_reads_existing_team_memberships(repository, monkeypatch, roles, expected):
+    """팀 멤버십이 있을 때도 실제 current()가 오류 없이 가장 높은 역할을 고른다."""
+    repo, connection, _ = repository
+    monkeypatch.setattr(repo, "current", Repository.current.__get__(repo))
+    connection.teams = [{"id": f"team-{i}", "saas_role": role} for i, role in enumerate(roles)]
+    result = repo.current("requester", "repo")
+    assert result["role"] == expected
+    assert result["teams"] == [row["id"] for row in connection.teams]
+    assert connection.writes == []
+
+
+def test_approved_github_grant_can_be_read_back_and_verified(repository, monkeypatch):
+    """current()를 대체하지 않고, 부여 전 조회부터 부여 후 재조회·검증까지 실행한다."""
+    repo, connection, _ = repository
+    monkeypatch.setattr(repo, "current", Repository.current.__get__(repo))
+    assert repo.current("requester", "repo")["role"] is None
+    assert repo.grant("problem", "execution-key")["changed"] is True
+    result = repo.verify("requester", "repo", "Write")
+    assert result["verified"] is True
+    assert result["current"]["role"] == "Write"
+    assert result["current"]["source"] == "github-team-membership"
+    assert len(connection.writes) == 3
+
+
+def test_unreadable_policy_blocks_approved_grant_before_any_write(repository, monkeypatch):
+    """사람 승인이 있어도 실행 시 권한표를 읽지 못하면 변경하지 않는다."""
+    from unlockops.models import ToolFailure
+    from unlockops import rules
+
+    repo, connection, _ = repository
+
+    def unavailable(*args):
+        raise ToolFailure("INVALID_ACCESS_MATRIX", "invalid policy")
+
+    monkeypatch.setattr(rules, "_section", unavailable)
+    with pytest.raises(ToolFailure, match="invalid policy"):
+        repo.grant("problem", "execution-key")
     assert connection.writes == []
