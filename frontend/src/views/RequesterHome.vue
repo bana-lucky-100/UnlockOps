@@ -216,7 +216,10 @@ const help = {
 .rh-all { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 16px; border-radius: 999px; background: #fff; border: 1px solid #D5D9EA; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 .rh-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
 .rh-step { position: relative; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; padding: 28px 28px 32px; border: 0; border-radius: 20px; color: var(--uo-ink); min-height: 200px; text-align: left; font: inherit; cursor: pointer; }
-.rh-step[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--fg); }
+/* 선택 표시를 카드 테두리로 하면 오른쪽 아래 홈(파낸 모서리) 둘레에 선이 비쳐 보여서, 화살표 원을 채우는 방식으로 표시한다. */
+.rh-step:focus-visible { outline: none; }
+.rh-step[aria-pressed="true"] .rh-arr { background: var(--fg); color: #fff; border-color: var(--fg); }
+.rh-step:focus-visible .rh-arr { outline: 2px solid var(--uo-primary); outline-offset: 2px; }
 .rh-step-name { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--fg); }
 .rh-step-count { margin-top: 14px; display: flex; align-items: baseline; gap: 4px; font-size: 18px; font-weight: 600; }
 .rh-step-count b { font-family: var(--uo-font-en); font-size: 52px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
