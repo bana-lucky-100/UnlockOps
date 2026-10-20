@@ -174,7 +174,7 @@ const help = {
         <p v-else-if="!items.length" class="rh-empty">아직 보낸 요청이 없어요. 위에서 막힌 플랫폼을 고르고 증상을 적어 보세요.</p>
         <p v-else-if="!visible.length" class="rh-empty">이 상태의 요청이 없어요.</p>
         <RouterLink v-for="p in visible" :key="p.id" :to="`/requests/${p.id}`" class="rh-row">
-          <span class="rh-badge" :class="STATUS[p.status].tone">{{ STATUS[p.status].label }}</span>
+          <span class="rh-badge" :class="STATUS[p.status].tone"><svg v-if="STATUS[p.status].tone === 'review'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -2px"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 19a5.5 5.5 0 0 1 11 0" /></svg>{{ STATUS[p.status].label }}</span>
           <span class="rh-what">
             <span class="rh-row-title">{{ p.contents.split('\n')[0] }}</span>
             <span class="rh-row-sub">{{ PLATFORMS[p.platform].label }}<template v-if="p.requested_role"> · {{ p.requested_role }}</template> · <span class="rh-en">{{ p.id.slice(0, 8) }}</span></span>
@@ -239,6 +239,7 @@ const help = {
 .rh-badge { justify-self: start; font-size: 13px; font-weight: 700; padding: 5px 12px; border-radius: 999px; white-space: nowrap; }
 .rh-badge.run { background: var(--uo-primary-soft); color: var(--uo-primary-ink); }
 .rh-badge.warn { background: var(--uo-warn-bg); color: var(--uo-warn); }
+.rh-badge.review { background: var(--uo-review-bg); color: var(--uo-review); }
 .rh-badge.ok { background: var(--uo-ok-bg); color: var(--uo-ok); }
 .rh-badge.bad { background: var(--uo-bad-bg); color: var(--uo-bad); }
 .rh-what { display: flex; flex-direction: column; gap: 3px; min-width: 0; }

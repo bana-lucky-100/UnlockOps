@@ -16,6 +16,8 @@
   --uo-warn-bg: #FDF0E4; --uo-warn: #9A4A08;
   --uo-ok-bg: #E6F4EC;   --uo-ok: #1A7340;
   --uo-bad-bg: #FCE8EA;  --uo-bad: #A61E30;
+  /* 담당자 검토: 진단 중(남보라) · 승인 대기(주황)와 헷갈리지 않게 청록 + 사람 아이콘 */
+  --uo-review-bg: #DDF3F0; --uo-review: #0F6B63;
   --uo-radius: 12px;
   --uo-radius-lg: 20px;
   /* CSP가 외부 글꼴을 막으므로 설치된 글꼴을 우선 쓰고 시스템 글꼴로 넘어간다. */

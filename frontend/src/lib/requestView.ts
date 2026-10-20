@@ -6,7 +6,7 @@ import type { Problem, Status } from '../api'
  * - 거절 이유는 승인자가 남긴 메모(decision_reason)가 있을 때만 보여준다.
  */
 
-export type StageKind = 'done' | 'cur' | 'todo' | 'warn' | 'fail'
+export type StageKind = 'done' | 'cur' | 'todo' | 'review' | 'fail'
 export interface Stage { label: string; sub: string; kind: StageKind }
 
 const LABELS = ['요청 접수', 'AI 진단', '승인', '권한 부여', '반영 확인'] as const
@@ -33,7 +33,7 @@ export function stagesOf(p: Problem): Stage[] {
     case 'REJECTED': return rejectedByApprover(p)
       ? stages(['done', 'done', 'fail', 'todo', 'todo'], ['', '원인 찾음', '승인자 거절', '', ''])
       : stages(['done', 'fail', 'todo', 'todo', 'todo'], ['', '거절', '', '', ''])
-    case 'MANUAL_REVIEW': return stages(['done', 'warn', 'todo', 'todo', 'todo'], ['', '담당자 확인 필요', '', '', ''])
+    case 'MANUAL_REVIEW': return stages(['done', 'review', 'todo', 'todo', 'todo'], ['', '담당자가 확인 중', '', '', ''])
     case 'FAILED': return stages(['done', 'done', 'done', 'fail', 'todo'], ['', '원인 찾음', '승인됨', '부여 실패', '반영 안 됨'])
   }
 }
@@ -51,12 +51,13 @@ export function summaryOf(p: Problem): string {
   }
 }
 
-/** AI 말풍선. 거절 · 담당자 검토에서는 판단 근거가 섞인 diagnosis 대신 고정 문구. */
+/**
+ * AI 말풍선은 서버가 준 진단 문장(diagnosis)만 보여준다.
+ * 거절 · 담당자 검토에서는 판단 근거가 섞여 있어 숨기되, 고정 문장을 AI가 말한 것처럼 꾸며 넣지 않는다.
+ * 그 상태의 안내는 오른쪽 안내 카드가 맡는다.
+ */
 export function aiMessageOf(p: Problem): string | null {
-  if (p.status === 'REJECTED') return rejectedByApprover(p)
-    ? '원인을 찾아 승인자에게 올렸어요.'
-    : '확인해 보니 이 권한은 자동으로 드릴 수 없어요.'
-  if (p.status === 'MANUAL_REVIEW') return '요청 내용만으로는 어떤 권한이 필요한지 정하기 어려워 담당자에게 넘겼어요.'
+  if (p.status === 'REJECTED' || p.status === 'MANUAL_REVIEW') return null
   return p.diagnosis?.trim() || null
 }
 
@@ -68,7 +69,7 @@ export function proposalOf(p: Problem, platformLabel: string): string | null {
   return `${platformLabel}에서 ${p.requested_role} 권한을 주면 해결돼요.`
 }
 
-export interface Notice { tone: 'bad' | 'warn'; title: string; memo: string | null; next: string }
+export interface Notice { tone: 'bad' | 'review'; title: string; memo: string | null; next: string }
 
 /** 오른쪽 안내 카드. 판단 근거(규정 번호 · 판단 주체)는 넣지 않는다. */
 export function noticeOf(p: Problem): Notice | null {
@@ -78,7 +79,7 @@ export function noticeOf(p: Problem): Notice | null {
       ? { tone: 'bad', title: '승인자가 거절했어요', memo, next: '메모를 확인하고, 필요하면 내용을 보완해 다시 요청하세요' }
       : { tone: 'bad', title: '거절됐어요', memo: null, next: '업무에 꼭 필요하면 승인자에게 문의하세요' }
   }
-  if (p.status === 'MANUAL_REVIEW') return { tone: 'warn', title: '담당자가 확인하고 있어요', memo: null, next: '확인이 끝나면 이 화면과 홈에서 알려드릴게요. 따로 할 일은 없어요' }
+  if (p.status === 'MANUAL_REVIEW') return { tone: 'review', title: '담당자가 확인하고 있어요', memo: null, next: '확인이 끝나면 이 화면과 홈에서 알려드릴게요. 따로 할 일은 없어요' }
   if (p.status === 'FAILED') return { tone: 'bad', title: '부여 실패 · 운영 담당자 확인 중', memo: null, next: '처음 시도를 포함해 총 3번 시도했어요. 처리되면 이 화면과 홈에서 알려드릴게요. 다른 플랫폼 요청에는 영향이 없어요' }
   return null
 }

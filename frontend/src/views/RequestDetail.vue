@@ -91,7 +91,7 @@ const help = {
         <h1 v-if="p && platform">{{ platform.label }}<template v-if="p.requested_role"> · {{ p.requested_role }}</template></h1>
         <p v-if="p" class="rd-meta"><span class="rd-en">{{ p.id.slice(0, 8) }}</span> · {{ p.requester_name }} · {{ shortWhen(p.created_at) }} 요청</p>
       </div>
-      <span v-if="p" class="rd-badge" :class="STATUS[p.status].tone">{{ STATUS[p.status].label }}</span>
+      <span v-if="p" class="rd-badge" :class="STATUS[p.status].tone"><svg v-if="STATUS[p.status].tone === 'review'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -2px"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 19a5.5 5.5 0 0 1 11 0" /></svg>{{ STATUS[p.status].label }}</span>
     </div>
 
     <p v-if="error && !p" class="rd-state" role="alert">{{ error }} <RouterLink :to="back">돌아가기</RouterLink></p>
@@ -104,7 +104,7 @@ const help = {
       <div class="rd-cols">
         <div class="rd-main">
           <section class="rd-card" aria-labelledby="rd-dg">
-            <h2 id="rd-dg">요청 내용과 AI 진단</h2>
+            <h2 id="rd-dg">{{ aiMessage || proposal ? '요청 내용과 AI 진단' : '요청 내용' }}</h2>
             <div class="rd-facts">
               <span>{{ platform.label }}</span>
               <span v-if="p.requested_role">{{ p.requested_role }}</span>
@@ -191,6 +191,7 @@ const help = {
 .rd-badge.sm { font-size: 12px; padding: 3px 9px; }
 .run { background: var(--uo-primary-soft); color: var(--uo-primary-ink); }
 .warn { background: var(--uo-warn-bg); color: var(--uo-warn); }
+.review { background: var(--uo-review-bg); color: var(--uo-review); }
 .ok { background: var(--uo-ok-bg); color: var(--uo-ok); }
 .bad { background: var(--uo-bad-bg); color: var(--uo-bad); }
 .todo { background: #F0F1F5; color: #4A5068; }
@@ -241,7 +242,7 @@ const help = {
 .rd-todo .k, .rd-memo .k { margin-bottom: 4px; font-size: 13px; color: var(--uo-muted); }
 .rd-notice { border-radius: 20px; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
 .rd-notice.n-bad { background: var(--uo-bad-bg); border: 1px solid #F0C9CF; --nfg: var(--uo-bad); }
-.rd-notice.n-warn { background: var(--uo-warn-bg); border: 1px solid #F3D2B3; --nfg: var(--uo-warn); }
+.rd-notice.n-review { background: var(--uo-review-bg); border: 1px solid #A9DDD6; --nfg: var(--uo-review); }
 .rd-notice h2 { margin: 0; font-size: 20px; line-height: 1.4; color: var(--nfg); }
 .rd-memo { background: rgba(255,255,255,0.75); border-radius: 12px; padding: 12px 14px; }
 .rd-memo p:last-child { font-weight: 400; }
