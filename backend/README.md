@@ -1,7 +1,7 @@
 # Backend
 
 A2 담당입니다. Java 21, Spring Boot 3.5.7, Maven을 사용합니다.
-인증·요청·지정 승인·상태·이력·부서 요약과 RabbitMQ outbox/inbox를 관리합니다.
+인증·요청·지정 승인·상태·이력·내 담당 요청 집계과 RabbitMQ outbox/inbox를 관리합니다.
 DB 스키마와 데모 데이터는 Flyway V1~V3에 있습니다. 기존 V1/V2를 수정하지 않습니다.
 
 이 폴더에서 실행합니다. 로컬 DB·RabbitMQ와 환경변수가 필요합니다.

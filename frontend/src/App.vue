@@ -10,6 +10,7 @@ const simulateFailure = ref(false), problems = ref<Problem[]>([]), detail = ref<
 const myProblems = ref<Problem[]>([]), myDetail = ref<Problem|null>(null), summary = ref<ApprovalSummary|null>(null)
 const reason = ref(''), tab = ref<'request'|'mine'|'inbox'>('request'), filter = ref('ALL')
 const pending = computed(() => problems.value.filter(p => p.status === 'WAITING_APPROVAL').length)
+const operations = computed(() => user.value?.login_id === 'song_ops')
 const visible = computed(() => problems.value.filter(p => filter.value === 'ALL' || p.status === filter.value))
 const labels: Record<Status,string> = {
   RECEIVED:'접수', DIAGNOSING:'분석 중', WAITING_APPROVAL:'승인 대기', EXECUTING:'부여 중',
@@ -130,7 +131,7 @@ onUnmounted(() => { if(timer) clearInterval(timer) })
     </main>
 
     <main v-else>
-      <nav class="tabs"><button :class="{active:tab==='request'}" @click="tab='request'">문제 접수</button><button :class="{active:tab==='mine'}" @click="tab='mine';refresh()">내 요청</button><button v-if="user.role==='APPROVER'" :class="{active:tab==='inbox'}" @click="tab='inbox';refresh()">담당 요청 <span class="count">{{ pending }}</span></button></nav>
+      <nav class="tabs"><button :class="{active:tab==='request'}" @click="tab='request'">문제 접수</button><button :class="{active:tab==='mine'}" @click="tab='mine';refresh()">내 요청</button><button v-if="user.role==='APPROVER'" :class="{active:tab==='inbox'}" @click="tab='inbox';refresh()">{{ operations ? '전체 처리 기록' : '담당 요청' }} <span class="count">{{ pending }}</span></button></nav>
       <template v-if="tab==='request'">
         <div class="page-heading"><div><div class="eyebrow">새 요청</div><h1>어떤 접근이 필요한가요?</h1><p class="muted">한 번에 하나의 플랫폼을 선택하고, 자원 이름과 문제를 적어주세요.</p></div></div>
         <div class="request-grid"><form class="panel" @submit.prevent="submit"><label>대상 플랫폼<select v-model="platform"><option>GITHUB</option><option>JIRA</option><option>SLACK</option><option>NOTION</option></select></label><label>문제 내용<textarea v-model="contents" rows="7" minlength="1" maxlength="5000" required placeholder="예: payment-core에 push가 안 됩니다."></textarea></label><div class="form-bottom"><span class="muted">{{ contents.length }} / 5,000</span><button class="primary" :disabled="busy || !contents.trim()">{{ busy?'접수 중…':'문제 접수' }}</button></div><label v-if="platform==='JIRA'" class="checkbox"><input v-model="simulateFailure" type="checkbox">시연: 승인 후 Jira 부여 실패</label><p class="muted small">추가 질문 없이 처리하며, 정보가 부족하면 담당자 검토로 전달합니다.</p></form>
@@ -144,9 +145,15 @@ onUnmounted(() => { if(timer) clearInterval(timer) })
       </template>
 
       <template v-else>
-        <div class="page-heading"><div><div class="eyebrow">담당자 작업함</div><h1>근거를 확인하고 승인하세요.</h1></div><button class="secondary" @click="refresh">새로고침</button></div>
-        <section v-if="summary" class="panel department-summary"><div class="row"><h2>{{ summary.department }} · 이번 주 현황</h2><span class="muted">한국 시간 월요일부터 접수된 부서 요청 기준</span></div><dl class="stats-grid"><div><dt>구성원</dt><dd>{{ summary.memberCount }}명</dd></div><div><dt>요청</dt><dd>{{ summary.weekRequests }}</dd></div><div><dt>승인</dt><dd>{{ summary.approved }}</dd></div><div><dt>거절</dt><dd>{{ summary.rejected }}</dd></div><div><dt>실패</dt><dd>{{ summary.failed }}</dd></div></dl><p class="muted small">승인은 담당자가 승인한 건수이며 실행 실패와 중복 집계될 수 있습니다. 거절에는 자동 거절도 포함됩니다. 담당 요청 목록은 TF 등 다른 부서 요청을 포함할 수 있습니다.</p></section>
-        <div class="inbox-tools"><label>처리 상태<select v-model="filter"><option value="ALL">전체</option><option v-for="(label,key) in labels" :key="key" :value="key">{{ label }}</option></select></label><span class="muted">최근 100건 · 2.5초마다 갱신</span></div>
+        <div class="page-heading"><div><div class="eyebrow">{{ operations ? '전체 처리 기록' : '담당자 작업함' }}</div><h1>{{ operations ? '전체 요청의 처리 이력을 확인하세요.' : '근거를 확인하고 승인하세요.' }}</h1></div><button class="secondary" @click="refresh">새로고침</button></div>
+        <section v-if="summary" class="panel approval-summary">
+          <div class="row"><h2>내 승인 현황 · 이번 주</h2><span class="muted">한국 시간 월요일 00:00부터 접수된 내 담당 요청 기준</span></div>
+          <p class="muted">{{ summary.department }} · 소속 부서 구성원 {{ summary.memberCount }}명</p>
+          <dl class="stats-grid"><div><dt>요청</dt><dd>{{ summary.weekRequests }}</dd></div><div><dt>승인</dt><dd>{{ summary.approved }}</dd></div><div><dt>거절</dt><dd>{{ summary.rejected }}</dd></div><div><dt>실패</dt><dd>{{ summary.failed }}</dd></div></dl>
+          <p class="muted small">승인은 담당자가 승인한 요청 수이며 실행 실패와 중복 집계될 수 있습니다. 거절에는 자동 거절도 포함됩니다.</p>
+          <p v-if="operations" class="muted small">아래 목록은 전체 요청의 처리 기록이며, 위 숫자는 나에게 배정된 요청만 집계합니다.</p>
+        </section>
+        <div class="inbox-tools"><label>처리 상태<select v-model="filter"><option value="ALL">전체</option><option v-for="(label,key) in labels" :key="key" :value="key">{{ label }}</option></select></label><span class="muted">{{ operations ? '전체 요청' : '내 담당 요청' }} · 기간 제한 없이 최근 100건 · 2.5초마다 갱신</span></div>
         <div class="inbox-grid"><section class="request-list"><button v-for="problem in visible" :key="problem.id" class="request-item" :class="{selected:detail?.id===problem.id}" @click="open(problem)"><div class="row"><span class="platform">{{ problem.platform }}</span><span :class="['status',problem.status]">{{ labels[problem.status] }}</span></div><h3>{{ problem.contents }}</h3><p>{{ problem.requester_name }} · {{ when(problem.created_at) }}</p></button><div v-if="!visible.length" class="panel empty">이 상태의 요청이 없습니다.</div></section>
         <section v-if="detail" class="panel detail"><div class="row"><span class="platform">{{ detail.platform }}</span><span :class="['status',detail.status]">{{ labels[detail.status] }}</span></div><h2>{{ detail.contents }}</h2><p class="muted">{{ detail.requester_name }} · {{ detail.employee_no }}</p><div class="diagnosis"><h3>판단 결과</h3><p>{{ detail.proposal || '접수된 요청을 분석하고 있습니다.' }}</p><span class="reason">{{ detail.reason_code }}</span></div><dl v-if="detail.plan" class="plan"><div><dt>대상 자원</dt><dd>{{ detail.plan.resource_key }}</dd></div><div><dt>부여 권한</dt><dd>{{ detail.plan.requested_role }}</dd></div></dl><p v-if="detail.verification_ok !== null && detail.verification_ok !== undefined" class="muted">반영 확인: {{ detail.verification_ok?'확인됨':'미확인' }}</p>
           <form v-if="detail.status==='WAITING_APPROVAL' && detail.approver_id===user.id" class="approval" @submit.prevent="decide(true)"><label>검토 의견<textarea v-model="reason" rows="2" maxlength="1000" placeholder="반려할 때는 사유가 필요합니다."></textarea></label><div class="actions"><button type="button" class="secondary" :disabled="busy || !reason.trim()" @click="decide(false)">반려</button><button class="primary" :disabled="busy">승인 후 권한 부여</button></div></form>

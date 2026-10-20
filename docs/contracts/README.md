@@ -16,10 +16,10 @@
 | GET /api/problems | 담당자만. 지정 요청 최근 100건. 운영 담당자는 이력 전체 열람 |
 | GET /api/problems?mine=true | 로그인 사용자의 본인 요청 최근 100건. 요청자용 응답 필드만 반환. APPROVER도 본인 요청 조회 가능 |
 | GET /api/problems/{id} | 본인 또는 지정 담당자·운영 담당자. 본인은 공개 응답, 담당자는 기존 plan/evidence/events 포함 |
-| GET /api/approvals/summary | 승인자만. 로그인 사용자의 소속 부서 요약 |
+| GET /api/approvals/summary | 승인자만. 로그인 사용자에게 배정된 이번 주 요청 집계 |
 | POST /api/problems/{id}/decision | approved, expectedPlanHash, reason. 지정 승인자만, 본인 승인 불가. 반려 시 reason 필수 |
 
-요청자는 `/api/problems`(mine 생략/false) 및 부서 요약에 접근할 수 없습니다. 본인 조회 허용은 승인 권한을 부여하지 않습니다.
+요청자는 `/api/problems`(mine 생략/false) 및 승인 현황에 접근할 수 없습니다. 본인 조회 허용은 승인 권한을 부여하지 않습니다.
 추가 정보를 제출하는 대화·PATCH API는 없습니다.
 
 ### 요청자 응답
@@ -34,14 +34,15 @@ evidence, plan, plan_hash, approved_plan_hash, thread_id, idempotency_key 및 �
 재귀적으로 제거하는 대신 새 메시지를 구성합니다. 담당자에게는 기존 원본 이력을 제공합니다.
 diagnosis/proposal의 기존 생성·저장 방식은 이번 변경에서 유지합니다.
 
-### 부서 요약
+### 내 승인 현황 · 이번 주
 
 응답: `{department, memberCount, weekRequests, approved, rejected, failed}`.
-부서는 로그인 사용자의 현재 소속, memberCount는 현재 구성원 수입니다.
-나머지 카운터는 모두 **한국 시간 월요일 00:00 이상, 다음 월요일 00:00 미만에 접수된 해당 부서 요청** 기준입니다.
+department와 memberCount는 승인자의 현재 소속 부서와 해당 부서 구성원 수이며 프로필 정보입니다.
+나머지 카운터는 모두 **한국 시간 월요일 00:00 이상, 다음 월요일 00:00 미만에 접수되고 p.approver_id가 로그인 사용자 ID인 요청** 기준입니다. 요청자 소속 부서는 집계 조건에 사용하지 않습니다.
 approved는 사람 승인 기록(approved_plan_hash와 decided_by)이 있는 요청, rejected는 AI 자동 거절을 포함한 현재 REJECTED,
 failed는 현재 FAILED입니다. 승인 후 실패하면 approved와 failed에 둘 다 포함되므로 합산해 전체 건수로 사용하지 않습니다.
-TF 담당 요청함의 범위와 다르며 목록의 최근 100건 제한을 적용하지 않습니다.
+일반 승인자의 목록과 동일한 배정 기준을 사용하되 요약은 이번 주 전체 건수, 목록은 기간 제한 없이 최근 100건입니다. 승인 시각이 아니라 접수 시각 기준이므로 지난주 접수·이번 주 승인 요청은 제외됩니다.
+운영 담당자 song_ops의 목록은 전체 열람 예외를 유지하지만, 요약은 본인에게 배정된 요청만 집계합니다. API 응답 필드와 인증·인가 규칙은 유지합니다.
 
 ### 상태 변경과 이전 버전 호환
 

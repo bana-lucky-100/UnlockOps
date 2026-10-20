@@ -22,7 +22,7 @@
 | [mcp](mcp/README.md) | `unlockops_mcp`: Policy/Business MCP, 토큰 인증, 모의 SaaS DB 저장소 |
 | [worker](worker/README.md) | `unlockops_worker`: RabbitMQ 소비·결과 발행, 체크포인트 재개 |
 | [backend](backend/README.md) | Java 21 / Spring Boot 3.5.7 / Maven, 인증·승인·업무 DB·outbox/inbox |
-| [frontend](frontend/README.md) | Vue 3 / Vite / TypeScript, 접수·본인 조회·승인 카드·부서 요약 |
+| [frontend](frontend/README.md) | Vue 3 / Vite / TypeScript, 접수·본인 조회·승인 카드·내 승인 현황 |
 | [data](data/README.md) | 정책 원문, 회사 접근 권한표; 생성 체크포인트는 Git 제외 |
 | [infra](infra/README.md) | 공통 Python Dockerfile, 로컬 디버깅용 Compose override |
 | [docs](docs/README.md) | 아키텍처, 상태·메시지 계약, 실행·검증 안내 |

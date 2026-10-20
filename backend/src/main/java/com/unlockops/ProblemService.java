@@ -93,7 +93,7 @@ class ProblemService {
     }
     Map<String,Object> approvalSummary(AppUser user) {
         rules.requireApprover(user);
-        // All request counters use the same KST creation-week cohort, independent of the 100-row inbox.
+        // Count this approver's assignments in the KST creation week; department fields are profile metadata.
         return jdbc.queryForMap("""
             WITH week AS (
                 SELECT date_trunc('week',CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul') AS start_local
@@ -107,8 +107,7 @@ class ProblemService {
                    count(p.id) FILTER (WHERE p.status='FAILED') AS failed
             FROM users actor JOIN departments d ON d.id=actor.department_id
             CROSS JOIN week
-            LEFT JOIN users requester ON requester.department_id=d.id
-            LEFT JOIN problems p ON p.requester_id=requester.id
+            LEFT JOIN problems p ON p.approver_id=actor.id
                 AND p.created_at >= (week.start_local AT TIME ZONE 'Asia/Seoul')
                 AND p.created_at < ((week.start_local + INTERVAL '7 days') AT TIME ZONE 'Asia/Seoul')
             WHERE actor.id=? GROUP BY d.id,d.name

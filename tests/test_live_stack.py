@@ -39,9 +39,13 @@ def test_real_queue_jira_failure_and_designated_approver():
     base=os.getenv("LIVE_BASE_URL","http://localhost:8088")
     with httpx.Client(base_url=base,timeout=15) as requester, \
          httpx.Client(base_url=base,timeout=15) as approver, \
-         httpx.Client(base_url=base,timeout=15) as other:
+         httpx.Client(base_url=base,timeout=15) as other, \
+         httpx.Client(base_url=base,timeout=15) as department_head:
         assert requester.get("/api/problems").status_code==401
         login(requester,"kim_dev"); login(approver,"park_lead"); login(other,"song_ops")
+        login(department_head,"yoon_head")
+        before=approver.get("/api/approvals/summary"); before.raise_for_status()
+        head_before=department_head.get("/api/approvals/summary"); head_before.raise_for_status()
         assert requester.get("/api/problems").status_code==403
         assert requester.post("/api/problems",json={"platform":"JIRA","contents":"PAY"}).status_code==403
         response=mutation(requester,"/api/problems",{"platform":"JIRA","contents":"PAY 프로젝트가 안 보여요","simulateJiraFailure":True})
@@ -56,6 +60,12 @@ def test_real_queue_jira_failure_and_designated_approver():
         assert requester.get("/api/approvals/summary").status_code==403
         totals=approver.get("/api/approvals/summary"); totals.raise_for_status()
         assert set(totals.json())=={"department","memberCount","weekRequests","approved","rejected","failed"}
+        assert totals.json()["weekRequests"]==before.json()["weekRequests"]+1
+        # Both approvers are in the same department, but the TF request belongs only to park_lead.
+        head_pending=department_head.get("/api/approvals/summary"); head_pending.raise_for_status()
+        assert head_pending.json()==head_before.json()
+        assert totals.json()["department"]==head_pending.json()["department"]
+        assert totals.json()["memberCount"]==head_pending.json()["memberCount"]
         decision={"approved":True,"expectedPlanHash":pending["plan_hash"],"reason":"통합 시연"}
         assert mutation(other,f"/api/problems/{problem_id}/decision",decision).status_code==403
         accepted=mutation(approver,f"/api/problems/{problem_id}/decision",decision)
@@ -70,3 +80,5 @@ def test_real_queue_jira_failure_and_designated_approver():
         assert after.json()["approved"]==totals.json()["approved"]+1
         assert after.json()["failed"]==totals.json()["failed"]+1
         assert after.json()["weekRequests"]==totals.json()["weekRequests"]
+        head_after=department_head.get("/api/approvals/summary"); head_after.raise_for_status()
+        assert head_after.json()==head_before.json()
