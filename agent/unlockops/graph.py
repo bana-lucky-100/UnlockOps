@@ -20,7 +20,7 @@ from .tools import ScopedTools
 # 1. State: 각 노드가 읽고 갱신하는 작업 기록. total=False는 단계별 필드 추가를 허용한다.
 class AgentState(TypedDict, total=False):
     job: dict  # 백엔드가 확정한 요청자·플랫폼·원문
-    intent: dict  # 요청 해석 결과
+    intent: dict  # 사용법 문의·오류 해결·권한 신청 분류와 요청 해석 결과
 
     profile: dict  # 직원의 직무·직급·소속
     resource: dict  # 확정한 대상 자원
@@ -94,7 +94,10 @@ async def interpret_node(state: AgentState) -> dict:
     """사용자의 증상을 구조화한다. 데모는 규칙, LLM 모드는 모델을 사용한다."""
     job = state["job"]
     intent = await interpret(job["contents"], job["platform"])
-    return {"intent": intent.model_dump(), "events": event(state, "interpret", mode=settings.mode)}
+    return {
+        "intent": intent.model_dump(),
+        "events": event(state, "interpret", mode=settings.mode, request_type=intent.request_type),
+    }
 
 
 def scope_node(state: AgentState) -> dict:

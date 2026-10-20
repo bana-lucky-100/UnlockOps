@@ -37,6 +37,34 @@ def contains_token(text: str, token: str) -> bool:
     return token in text
 
 
+def request_type(text: str) -> str:
+    """데모용 최소 분류. 사용법·신청 의도가 불명확하면 오류 해결로 남긴다."""
+    text = re.sub(r"\s+", " ", text.casefold()).strip()
+    has_error = re.search(
+        r"안\s*(?:되|돼|보이|보여|열|나오)|오류|에러|실패|없어|없어요|없습니다|"
+        r"\b(?:error|failed|failure|denied|401|403)\b|not working|can[’']t|cannot",
+        text,
+        flags=re.ASCII,
+    )
+    asks_how = any(word in text for word in ("사용법", "방법", "절차", "어떻게", "차이", "의미", "설명"))
+    asks_how = asks_how or bool(re.search(r"\b(?:how|what|explain)\b", text))
+    # '권한 신청 방법'은 사용법 문의이고, '오류가 나는데 어떻게'는 오류 해결이다.
+    if asks_how and not has_error:
+        return "GUIDE"
+    asks_access = re.search(
+        r"(?:권한|좌석|라이선스|접근|액세스)(?:을|를|이|가)?\s*(?:좀\s*)?"
+        r"(?:주세요|주십시오|필요해요|필요합니다)|"
+        r"(?:부여|추가|초대|할당)\s*(?:해\s*)?(?:주세요|주십시오|부탁)|"
+        r"(?:신청|요청)\s*(?:합니다|드립니다|할게요)|"
+        r"\b(?:grant|request|need)\b.*\b(?:access|permissions?|seats?|licenses?|read|write)\b|"
+        r"\binvite me\b",
+        text,
+    )
+    if asks_access:
+        return "ACCESS_REQUEST"
+    return "TROUBLESHOOT"
+
+
 def raw_intent(contents: str) -> Intent:
     """데모에서 사용할 최소 해석이며, LLM 모드에서도 명시적 권한 요청을 보존한다."""
     text = contents.casefold()
@@ -66,7 +94,12 @@ def raw_intent(contents: str) -> Intent:
         role = "Write"
     if not role and (contains_token(text, "copilot") or "코파일럿" in text):
         role = "Seat"
-    return Intent(resource_hint=contents[:200], requested_role=role, symptom=contents[:500])
+    return Intent(
+        request_type=request_type(contents),
+        resource_hint=contents[:200],
+        requested_role=role,
+        symptom=contents[:500],
+    )
 
 
 async def interpret(contents, platform):
@@ -91,8 +124,16 @@ async def interpret(contents, platform):
    out_of_scope를 true로 설정하세요.
 5. 정상 작동하는 다른 플랫폼을 비교 대상으로 언급한 것은 그 플랫폼의 변경 요청이 아닙니다.
 6. out_of_scope가 false여도 권한 부여가 허용되었다고 판단하지 마세요.
+7. request_type은 사용자가 원하는 도움을 분류합니다. 실제 권한 부족 여부를 확정하지 마세요.
+   - GUIDE: 사용법·설정·권한 신청 절차를 묻는 문의. 예: 'push 방법 알려줘', '권한 신청은 어떻게 해요?'
+   - TROUBLESHOOT: 이미 발생한 오류·접근 실패의 해결 요청. 예: 'push가 안 돼요',
+     'Write 권한은 있는데 403이 나요. 어떻게 해결해요?'
+   - ACCESS_REQUEST: 권한 부여·초대·좌석 할당을 직접 신청. 예: 'Write 권한 주세요', 'Copilot 좌석 신청합니다.'
+   오류 해결 문장에 '어떻게'가 있어도 TROUBLESHOOT입니다. 오류와 함께 권한 부여를 명시적으로
+   신청하면 ACCESS_REQUEST입니다. 권한 이름을 언급한 것만으로 권한 신청으로 분류하지 마세요.
 
 결과는 지정된 Intent 형식에 맞추세요.
+- request_type: GUIDE / TROUBLESHOOT / ACCESS_REQUEST 중 하나
 - resource_hint: 문장에 명시된 대상 자원에 대한 단서
 - requested_role: 사용자가 요청한 권한
 - symptom: 사용자가 겪는 증상
