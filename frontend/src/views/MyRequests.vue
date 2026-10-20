@@ -12,7 +12,7 @@ const router = useRouter()
 const TABS: { key: StatusGroup | null; name: string }[] = [
   { key: null, name: '전체' },
   { key: 'progress', name: '진단 중' },
-  { key: 'waiting', name: '승인 대기' },
+  { key: 'waiting', name: '확인 대기' },
   { key: 'finished', name: '끝난 요청' },
 ]
 // 고른 탭은 주소(?group=)에 남겨서 새로고침 · 뒤로 가기에도 유지한다.
@@ -47,7 +47,7 @@ const current = computed(() => TABS.find(t => t.key === group.value)!)
 
 const help = {
   howto: [
-    { t: '탭으로 걸러 보세요', d: '진단 중 · 승인 대기 · 끝난 요청으로 나눠 볼 수 있어요' },
+    { t: '탭으로 걸러 보세요', d: '진단 중 · 확인 대기(승인 대기 · 담당자 검토) · 끝난 요청으로 나눠 볼 수 있어요' },
     { t: '줄을 누르면 상세가 열려요', d: '진행 단계와 다음에 할 일을 확인할 수 있어요' },
   ],
   faqs: [],

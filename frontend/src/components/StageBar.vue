@@ -40,7 +40,7 @@ const SR: Record<StageKind, string> = { done: '완료', cur: '진행 중', todo:
 .sb-step { display: flex; flex-direction: column; gap: 10px; min-width: 0; --bar: #E4E7F2; --dbg: #F0F1F5; --dfg: #4A5068; --fg: var(--uo-muted); --w: 500; }
 .sb-step.done { --bar: #3B4BD8; --dbg: #3B4BD8; --dfg: #fff; --fg: var(--uo-ink); --w: 600; }
 .sb-step.cur { --bar: linear-gradient(90deg, #3B4BD8, #7A5CF0); --dbg: #EEF0FF; --dfg: #2F3DB8; --fg: #2F3DB8; --w: 700; }
-.sb-step.review { --bar: #14A38F; --dbg: #DDF3F0; --dfg: #0F6B63; --fg: #0F6B63; --w: 700; }
+.sb-step.review { --bar: #D9730D; --dbg: #FDF0E4; --dfg: #9A4A08; --fg: #9A4A08; --w: 700; }
 .sb-step.fail { --bar: #C6283A; --dbg: #FCE8EA; --dfg: #A61E30; --fg: #A61E30; --w: 700; }
 .sb-bar { position: relative; overflow: hidden; height: 6px; border-radius: 999px; background: var(--bar); }
 .sb-flow { position: absolute; top: 0; bottom: 0; left: 0; width: 35%; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.75), rgba(255,255,255,0)); animation: sb-flow 1.6s ease-in-out infinite; }

@@ -242,7 +242,7 @@ const help = {
 .rd-todo .k, .rd-memo .k { margin-bottom: 4px; font-size: 13px; color: var(--uo-muted); }
 .rd-notice { border-radius: 20px; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
 .rd-notice.n-bad { background: var(--uo-bad-bg); border: 1px solid #F0C9CF; --nfg: var(--uo-bad); }
-.rd-notice.n-review { background: var(--uo-review-bg); border: 1px solid #A9DDD6; --nfg: var(--uo-review); }
+.rd-notice.n-review { background: var(--uo-review-bg); border: 1px solid #F3D2B3; --nfg: var(--uo-review); }
 .rd-notice h2 { margin: 0; font-size: 20px; line-height: 1.4; color: var(--nfg); }
 .rd-memo { background: rgba(255,255,255,0.75); border-radius: 12px; padding: 12px 14px; }
 .rd-memo p:last-child { font-weight: 400; }

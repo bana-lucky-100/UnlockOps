@@ -41,8 +41,8 @@ const counts = computed(() => {
 })
 const steps = computed(() => [
   { key: 'progress' as const, no: '01', name: '진단 중', desc: 'AI가 소속 · 현재 권한 · 사내 규정을 대조하고 있어요', bg: '#EEF0FF', fg: '#2F3DB8' },
-  { key: 'waiting' as const, no: '02', name: '승인 대기', desc: '규정 근거와 함께 승인자에게 올라갔어요', bg: '#FDF0E4', fg: '#9A4A08' },
-  { key: 'finished' as const, no: '03', name: '끝난 요청', desc: '완료 · 거절 · 실패 · 담당자 검토 — 결과를 확인해 주세요', bg: '#E6F4EC', fg: '#1A7340' },
+  { key: 'waiting' as const, no: '02', name: '확인 대기', desc: '승인자나 담당자가 확인하고 있어요', bg: '#FDF0E4', fg: '#9A4A08' },
+  { key: 'finished' as const, no: '03', name: '끝난 요청', desc: '완료 · 거절 · 실패 — 결과를 확인해 주세요', bg: '#E6F4EC', fg: '#1A7340' },
 ].map(s => ({ ...s, count: counts.value[s.key] })))
 // 홈에는 최근 5건만. 전체 · 상태별 목록은 '내 요청' 페이지에서 본다.
 const recent = computed(() => items.value.slice(0, 5))
