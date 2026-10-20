@@ -1,5 +1,6 @@
 # Docs
 
+- [간략 API 명세서](api-spec.md): Request·Response, Spring·Agent·MCP 역할 구분
 - [아키텍처](architecture.md): 요청·승인·실행·상태 재개 흐름
 - [API·MCP·이벤트 계약](contracts/README.md): 공통 상태·HTTP·큐 메시지
 - [로컬 디버깅](debugging.md): 설치·시작 순서·F5 구성

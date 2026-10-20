@@ -1,8 +1,7 @@
-"""Source-bound retrieval: article chunks, metadata, vectors, exact reads.
+"""규정을 조항으로 나눠 출처와 함께 검색하거나 문서 ID로 정확히 읽는다.
 
-The offline index uses local character TF-IDF vectors, not a semantic embedding
-model. Set EMBEDDING_* explicitly to use a compatible dense embedding endpoint.
-Retrieved documents are data; none of their text is executed as instructions.
+기본 검색은 로컬 문자 TF-IDF이며 EMBEDDING_* 설정 시 외부 임베딩을 사용한다.
+검색 문서는 판단 근거인 데이터이며, 문서 안의 지시를 코드처럼 실행하지 않는다.
 """
 from __future__ import annotations
 
@@ -30,6 +29,7 @@ class Chunk:
 
 
 def features(text: str) -> Counter:
+    """정규화한 단어와 문자 2·3그램의 빈도를 세어 로컬 검색 특징을 만든다."""
     normalized = re.sub(r"\s+", " ", text.lower())
     tokens = re.findall(r"[a-z0-9_-]+|[가-힣]+", normalized)
     for size in (2, 3):
@@ -38,6 +38,7 @@ def features(text: str) -> Counter:
 
 
 def cosine(a, b) -> float:
+    """희소 또는 밀집 벡터의 코사인 유사도를 계산하고 영벡터는 0을 반환한다."""
     if isinstance(a, dict):
         dot = sum(v * b.get(k, 0) for k, v in a.items())
         aa, bb = sum(v*v for v in a.values()), sum(v*v for v in b.values())
@@ -49,6 +50,7 @@ def cosine(a, b) -> float:
 
 class DocumentIndex:
     def __init__(self, path: Path, kind: str, allowed_sections: set[int] | None = None):
+        """문서를 출처가 있는 청크로 나누고 TF-IDF 또는 외부 임베딩 색인을 만든다."""
         text = path.read_text(encoding="utf-8")
         digest = hashlib.sha256(text.encode()).hexdigest()
         self.chunks: list[Chunk] = []
@@ -98,13 +100,16 @@ class DocumentIndex:
             self.vectors = self._embed([c.text for c in self.chunks])
 
     def _add(self, chunk):
+        """청크를 전체 목록과 문서 ID별 조회 목록에 함께 등록한다."""
         self.chunks.append(chunk)
         self.documents.setdefault(chunk.doc_id, []).append(chunk)
 
     def _vector(self, counter):
+        """특징 빈도와 색인의 역문서 빈도로 희소 TF-IDF 벡터를 만든다."""
         return {t: (1 + math.log(n)) * self.idf.get(t, 0) for t, n in counter.items()}
 
     def _embed(self, texts):
+        """설정한 제공자에서 임베딩을 받아 입력 순서로 정렬하고 오류 원문을 숨긴다."""
         token = os.getenv("EMBEDDING_API_KEY", "")
         try:
             with httpx.Client(timeout=30) as client:
@@ -120,6 +125,7 @@ class DocumentIndex:
             raise RuntimeError("EMBEDDING_PROVIDER_UNAVAILABLE") from None
 
     def search(self, query: str, platform: str = "COMMON", limit: int = 5):
+        """플랫폼 범위 안의 청크를 유사도로 정렬해 출처·점수와 함께 반환한다."""
         if not query.strip(): return []
         query = query[:2000]
         vector = self._embed([query])[0] if self.embedding_base else self._vector(features(query))
@@ -130,6 +136,7 @@ class DocumentIndex:
                 for score, chunk in ranked[:min(max(limit, 1), 10)] if score > 0]
 
     def read(self, doc_id: str, article: str = ""):
+        """문서 ID와 선택 조항에 맞는 청크를 검색 점수 없이 정확히 반환한다."""
         if doc_id not in self.documents:
             raise ValueError("Unknown document ID")
         chunks = [c for c in self.documents[doc_id] if not article or c.article == article]
