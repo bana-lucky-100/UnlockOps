@@ -6,7 +6,7 @@ import AppShell from '../components/AppShell.vue'
 import StageBar from '../components/StageBar.vue'
 import { PLATFORMS } from '../lib/platforms'
 import { usePolling } from '../lib/polling'
-import { aiMessageOf, approverEventsOf, evidenceOf, noticeOf, proposalOf, REJECT_CHIPS, stagesOf, summaryOf } from '../lib/requestView'
+import { aiMessageOf, approverEventsOf, approverNoticeOf, approverSummaryOf, evidenceOf, noticeOf, proposalOf, REJECT_CHIPS, stagesOf, summaryOf } from '../lib/requestView'
 import { isTerminal, needsRefresh, STATUS } from '../lib/status'
 import { shortWhen } from '../lib/time'
 import { currentUser } from '../session'
@@ -42,14 +42,15 @@ const polling = usePolling(load)
 const p = computed(() => item.value)
 const platform = computed(() => p.value ? PLATFORMS[p.value.platform] : null)
 const stages = computed(() => p.value ? stagesOf(p.value) : [])
-const summary = computed(() => p.value ? summaryOf(p.value) : '')
+const summary = computed(() => !p.value ? '' : isRequester.value ? summaryOf(p.value) : approverSummaryOf(p.value))
 // 거절 · 담당자 검토에서 진단을 숨기는 건 요청자 화면만이다. 승인자는 판단 근거와 함께 그대로 본다.
 const aiMessage = computed(() => !p.value ? null : isRequester.value ? aiMessageOf(p.value) : p.value.diagnosis?.trim() || null)
 // 승인자는 plan의 자원 이름(resource_key)까지 받는다. 요청자 응답에는 plan이 없다.
 const resourceName = computed(() => (!isRequester.value && p.value?.plan?.resource_key) || '')
 const proposal = computed(() => p.value && platform.value ? proposalOf(p.value, resourceName.value || platform.value.label) : null)
 const evidence = computed(() => !isRequester.value && p.value ? evidenceOf(p.value) : { facts: [], docs: [] })
-const notice = computed(() => p.value ? noticeOf(p.value) : null)
+const notice = computed(() => p.value && isRequester.value ? noticeOf(p.value) : null)
+const aprNotice = computed(() => p.value && !isRequester.value ? approverNoticeOf(p.value) : null)
 const events = computed(() => {
   if (!p.value) return []
   if (!isRequester.value) return approverEventsOf(p.value)
@@ -287,8 +288,14 @@ const requesterHelp = {
             <p v-if="p.decision_reason" class="rd-decided-memo"><strong>{{ p.status === 'REJECTED' ? '사유' : '메모' }}</strong> {{ p.decision_reason }}</p>
           </section>
 
-          <!-- 승인자가 직접 거절한 건 위 결정 카드에 이미 보이므로 겹쳐 보이지 않는다. -->
-          <section v-if="notice && (isRequester || !(p.status === 'REJECTED' && p.decided_at))" class="rd-notice" :class="`n-${notice.tone}`" aria-labelledby="rd-nt">
+          <!-- 위: 승인자용 안내 · 아래: 요청자용 안내. 승인자가 직접 결정한 건 결정 카드에 이미 보인다. -->
+          <section v-if="aprNotice" class="rd-notice" :class="`n-${aprNotice.tone}`" aria-labelledby="rd-ant">
+            <h2 id="rd-ant">{{ aprNotice.title }}</h2>
+            <p class="rd-todo rd-todo-plain">{{ aprNotice.body }}</p>
+            <RouterLink :to="back" class="rd-cta">승인함으로 돌아가기</RouterLink>
+          </section>
+
+          <section v-if="notice" class="rd-notice" :class="`n-${notice.tone}`" aria-labelledby="rd-nt">
             <h2 id="rd-nt">{{ notice.title }}</h2>
             <div v-if="notice.memo && isRequester" class="rd-memo"><p class="k">승인자 메모</p><p>{{ notice.memo }}</p></div>
             <div v-if="isRequester" class="rd-todo"><p class="k">{{ notice.nextLabel }}</p><p>{{ notice.next }}</p></div>

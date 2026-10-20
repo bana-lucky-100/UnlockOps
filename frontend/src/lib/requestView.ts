@@ -158,3 +158,23 @@ export function approverEventsOf(p: Problem): { at: string; text: string }[] {
 
 /** 거절 사유 칩. 고른 칩과 직접 쓴 문장을 합쳐 decision_reason으로 보낸다. */
 export const REJECT_CHIPS = ['업무에 필요하지 않음', '더 낮은 권한으로 충분', '보안 검토 필요'] as const
+
+/**
+ * 승인자(운영 담당자 포함)가 보는 오른쪽 안내. 요청자용 문구("이름을 넣어 다시 보내 주세요")를
+ * 승인자에게 그대로 보이면 누구에게 하는 말인지 헷갈린다.
+ * 담당자 검토를 이 화면에서 처리하는 API는 아직 없어서, 지금 할 수 있는 일만 안내한다.
+ */
+export function approverNoticeOf(p: Problem): { tone: 'bad' | 'review'; title: string; body: string } | null {
+  if (needsName(p)) return { tone: 'review', title: '대상이 정해지지 않은 요청이에요', body: '요청자가 저장소 · 프로젝트 이름을 적지 않아 AI가 대상을 정하지 못했어요. 요청자에게는 이름을 넣어 다시 보내도록 안내하고 있고, 다시 보내면 새 요청으로 승인함에 올라와요. 이 화면에서 대상을 직접 지정하는 기능은 아직 없어요.' }
+  if (p.status === 'MANUAL_REVIEW') return { tone: 'review', title: '담당자 확인이 필요한 요청이에요', body: 'AI가 자동으로 판단하지 못했어요. 왼쪽의 진단과 판단 근거를 확인해 주세요. 이 화면에서 바로 처리하는 기능은 아직 없어요.' }
+  if (p.status === 'FAILED') return { tone: 'bad', title: '권한 부여에 실패했어요', body: '승인 뒤 처음 시도를 포함해 총 3번 시도했지만 권한을 넣지 못했어요. 대상 플랫폼의 상태를 확인해 주세요.' }
+  if (p.status === 'REJECTED' && !p.decided_at) return { tone: 'bad', title: '규정상 자동으로 거절된 요청이에요', body: '거절 이유는 왼쪽 판단 근거에서 확인할 수 있어요. 요청자에게는 이유 대신 승인자에게 문의하라고 안내돼요.' }
+  return null
+}
+
+export function approverSummaryOf(p: Problem): string {
+  if (needsName(p)) return '요청자가 대상 이름을 적지 않아 AI가 대상을 정하지 못했어요.'
+  if (p.status === 'MANUAL_REVIEW') return 'AI가 자동으로 판단하지 못해 담당자 확인이 필요해요.'
+  if (p.status === 'REJECTED' && !p.decided_at) return '규정에 맞지 않아 AI가 바로 거절했어요.'
+  return summaryOf(p)
+}
