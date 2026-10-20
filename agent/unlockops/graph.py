@@ -1,3 +1,5 @@
+"""요청 해석 → 근거 수집 → 권한 검토 → 사람 승인 → 실행·확인을 연결하는 그래프."""
+
 from __future__ import annotations
 
 import asyncio
@@ -8,7 +10,8 @@ from langgraph.types import interrupt
 
 from .models import Plan, Result, Status, ToolFailure
 from .planner import interpret, investigate
-from .rules import evaluate, FORBIDDEN
+from .permission_proposal import assess_permission
+from .rules import FORBIDDEN
 from .settings import settings
 from .tools import ScopedTools
 
@@ -33,6 +36,7 @@ class AgentState(TypedDict, total=False):
     events: list[dict]
     tool_calls: int
     evidence_complete: bool
+    permission_proposal: dict | None  # LLM의 권한·이유·근거 ID. 실제 실행 계획과 별도로 기록한다.
 
 
 def event(state, node, **details):
@@ -116,8 +120,11 @@ def build_graph(tools, checkpointer):
                 "evidence_complete": evidence_complete,
                 "events": event(state, "collect_evidence", tools=scoped.trace)}
 
-    def judge(state):
+    async def judge(state):
+        """권한 검토 결과를 기존 응답과 승인 계획에 연결한다. 실제 변경은 execute에서만 한다."""
         explicit = state["intent"]["requested_role"]
+        proposal = None
+        policy_details = {}
         if not state.get("evidence_complete"):
             status, code, message, role = "MANUAL_REVIEW", "MISSING_SOURCE_EVIDENCE", "필수 규정 근거를 확인할 수 없어 담당자 검토가 필요합니다.", ""
         elif explicit.lower() in FORBIDDEN:
@@ -125,12 +132,23 @@ def build_graph(tools, checkpointer):
         elif not state["resource"]:
             status, code, message, role = "MANUAL_REVIEW", "RESOURCE_NOT_UNIQUE", "대상 자원을 하나로 확정할 수 없어 담당자 검토가 필요합니다.", ""
         else:
-            verdict = evaluate(state["profile"], state["resource"], state["membership"],
-                               state["current"], state["budget"], explicit)
+            # 조회한 직원 사실·RAG 근거를 권한 전용 모듈로 넘긴다.
+            # 기존 요청 해석·답변 생성 프롬프트를 변경하지 않고 권한 제안 단계만 연결한다.
+            verdict, proposal = await assess_permission(
+                mode=settings.mode, contents=state["job"]["contents"], profile=state["profile"],
+                resource=state["resource"], membership=state["membership"], current=state["current"],
+                budget=state["budget"], requested_role=explicit, evidence=state["evidence"],
+            )
+            # 담당자가 나중에 어떤 원문과 청크로 판정했는지 추적할 수 있도록 남긴다.
+            policy_details = {"source_hashes": verdict.source_hashes,
+                              "sources": list(verdict.source_ids), "evidence_ids": list(verdict.evidence_ids)}
             status, code, message, role = verdict.status, verdict.code, verdict.message, verdict.role
+        # 결과 큐와 실행 계획의 기존 필드 구성을 유지한다. LLM 제안 원문은 내부 상태·이력에 기록한다.
         result = outcome(state, status, code, message, role, True if code == "ALREADY_HAS_ACCESS" else None)
         return {"result": result, "plan": result["plan"],
-                "events": event(state, "judge", status=status, reason_code=code)}
+                "permission_proposal": proposal.model_dump() if proposal else None,
+                "events": event(state, "judge", status=status, reason_code=code,
+                                permission_proposal=proposal.model_dump() if proposal else None, **policy_details)}
 
     def approval(state):
         # Keep all side effects in other nodes: interrupt nodes restart on resume.
