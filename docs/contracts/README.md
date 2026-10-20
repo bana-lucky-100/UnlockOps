@@ -84,3 +84,14 @@ EXECUTE에는 서버가 기록한 idempotency_key와 plan_hash가 들어갑니�
 kind: PROGRESS / ANALYZED / EXECUTED / FAILED. FAILED에는 error_code가 들어갑니다.
 실제 승인 대기 계획에는 빈 evidence를 허용하지 않습니다. 위 예시는 형식만 표현합니다.
 모든 중복 이벤트는 무시되며, 지연된 분석 결과가 승인·완료 상태를 덮어쓰지 못합니다.
+
+### 권한 정책과 LLM 제안
+
+`search_access_rules`는 기존 필드에 현재 두 규정 문서의 `source_hashes`를 추가로 반환합니다.
+권한 전용 LLM 제안은 `{decision, requested_role, reason, evidence_ids}`이며 `decision`은
+`PROPOSE` 또는 `MANUAL_REVIEW`입니다. RAG의 실제 `chunk_id`를 인용해야 하고 명시된 요청 역할을
+임의로 변경할 수 없습니다. 제안은 내부 체크포인트와 judge 진행 이벤트에 기록합니다.
+결과 envelope와 여섯 필드의 `plan`·해시 형식은 유지합니다.
+
+제안 모델 장애·응답 형식 오류·허위 인용·역할 변경·정책 근거 버전 불일치는 수동 검토로 종료합니다.
+실행 직전 MCP도 DB에 저장된 근거와 현재 정책·자격을 재검증하며 실패 시 쓰기를 수행하지 않습니다.

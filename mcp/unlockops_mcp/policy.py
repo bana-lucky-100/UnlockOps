@@ -5,7 +5,8 @@ import os
 
 import uvicorn
 
-from unlockops_rag.search import DocumentIndex
+from unlockops_rag.search import DocumentFormatError, DocumentIndex
+from unlockops.models import ToolFailure
 from unlockops.settings import settings
 from .auth import TokenAuth
 from .contracts import READ_ONLY, ContractMCP
@@ -18,7 +19,10 @@ mcp = ContractMCP("unlockops-policy", host=HOST, port=PORT, stateless_http=True,
 @lru_cache(maxsize=1)
 def index():
     """첫 요청에서 만든 문서 인덱스를 이후 조회에서도 재사용한다."""
-    return DocumentIndex(settings.data_dir / "policy_corpus.md", "policy")
+    try:
+        return DocumentIndex(settings.data_dir / "policy_corpus.md", "policy")
+    except (OSError, UnicodeError, DocumentFormatError):
+        raise ToolFailure("POLICY_SOURCE_UNAVAILABLE", "정책 규정 원문을 확인할 수 없습니다.") from None
 
 
 @mcp.tool(annotations=READ_ONLY)

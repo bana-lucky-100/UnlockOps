@@ -254,3 +254,34 @@ async def test_tool_decorators_publish_read_and_write_hints(server):
         assert tool.annotations.idempotentHint is True
         assert tool.inputSchema
         assert tool.outputSchema
+
+
+@pytest.mark.parametrize("server,filename,name,doc_id", [
+    (business_mcp, "company-a-access-matrix.md", "read_access_rule", "A-ACCESS-03"),
+    (policy_mcp, "policy_corpus.md", "read_policy", "POL-03"),
+])
+@pytest.mark.parametrize("failure", ["missing", "invalid_utf8", "empty", "invalid_format"])
+def test_unreadable_policy_has_a_distinct_nonretryable_error(
+    tmp_path, monkeypatch, server, filename, name, doc_id, failure,
+):
+    """원문 읽기 실패 코드가 SDK·HTTP 경계를 지나도 유지되는지 확인한다."""
+    from dataclasses import replace
+    from unlockops_mcp import business, policy
+
+    module = business if server is business_mcp else policy
+    if failure == "invalid_utf8":
+        (tmp_path / filename).write_bytes(b"\xff")
+    elif failure == "empty":
+        (tmp_path / filename).write_text("", encoding="utf-8")
+    elif failure == "invalid_format":
+        (tmp_path / filename).write_text("문서 제목과 규정 절이 없는 원문", encoding="utf-8")
+    monkeypatch.setattr(module, "settings", replace(module.settings, data_dir=tmp_path))
+    module.index.cache_clear()
+    try:
+        with rpc(server) as request:
+            result = request("tools/call", {"name": name, "arguments": {"doc_id": doc_id}})
+    finally:
+        module.index.cache_clear()
+    assert result["isError"] is True
+    assert result["structuredContent"]["error"]["code"] == "POLICY_SOURCE_UNAVAILABLE"
+    assert result["structuredContent"]["error"]["retryable"] is False

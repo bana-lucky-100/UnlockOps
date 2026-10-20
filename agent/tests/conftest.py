@@ -2,7 +2,7 @@ from copy import deepcopy
 from pathlib import Path
 import os
 
-# These tests use fake transports and local vectors, even if .env enables a paid model.
+# .env에 유료 모델 설정이 있어도 테스트는 모의 도구와 로컬 검색만 사용한다.
 os.environ["AGENT_MODE"] = "demo"
 os.environ["EMBEDDING_BASE_URL"] = ""
 os.environ["EMBEDDING_MODEL"] = ""
@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class FakeTools:
-    """Transport substitute for graph tests, never a claimed live MCP test."""
+    """그래프 테스트용 모의 MCP다. 실제 서버·DB 통합 테스트를 대신하지는 않는다."""
     descriptions = {}
     def __init__(self, employee="E-001", fail_jira=False):
         """직원 유형별 모의 자원·자격과 호출·쓰기 기록을 초기화한다."""
@@ -52,7 +52,11 @@ class FakeTools:
         if name=="search_policy": return {"hits":[]}
         if name in {"read_policy","read_access_rule"}:
             if self.missing_policy and args["doc_id"]=="POL-03": return {"chunks":[]}
-            return {"chunks":[{"chunk_id":args["doc_id"]+":1","doc_id":args["doc_id"],"text":"test fixture evidence","source":"fixture.md","version":"test"}]}
+            # 가짜 문장 대신 실제 RAG 원문 청크를 반환해야 문서 해시 검증까지 테스트할 수 있다.
+            from unlockops_rag.search import DocumentIndex
+            filename = "policy_corpus.md" if name == "read_policy" else "company-a-access-matrix.md"
+            kind = "policy" if name == "read_policy" else "business"
+            return {"chunks": DocumentIndex(ROOT / "data" / filename, kind).read(args["doc_id"])}
         if name=="search_access_rules": return {"hits":[],"maximum_role":"Write"}
         if name=="get_tf_membership": return {"member":self.member,"leader_id":"leader-uuid"}
         if name=="get_current_permissions":
