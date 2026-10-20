@@ -47,8 +47,9 @@ async function signOut() {
 
     <main class="sh-main">
       <div class="sh-glow" aria-hidden="true" />
-      <img v-if="props.showLock" class="sh-lock" :src="lockImg" alt="" aria-hidden="true">
       <div class="sh-inner">
+        <!-- 자물쇠는 화면 전체가 아니라 본문 폭(최대 1180px) 안에서 오른쪽에 붙인다. 넓은 화면에서 로그아웃 버튼 바깥으로 나가지 않게. -->
+        <img v-if="props.showLock" class="sh-lock" :src="lockImg" alt="" aria-hidden="true">
         <header class="sh-head">
           <div class="sh-brand">UnlockOps <span>권한 진단 Agent</span></div>
           <div class="sh-me">
@@ -97,7 +98,7 @@ async function signOut() {
 .sh-nav-link:hover::after, .sh-nav-link:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
 .sh-main { flex: 999 1 560px; min-width: 0; position: relative; overflow: hidden; }
 .sh-glow { position: absolute; top: -220px; right: -160px; width: 820px; height: 720px; border-radius: 50%; background: radial-gradient(closest-side at 55% 50%, rgba(122,92,240,0.38), rgba(59,75,216,0.22) 45%, rgba(246,247,252,0) 100%); filter: blur(10px); pointer-events: none; }
-.sh-lock { position: absolute; top: 140px; right: 142px; width: 284px; height: 284px; object-fit: contain; mix-blend-mode: multiply; pointer-events: none; }
+.sh-lock { position: absolute; top: 110px; right: 48px; width: 284px; height: 284px; object-fit: contain; mix-blend-mode: multiply; pointer-events: none; }
 .sh-inner { position: relative; max-width: 1180px; margin: 0 auto; padding: 44px 48px 64px; box-sizing: border-box; }
 .sh-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .sh-brand { font-family: var(--uo-font-en); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; }
@@ -121,7 +122,7 @@ async function signOut() {
 .sh-faq { border-bottom: 1px solid #EEF0F6; padding: 14px 0; }
 .sh-faq summary { font-size: 15px; font-weight: 600; cursor: pointer; }
 .sh-faq p { margin: 8px 0 0; font-size: 14px; line-height: 1.65; color: var(--uo-ink-2); }
-@media (max-width: 1100px) { .sh-lock { width: 180px; height: 180px; right: 16px; opacity: .35; } }
+@media (max-width: 1100px) { .sh-lock { width: 180px; height: 180px; top: 120px; right: 48px; opacity: .35; } }
 @media (max-width: 720px) {
   .sh { flex-direction: column; }
   .sh-nav { position: static; height: auto; width: 100%; flex-direction: row; justify-content: flex-start; padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--uo-line); }
