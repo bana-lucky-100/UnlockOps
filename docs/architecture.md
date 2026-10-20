@@ -23,14 +23,17 @@ Spring은 `users`/`problems`의 쓰기와 승인 기록을 소유합니다. Busi
 
 ```mermaid
 flowchart TD
-  START --> interpret --> context --> gather --> judge
+  START --> interpret --> scope
+  scope -->|범위 확정| context --> gather --> judge
+  scope -->|범위 밖·수동 검토| END
   judge -->|거절·수동검토·이미 보유| END
   judge -->|부여 가능| approval
   approval -->|interrupt 후 승인 기록으로 재개| execute
   execute -->|성공| verify
   execute -->|일시 오류·총 3회 미만| retry --> execute
   execute -->|최종 실패·조건 변경| finish
-  verify -->|미반영·조회 오류·총 3회 미만| verify_retry --> verify
+  verify -->|미반영·일시 오류·총 3회 미만| verify_retry --> verify
+  verify -->|영구 오류·형식 오류| finish
   verify -->|반영·최종 미확인| finish --> END
 ```
 
@@ -38,8 +41,10 @@ State에는 원본 작업, 해석 결과, 직원 사실, 자원, TF 소속, 현�
 불변 실행 계획, 실행·검증 시도 횟수와 진행 이벤트가 들어갑니다.
 
 LLM 모드의 `planner.investigate`는 두 MCP의 도구 설명·입력 스키마를 받아 읽기 도구를 선택합니다.
-`ScopedTools`는 직원·플랫폼·자원 범위와 호출 횟수를 제한합니다. 필수 조회는 그 이후 코드에서 수행하므로
-모델이 사실 조회를 생략하거나 근거를 문장으로 만들어도 권한 변경을 승인하지 않습니다.
+`ScopedTools`는 직원·플랫폼·자원 범위와 호출 횟수를 제한합니다. 필수 조회는 선택 조회보다 먼저 코드에서
+수행합니다. 실제 읽기 호출은 context를 포함해 최대 30회, 모델 선택 조회 시도는 최대 10회이며 선택 조회
+한도가 소진돼도 이미 수집한 필수 근거로 판정합니다. 모델이 사실 조회를 생략하거나 근거를 문장으로
+만들어도 권한 변경을 승인하지 않습니다. MCP 경계의 스키마·오류는 [공유 계약](contracts/mcp.md)으로 검증합니다.
 
 승인 카드의 계획 SHA-256과 UI가 제출한 해시를 비교합니다. 승인 시 Spring이 조건과 승인자를 재검증하고,
 Business MCP도 실행 직전 DB 승인·계획 해시·TF·직무·부서·예산을 검사합니다. 모델이나 클라이언트는 실행 도구에
