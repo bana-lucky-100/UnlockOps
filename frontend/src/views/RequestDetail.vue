@@ -276,7 +276,7 @@ const requesterHelp = {
             <p>{{ p.status === 'WAITING_APPROVAL' ? '원인과 규정 근거를 정리해 승인자에게 올렸어요. 승인되면 바로 부여돼요.'
               : p.status === 'EXECUTING' ? '부여한 뒤 다시 조회해 반영됐는지 확인해요.'
               : '끝나면 원인을 정리해서 승인자에게 승인을 요청해요.' }}</p>
-            <div v-if="isRequester" class="rd-todo"><p class="k">지금 할 일</p><p>없어요. 이 화면을 닫아도 진행되고, 결과는 홈의 '내 요청'에서 볼 수 있어요</p></div>
+            <p v-if="isRequester" class="rd-todo rd-todo-plain">이 화면을 닫아도 계속 진행돼요. 결과는 홈의 '내 요청'에서 확인할 수 있어요</p>
           </section>
 
           <section v-if="!isRequester && p.decided_at" class="rd-decided" :class="p.status === 'REJECTED' ? 'no' : 'yes'">
@@ -288,7 +288,7 @@ const requesterHelp = {
           <section v-if="notice && (isRequester || !(p.status === 'REJECTED' && p.decided_at))" class="rd-notice" :class="`n-${notice.tone}`" aria-labelledby="rd-nt">
             <h2 id="rd-nt">{{ notice.title }}</h2>
             <div v-if="notice.memo && isRequester" class="rd-memo"><p class="k">승인자 메모</p><p>{{ notice.memo }}</p></div>
-            <div v-if="isRequester" class="rd-todo"><p class="k">다음에 할 일</p><p>{{ notice.next }}</p></div>
+            <div v-if="isRequester" class="rd-todo"><p class="k">{{ notice.nextLabel }}</p><p>{{ notice.next }}</p></div>
             <RouterLink :to="back" class="rd-cta">{{ isRequester ? '내 요청으로 돌아가기' : '승인함으로 돌아가기' }}</RouterLink>
           </section>
 
@@ -363,6 +363,7 @@ const requesterHelp = {
 .rd-progress > p { margin: 0; font-size: 15px; line-height: 1.65; }
 .rd-todo { background: #fff; border-radius: 12px; padding: 14px 16px; }
 .rd-todo p, .rd-memo p { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.55; }
+.rd-todo-plain { margin: 0; font-size: 15px; font-weight: 500; line-height: 1.55; color: var(--uo-ink-2); }
 .rd-todo .k, .rd-memo .k { margin-bottom: 4px; font-size: 13px; color: var(--uo-muted); }
 .rd-notice { border-radius: 20px; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
 .rd-notice.n-bad { background: var(--uo-bad-bg); border: 1px solid #F0C9CF; --nfg: var(--uo-bad); }

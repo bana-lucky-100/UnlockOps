@@ -69,18 +69,19 @@ export function proposalOf(p: Problem, platformLabel: string): string | null {
   return `${platformLabel}에서 ${p.requested_role} 권한을 주면 해결돼요.`
 }
 
-export interface Notice { tone: 'bad' | 'review'; title: string; memo: string | null; next: string }
+/** nextLabel: 요청자가 직접 할 일이 있으면 '다음에 할 일', 기다리기만 하면 되는 경우는 '안내'. */
+export interface Notice { tone: 'bad' | 'review'; title: string; memo: string | null; nextLabel: string; next: string }
 
 /** 오른쪽 안내 카드. 판단 근거(규정 번호 · 판단 주체)는 넣지 않는다. */
 export function noticeOf(p: Problem): Notice | null {
   if (p.status === 'REJECTED') {
     const memo = p.decision_reason?.trim() || null
     return rejectedByApprover(p)
-      ? { tone: 'bad', title: '승인자가 거절했어요', memo, next: '메모를 확인하고, 필요하면 내용을 보완해 다시 요청하세요' }
-      : { tone: 'bad', title: '거절됐어요', memo: null, next: '업무에 꼭 필요하면 승인자에게 문의하세요' }
+      ? { tone: 'bad', title: '승인자가 거절했어요', memo, nextLabel: '다음에 할 일', next: '메모를 확인하고, 필요하면 내용을 보완해 다시 요청하세요' }
+      : { tone: 'bad', title: '거절됐어요', memo: null, nextLabel: '다음에 할 일', next: '업무에 꼭 필요하면 승인자에게 문의하세요' }
   }
-  if (p.status === 'MANUAL_REVIEW') return { tone: 'review', title: '담당자가 확인하고 있어요', memo: null, next: '확인이 끝나면 이 화면과 홈에서 알려드릴게요. 따로 할 일은 없어요' }
-  if (p.status === 'FAILED') return { tone: 'bad', title: '부여 실패 · 운영 담당자 확인 중', memo: null, next: '처음 시도를 포함해 총 3번 시도했어요. 처리되면 이 화면과 홈에서 알려드릴게요. 다른 플랫폼 요청에는 영향이 없어요' }
+  if (p.status === 'MANUAL_REVIEW') return { tone: 'review', title: '담당자가 확인하고 있어요', memo: null, nextLabel: '안내', next: '확인이 끝나면 이 화면과 홈에서 알려드릴게요' }
+  if (p.status === 'FAILED') return { tone: 'bad', title: '부여 실패 · 운영 담당자 확인 중', memo: null, nextLabel: '안내', next: '처음 시도를 포함해 총 3번 시도했어요. 처리되면 이 화면과 홈에서 알려드릴게요. 다른 플랫폼 요청에는 영향이 없어요' }
   return null
 }
 
