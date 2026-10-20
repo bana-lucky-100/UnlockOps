@@ -28,7 +28,8 @@ LLM 환경변수 변경은 worker 재시작 후 반영합니다.
 | `unlockops/tools.py` | 두 MCP 클라이언트, timeout, 사용자·자원·플랫폼 범위 제한 |
 | `unlockops/models.py` | Platform, Status, Job, Plan, Result |
 | `unlockops/contracts.py` | MCP 도구별 입력·응답 모델, 공통 오류 정규화; 두 서버와 공유 |
-| `unlockops/rules.py` | 직무·직급·소속·좌석·예산에 따른 명시적 판정; MCP도 재사용 |
+| `unlockops/rules.py` | 기존 회사 권한표의 상한·승인자 기준 조회, 실제 자격·RAG 근거 검사; MCP도 재사용 |
+| `unlockops/permission_proposal.py` | LLM의 권한·이유·근거 ID 제안과 검증. 사용자 답변 생성과 분리 |
 | `unlockops/settings.py` | 루트 .env 로딩, 데이터·체크포인트 경로, MCP 주소 |
 | `tests/` | 시나리오, 승인 전 변경 차단, 체크포인트 재개, 패키지 이식 검증 |
 
@@ -44,6 +45,22 @@ gather는 필수 사실·규정을 먼저 조회한 뒤 LLM 선택 조회를 실
 선택 조회 한도 소진은 필수 조회 결과를 바탕으로 판정을 계속하고, 필수 조회 실패는 승인으로 진행하지 않습니다.
 검증은 `verified=false` 또는 재시도 가능한 오류만 최대 3회 확인합니다. 영구 오류·응답 형식 오류는 즉시
 실패하며 검증 실패 때문에 권한 부여를 다시 실행하지 않습니다. [MCP 계약](../docs/contracts/mcp.md)을 참고하세요.
+
+권한 판단 근거는 기존 `data/policy_corpus.md`와 `data/company-a-access-matrix.md`입니다.
+`rules.py`의 `ceiling()`은 회사 권한표 3절의 플랫폼·자원·직무·직급에 해당하는 셀을 직접 읽습니다.
+승인자 기준도 같은 문서의 7절에서 확인합니다. 표를 해석할 수 없으면 권한을 추측하지 않고 차단합니다.
+규정 원문 읽기 실패(`POLICY_SOURCE_UNAVAILABLE`)와 권한표 해석 실패(`INVALID_ACCESS_MATRIX`)는
+근거 수집·권한 판정 단계에서 `MANUAL_REVIEW`로 종료하며 승인 계획을 만들지 않습니다.
+DB·통신·응답 계약 오류는 이 규정 오류 처리에 포함하지 않습니다.
+
+`llm` 모드에서는 judge 안에서 RAG 근거와 실제 직원 정보를 읽어 권한 전용 제안을 받습니다.
+실제 직원 정보와 RAG 청크를 입력하고 `decision`, `requested_role`, `reason`, `evidence_ids`를 반환받습니다.
+인용 근거의 현재 원문 해시, 존재하지 않는 근거 ID, 요청 역할 변경을 확인합니다. 제안 후에는 원문 표의
+상한과 실제 TF 소속·부서·예산·현재 권한을 검증합니다. 자격 미달은 모델이 뒤집을 수 없습니다.
+제안 오류·모델 장애는 수동 검토로 보냅니다. `demo`는 모델을 호출하지 않고 원문 표와 실제 사실로 처리합니다.
+
+권한 제안과 원문 해시는 체크포인트와 judge 이벤트에 남깁니다. 기존 답변 생성 프롬프트와
+결과 큐·실행 계획의 필드 구성은 변경하지 않았습니다. 모델 제안은 실제 사람 승인을 대신하지 않습니다.
 
 루트에서 설치·테스트합니다. 서비스별 별도 가상환경은 만들지 않습니다.
 
