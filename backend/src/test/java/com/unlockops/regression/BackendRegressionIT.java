@@ -13,6 +13,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -25,6 +26,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -52,6 +55,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 @Testcontainers
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class BackendRegressionIT {
     private static final String REQUESTER = "10000000-0000-0000-0000-000000000001";
     private static final String LEADER = "10000000-0000-0000-0000-000000000002";
@@ -80,6 +84,10 @@ class BackendRegressionIT {
     @Autowired JdbcTemplate jdbc;
     @Autowired RabbitTemplate rabbit;
     @Autowired ObjectMapper json;
+
+    @AfterAll static void stopPublishingBeforeContainersStop(@Autowired ScheduledAnnotationBeanPostProcessor scheduling) {
+        scheduling.destroy();
+    }
 
     @BeforeEach
     void resetRequests() {

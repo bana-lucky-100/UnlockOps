@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -41,14 +42,35 @@ public class ProblemService {
         this.demo = demo;
     }
 
-    @Transactional
-    public Status create(AppUser user, Create request) {
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public Status create(AppUser user, Create request, String idempotencyKey) {
+        ClientRequestKey key = idempotencyKey == null ? null : new ClientRequestKey(idempotencyKey);
+        if (key != null) {
+            var previous = problems.findByClientRequestKey(user.id(), key);
+            if (previous.isPresent()) return replay(previous.get(), request);
+        }
         if (request.simulateJiraFailure() && (!demo || request.platform() != Platform.JIRA))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Jira 데모에서만 실패 시연을 선택할 수 있습니다.");
         UUID id = UUID.randomUUID();
-        problems.insert(id, user.id(), policy.reviewer(user.id()), request.platform(), request.contents().strip(), request.simulateJiraFailure());
+        boolean inserted = problems.insertIfNew(id, user.id(), policy.reviewer(user.id()), request.platform(),
+            request.contents().strip(), request.simulateJiraFailure(), key);
+        if (!inserted) {
+            // A concurrent insert won. A separate SELECT sees its commit under READ_COMMITTED.
+            Problem previous = problems.findByClientRequestKey(user.id(), key).orElseThrow(() ->
+                new IllegalStateException("Conflicting submission is no longer available"));
+            return replay(previous, request);
+        }
         jobs.enqueue(required(id, false), JobType.ANALYZE, null);
         return new Status(id, ProblemStatus.RECEIVED);
+    }
+
+    private Status replay(Problem previous, Create request) {
+        GrantPolicy.check(previous.platform() == request.platform()
+            && previous.contents().equals(request.contents().strip())
+            && previous.simulateJiraFailure() == request.simulateJiraFailure(),
+            "같은 접수 키로 다른 내용을 제출할 수 없습니다.");
+        // Replay the acceptance, not the current workflow status; never enqueue or reset state.
+        return new Status(previous.id(), ProblemStatus.RECEIVED);
     }
 
     public List<? extends View> list(AppUser user, boolean mine) {

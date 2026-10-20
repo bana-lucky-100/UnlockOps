@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { api, refreshCsrf, type User, type Problem, type Platform, type Status, type ApprovalSummary } from './api'
+import { ProblemSubmission, type AcceptedProblem } from './problemSubmission'
 
 const user = ref<User|null>(null)
 const loginId = ref('kim_dev'), password = ref('')
 const error = ref(''), notice = ref(''), busy = ref(false)
+const submissions = new ProblemSubmission()
 const platform = ref<Platform>('GITHUB'), contents = ref('payment-core에 git push 하면 권한이 없다고 나와요')
 const simulateFailure = ref(false), problems = ref<Problem[]>([]), detail = ref<Problem|null>(null)
 const myProblems = ref<Problem[]>([]), myDetail = ref<Problem|null>(null), summary = ref<ApprovalSummary|null>(null)
@@ -52,9 +54,17 @@ async function logout() {
   catch(e) { error.value=(e as Error).message }
 }
 async function submit() {
+  if (busy.value || !user.value) return
+  const viewer = user.value.id
   busy.value=true; error.value=''; notice.value=''
   try {
-    const accepted = await api<{id:string}>('/problems',{method:'POST',body:JSON.stringify({platform:platform.value,contents:contents.value,simulateJiraFailure:platform.value === 'JIRA' && simulateFailure.value})})
+    const accepted = await submissions.submit(viewer, {
+      platform: platform.value, contents: contents.value,
+      simulateJiraFailure: platform.value === 'JIRA' && simulateFailure.value,
+    }, (body, key) => api<AcceptedProblem>('/problems', {
+      method: 'POST', headers: {'Idempotency-Key': key}, body,
+    }))
+    if (user.value?.id !== viewer) return
     notice.value=`접수되었습니다. 접수번호 ${accepted.id}. 분석 결과는 담당자가 확인합니다.`
     myDetail.value=null; tab.value='mine'; await refresh()
   } catch(e) { error.value=(e as Error).message } finally { busy.value=false }

@@ -122,6 +122,16 @@ test('corrupted pending storage is ignored safely', async () => {
   }
 })
 
+test('a failed removal cannot revive a completed key in the current page', async () => {
+  const store = storage(), keys = []
+  store.removeItem = () => { throw new Error('cleanup blocked') }
+  const helper = new ProblemSubmission(() => store)
+  for (let i = 0; i < 2; i++) {
+    await helper.submit('user-a', input(), async (_, key) => { keys.push(key); return accepted })
+  }
+  assert.notEqual(keys[0], keys[1])
+})
+
 test('an invalid acceptance response leaves the pending key available for recovery', async () => {
   const store = storage(), helper = new ProblemSubmission(() => store), keys = []
   await assert.rejects(helper.submit('user-a', input(), async (_, key) => { keys.push(key); return {status: 'RECEIVED'} }))

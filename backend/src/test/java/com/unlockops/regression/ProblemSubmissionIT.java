@@ -19,7 +19,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -46,6 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 @Testcontainers
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class ProblemSubmissionIT {
     @Container static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
     @Container static final RabbitMQContainer BROKER = new RabbitMQContainer("rabbitmq:4-management-alpine");
@@ -66,8 +68,9 @@ class ProblemSubmissionIT {
     @MockitoSpyBean OutboxRepository outbox;
     MockHttpSession requester;
 
-    @AfterAll static void closeBeforeContainersStop(ConfigurableApplicationContext context) {
-        context.close();
+    @AfterAll static void stopPublishingBeforeContainersStop(@Autowired ScheduledAnnotationBeanPostProcessor scheduling) {
+        // Keep Spring's own context lifecycle; stop background DB polling while its services are still alive.
+        scheduling.destroy();
     }
 
     @BeforeEach void resetRequests() throws Exception {

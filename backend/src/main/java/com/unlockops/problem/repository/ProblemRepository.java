@@ -24,11 +24,19 @@ public class ProblemRepository {
 
     public ProblemRepository(JdbcTemplate jdbc, Jsons json) { this.jdbc = jdbc; this.json = json; }
 
-    public void insert(UUID id, UUID requester, UUID approver, Platform platform, String contents, boolean simulateFailure) {
-        jdbc.update("""
-            INSERT INTO problems(id,requester_id,approver_id,platform,contents,thread_id,simulate_jira_failure)
-            VALUES (?,?,?,?,?,?,?)
-            """, id, requester, approver, platform.name(), contents, id.toString(), simulateFailure);
+    public boolean insertIfNew(UUID id, UUID requester, UUID approver, Platform platform, String contents,
+                               boolean simulateFailure, ClientRequestKey key) {
+        return jdbc.update("""
+            INSERT INTO problems(id,requester_id,approver_id,platform,contents,thread_id,simulate_jira_failure,client_request_key)
+            VALUES (?,?,?,?,?,?,?,?)
+            ON CONFLICT (requester_id,client_request_key) WHERE client_request_key IS NOT NULL DO NOTHING
+            """, id, requester, approver, platform.name(), contents, id.toString(), simulateFailure,
+            key == null ? null : key.value()) == 1;
+    }
+
+    public Optional<Problem> findByClientRequestKey(UUID requester, ClientRequestKey key) {
+        return jdbc.query(SELECT + " WHERE p.requester_id=? AND p.client_request_key=?", this::map,
+            requester, key.value()).stream().findFirst();
     }
 
     public Optional<Problem> find(UUID id) {
