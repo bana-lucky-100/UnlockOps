@@ -9,6 +9,12 @@ C1 담당입니다. SDK `mcp`와 이름이 충돌하지 않도록 구현 패키�
 | `unlockops_mcp/auth.py` | Bearer 토큰 인증 및 /health |
 | `unlockops_mcp/repository.py` | PostgreSQL 정확 조회와 모의 SaaS 변경·중복 방지·실행 직전 재검증 |
 
+직원의 권한 상한은 기존 `company-a-access-matrix.md`의 3절 표를 직접 읽어 확인합니다.
+`search_access_rules`는 기존 검색 결과·상한에 현재 두 규정 문서의 `source_hashes`를 추가로 반환합니다.
+실행 시에는 현재 직원·TF·예산과 DB에 저장된 승인 계획·RAG 근거를 다시 확인합니다.
+원문과 저장된 근거의 해시가 맞지 않으면 부여하지 않습니다. 승인자 ID·앱 역할·직급 검사,
+계획 해시·실행 키·영수증·트랜잭션 검증은 유지합니다. LLM 제안 자체로 변경 도구를 실행할 수 없습니다.
+
 루트 가상환경 설치 후 각각 별도 터미널에서 실행합니다.
 
 ```sh
