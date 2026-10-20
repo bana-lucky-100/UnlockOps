@@ -13,6 +13,7 @@ from .answering import generate_answer
 from .contracts import validate_output
 from .models import Intent, Plan, Result, ToolFailure
 from .planner import interpret, investigate
+from .response_context import build_response_context
 from .rules import evaluate, FORBIDDEN
 from .settings import settings
 from .tools import ScopedTools
@@ -28,10 +29,12 @@ class AgentState(TypedDict, total=False):
     membership: dict  # 실제 TF 소속
     current: dict  # 현재 보유 권한
     budget: dict | None
+    maximum_role: str | None  # 정확 조회로 확인한 상한. None은 미확인, 빈 문자열은 허용 역할 없음
     evidence: list[dict]  # 규정 원문과 조회 사실
     evidence_complete: bool
     answer_sources: list[dict]  # 실제 검색한 안내 근거
     handling: str  # ANSWER / APPROVAL / REJECT / MANUAL_REVIEW
+    response_context: dict  # 조회 사실·판정·문서·작성 기준을 묶은 답변 입력
 
     plan: dict | None  # 사람에게 승인받을 실행 계획
     result: dict
@@ -164,6 +167,7 @@ async def gather_node(state: AgentState, *, tools) -> dict:
             evidence_complete = False
         evidence.extend(document["chunks"])
     membership, current, budget = {}, {}, None
+    maximum_role = None
     investigation = "skipped"
     if resource:
         # 실제 소속·현재 권한은 RAG에서 추측하지 않고 정확한 ID로 조회한다.
@@ -175,6 +179,7 @@ async def gather_node(state: AgentState, *, tools) -> dict:
                 "budget"
             ]
         rules = await scoped.read("search_access_rules", {**args, "query": job["contents"]})
+        maximum_role = rules.get("maximum_role")
         evidence.extend(rules.get("hits", []))
         # 검색 유사도가 낮더라도 필수 규정 원문은 확보한다.
         for doc_id in ("A-ACCESS-03", "A-ACCESS-04", "A-ACCESS-07"):
@@ -207,6 +212,7 @@ async def gather_node(state: AgentState, *, tools) -> dict:
         "membership": membership,
         "current": current,
         "budget": budget,
+        "maximum_role": maximum_role,
         "evidence": list(unique.values()),
         "tool_calls": scoped.calls,
         "optional_tool_calls": scoped.optional_calls,
@@ -268,6 +274,15 @@ def judge_node(state: AgentState) -> dict:
         "plan": result["plan"],
         "handling": handling,
         "events": event(state, "judge", handling=handling, status=status, reason_code=code),
+    }
+
+
+def prepare_response_node(state: AgentState) -> dict:
+    """조회·LLM 호출 없이 답변 입력을 만들고 체크포인트에 저장한다."""
+    context = build_response_context(state)
+    return {
+        "response_context": context,
+        "events": event(state, "prepare_response", handling=state.get("handling"), sources=len(context["sources"])),
     }
 
 
@@ -453,6 +468,7 @@ def build_graph(tools, checkpointer):
     builder.add_node("context", partial(context_node, tools=tools))
     builder.add_node("gather", partial(gather_node, tools=tools))
     builder.add_node("judge", judge_node)
+    builder.add_node("prepare_response", prepare_response_node)
     builder.add_node("answer", answer_node)
     builder.add_node("approval", approval_node)
     builder.add_node("execute", partial(execute_node, tools=tools))
@@ -466,7 +482,8 @@ def build_graph(tools, checkpointer):
     builder.add_conditional_edges("scope", route_after_scope, ["context", END])
     builder.add_edge("context", "gather")
     builder.add_edge("gather", "judge")
-    builder.add_conditional_edges("judge", route_after_judge, ["answer", "approval", END])
+    builder.add_edge("judge", "prepare_response")
+    builder.add_conditional_edges("prepare_response", route_after_judge, ["answer", "approval", END])
     builder.add_edge("answer", END)
 
     builder.add_edge("approval", "execute")

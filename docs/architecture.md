@@ -24,13 +24,13 @@ Spring은 `users`/`problems`의 쓰기와 승인 기록을 소유합니다. Busi
 ```mermaid
 flowchart TD
   START --> interpret --> scope
-  scope -->|범위 확정| context --> gather --> judge
+  scope -->|범위 확정| context --> gather --> judge --> prepare_response
   scope -->|범위 밖·수동 검토| END
-  judge -->|거절·수동 검토| END
-  judge -->|사용법·필요 권한 이미 보유| answer
+  prepare_response -->|거절·수동 검토| END
+  prepare_response -->|사용법·필요 권한 이미 보유| answer
   answer -->|근거 검사 통과·안내 전달| END
   answer -->|근거 부족·수동 검토| END
-  judge -->|부여 가능| approval
+  prepare_response -->|부여 가능| approval
   approval -->|interrupt 후 승인 기록으로 재개| execute
   execute -->|성공| verify
   execute -->|일시 오류·총 3회 미만| retry --> execute
@@ -44,8 +44,13 @@ State에는 원본 작업, 해석 결과, 직원 사실, 자원, TF 소속, 현�
 불변 실행 계획, 실행·검증 시도 횟수와 진행 이벤트가 들어갑니다.
 의도에는 사용법 문의·오류 해결·권한 신청을 구분하는 request_type이 있고,
 판정 후 handling에는 ANSWER / APPROVAL / REJECT / MANUAL_REVIEW를 기록합니다.
+prepare_response는 조회·LLM 호출 없이 사실·판정·문서·작성 기준을 묶고 별도 response_context에 저장합니다.
+현재 권한·상한·직무·직급과 자원별 조건을 포함하고, 미확인은 null로 유지합니다.
+예산은 충족 여부만 전달하고 직원 ID·승인자 ID·실행 키는 답변 입력에서 제외합니다.
+선택 플랫폼 안내 최대 5개와 회사 권한 문서 3·4·7절의 관련 청크 각 1개를 출처·버전·해시와 함께 전달합니다.
+입력 준비 노드는 상태·역할·승인 계획을 변경하지 않습니다. LLM 작성은 현재 답변 경로에만 연결합니다.
 
-답변 경로는 검색 문서와 조회 사실로 안내를 작성합니다. 데모에서는 검색 원문을 발췌하고,
+답변 경로는 준비된 입력으로 안내를 작성합니다. 데모에서는 문서 원문을 발췌하고,
 LLM 모드에서는 생성 후 별도 근거 검토를 거칩니다. 코드가 인용 ID·원문 발췌의 일치도 확인합니다.
 자료 부족·내용 미지원은 MANUAL_REVIEW입니다. 안내도 기존 서버 계약에 맞춰
 MANUAL_REVIEW / RAG_GUIDANCE로 전달하며 proposal에 답변을 담습니다.

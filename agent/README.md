@@ -26,6 +26,7 @@ LLM 환경변수 변경은 worker 재시작 후 반영합니다.
 | `unlockops/graph.py` | AgentState, 노드, 분기, 승인 interrupt, 실행·검증 재시도 |
 | `unlockops/planner.py` | 규칙 기반 의도 추출, LLM 프롬프트·읽기 도구 선택 |
 | `unlockops/answering.py` | 검색 문서를 활용한 안내 생성, 인용 원문 검사, LLM 내용 검토 |
+| `unlockops/response_context.py` | 조회 사실·확정 판정·회사 규정·작성 기준을 답변 입력으로 정리 |
 | `unlockops/tools.py` | 두 MCP 클라이언트, timeout, 사용자·자원·플랫폼 범위 제한 |
 | `unlockops/models.py` | Platform, Status, Job, Plan, Result |
 | `unlockops/contracts.py` | MCP 도구별 입력·응답 모델, 공통 오류 정규화; 두 서버와 공유 |
@@ -33,12 +34,22 @@ LLM 환경변수 변경은 worker 재시작 후 반영합니다.
 | `unlockops/settings.py` | 루트 .env 로딩, 데이터·체크포인트 경로, MCP 주소 |
 | `tests/` | 시나리오, 승인 전 변경 차단, 체크포인트 재개, 패키지 이식 검증 |
 
-작업 흐름은 `interpret → scope → context → gather → judge → approval → execute → verify → finish`입니다.
+작업 흐름은 `interpret → scope → context → gather → judge → prepare_response` 후 처리 경로로 나뉩니다.
 의도 추출 결과 `out_of_scope=true`는 scope에서 `MANUAL_REVIEW / REQUEST_OUT_OF_SCOPE`로 종료합니다.
 다른 플랫폼 이름의 단순 언급으로 차단하지 않으며, 범위 검사를 통과해도 별도의 정책·승인 검증을 거칩니다.
 judge에서 답변·승인·거절·수동 검토를 결정합니다. 거절·수동 검토는 종료하고 승인 대기는 체크포인트에 저장합니다.
 사용법 문의와 필요한 권한을 이미 보유한 요청은 `answer → END`로 연결합니다.
 RabbitMQ 진입점은 `worker/unlockops_worker/__main__.py`입니다.
+
+`prepare_response`는 외부 조회·모델 호출 없이 State의 값을 정리해 `response_context`에 저장합니다.
+입력에는 질문·플랫폼, 현재 권한·직무·직급·허용 상한, 자원별 TF·부서·예산 조건,
+코드가 확정한 처리 경로·상태·사유·요청 역할, 문서 근거와 작성 기준이 들어갑니다.
+직원·승인자 ID와 이름·로그인 정보·실행 키를 포함하지 않으며, 좌석 예산은 금액 대신 충족 여부만 전달합니다.
+미조회 값은 null로 남기고 `current_permissions_checked`로 미조회와 조회 결과 권한 없음(role=null)을 구분합니다.
+회사 권한 문서 3·4·7절의 관련 청크를 각 1개, 선택 플랫폼 검색 결과를 최대 5개 전달하며
+출처·조항·버전·원문 해시를 보존합니다. 현재 작성 가이드는 코드의 고정 기준이며 별도 문서 연결은 하지 않았습니다.
+승인·거절·수동 검토 경로의 입력도 준비하지만, 이번 단계에서 LLM 작성은 기존 answer 경로에만 연결합니다.
+기존 체크포인트에 response_context나 명시적 상한이 없으면 저장된 조회 사실로 입력을 구성합니다.
 
 `interpret`는 `Intent.request_type`에 사용자가 원하는 도움을 기록합니다.
 
@@ -55,8 +66,9 @@ RabbitMQ 진입점은 `worker/unlockops_worker/__main__.py`입니다.
 `TROUBLESHOOT`와 `ACCESS_REQUEST`는 조회 결과에 따라 승인·거절·수동 검토로 분기하고,
 필요 권한을 이미 보유한 경우에는 답변으로 보냅니다. 기존 좌석의 명시적 중복 신청은 거절합니다.
 
-답변은 Policy MCP의 실제 검색 결과를 사용합니다. 추가 조사에서 읽은 문서는 최종 evidence에도 보존합니다.
-데모는 검색 원문을 발췌하고, LLM 모드는 문서·현재 권한·질문으로 안내를 생성한 뒤 별도 모델 호출로
+답변은 준비된 response_context의 실제 검색 결과·회사 규정·조회 사실·판정을 사용합니다.
+추가 조사에서 읽은 문서는 최종 evidence에도 보존합니다.
+데모는 문서 원문을 발췌하고, LLM 모드는 준비한 입력으로 안내를 생성한 뒤 별도 모델 호출로
 각 주장과 질문의 관련성을 검토합니다. 단계마다 인용 ID와 원문 발췌의 일치를 코드로 검사합니다.
 선택 플랫폼의 검색 근거가 없거나 검토를 통과하지 못하면 `MANUAL_REVIEW`로 종료합니다.
 모델 호출 장애는 worker의 기술 실패 처리로 전달합니다.
