@@ -26,11 +26,9 @@ flowchart TD
   START --> interpret --> scope
   scope -->|범위 확정| context --> gather --> judge --> prepare_response
   scope -->|범위 밖·수동 검토| END
-  prepare_response -->|거절·수동 검토| END
-  prepare_response -->|사용법·필요 권한 이미 보유| answer
-  answer -->|근거 검사 통과·안내 전달| END
-  answer -->|근거 부족·수동 검토| END
-  prepare_response -->|부여 가능| approval
+  prepare_response --> compose_response
+  compose_response -->|안내·거절·수동 검토| END
+  compose_response -->|부여 가능| approval
   approval -->|interrupt 후 승인 기록으로 재개| execute
   execute -->|성공| verify
   execute -->|일시 오류·총 3회 미만| retry --> execute
@@ -48,11 +46,15 @@ prepare_response는 조회·LLM 호출 없이 사실·판정·문서·작성 기
 현재 권한·상한·직무·직급과 자원별 조건을 포함하고, 미확인은 null로 유지합니다.
 예산은 충족 여부만 전달하고 직원 ID·승인자 ID·실행 키는 답변 입력에서 제외합니다.
 선택 플랫폼 안내 최대 5개와 회사 권한 문서 3·4·7절의 관련 청크 각 1개를 출처·버전·해시와 함께 전달합니다.
-입력 준비 노드는 상태·역할·승인 계획을 변경하지 않습니다. LLM 작성은 현재 답변 경로에만 연결합니다.
+입력 준비 노드는 상태·역할·승인 계획을 변경하지 않습니다.
+compose_response는 일반 안내와 승인·거절·수동 검토의 설명을 생성·검증합니다.
+승인·거절·수동 검토는 proposal만 교체하고 상태·사유 코드·승인 계획·계획 해시를 보존합니다.
+모델 장애·근거 부족·검증 실패 시 해당 판정의 기존 안내를 유지하며 데모도 고정 안내를 사용합니다.
+승인 전에는 실행 완료를 표현하지 않습니다. 승인 후 finish의 완료 안내는 LLM 없이 고정 문구로 전달합니다.
 
 답변 경로는 준비된 입력으로 안내를 작성합니다. 데모에서는 문서 원문을 발췌하고,
 LLM 모드에서는 생성 후 별도 근거 검토를 거칩니다. 코드가 인용 ID·원문 발췌의 일치도 확인합니다.
-자료 부족·내용 미지원은 MANUAL_REVIEW입니다. 안내도 기존 서버 계약에 맞춰
+일반 안내의 자료 부족·내용 미지원·모델 장애는 MANUAL_REVIEW입니다. 안내도 기존 서버 계약에 맞춰
 MANUAL_REVIEW / RAG_GUIDANCE로 전달하며 proposal에 답변을 담습니다.
 화면 상태는 담당자 검토로 남고 실제 오류 해결·권한 반영을 완료했다고 표현하지 않습니다.
 새 상태·DB 마이그레이션은 추가하지 않으며 plan·verification_ok는 null입니다.

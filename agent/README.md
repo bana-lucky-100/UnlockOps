@@ -34,11 +34,11 @@ LLM 환경변수 변경은 worker 재시작 후 반영합니다.
 | `unlockops/settings.py` | 루트 .env 로딩, 데이터·체크포인트 경로, MCP 주소 |
 | `tests/` | 시나리오, 승인 전 변경 차단, 체크포인트 재개, 패키지 이식 검증 |
 
-작업 흐름은 `interpret → scope → context → gather → judge → prepare_response` 후 처리 경로로 나뉩니다.
+작업 흐름은 `interpret → scope → context → gather → judge → prepare_response → compose_response` 후 처리 경로로 나뉩니다.
 의도 추출 결과 `out_of_scope=true`는 scope에서 `MANUAL_REVIEW / REQUEST_OUT_OF_SCOPE`로 종료합니다.
 다른 플랫폼 이름의 단순 언급으로 차단하지 않으며, 범위 검사를 통과해도 별도의 정책·승인 검증을 거칩니다.
-judge에서 답변·승인·거절·수동 검토를 결정합니다. 거절·수동 검토는 종료하고 승인 대기는 체크포인트에 저장합니다.
-사용법 문의와 필요한 권한을 이미 보유한 요청은 `answer → END`로 연결합니다.
+judge에서 답변·승인·거절·수동 검토를 결정하고 compose_response에서 설명을 작성합니다.
+일반 안내·거절·수동 검토는 종료하고 승인 대기는 체크포인트에 저장합니다.
 RabbitMQ 진입점은 `worker/unlockops_worker/__main__.py`입니다.
 
 `prepare_response`는 외부 조회·모델 호출 없이 State의 값을 정리해 `response_context`에 저장합니다.
@@ -48,7 +48,12 @@ RabbitMQ 진입점은 `worker/unlockops_worker/__main__.py`입니다.
 미조회 값은 null로 남기고 `current_permissions_checked`로 미조회와 조회 결과 권한 없음(role=null)을 구분합니다.
 회사 권한 문서 3·4·7절의 관련 청크를 각 1개, 선택 플랫폼 검색 결과를 최대 5개 전달하며
 출처·조항·버전·원문 해시를 보존합니다. 현재 작성 가이드는 코드의 고정 기준이며 별도 문서 연결은 하지 않았습니다.
-승인·거절·수동 검토 경로의 입력도 준비하지만, 이번 단계에서 LLM 작성은 기존 answer 경로에만 연결합니다.
+LLM 모드는 모든 판정 경로에서 같은 입력으로 생성·인용 검사·내용 검토를 수행합니다.
+승인·거절·수동 검토는 검증된 proposal만 교체하며 상태·사유 코드·계획·계획 해시는 유지합니다.
+생성 장애·근거 부족·검증 실패 시 기존 고정 안내를 보존합니다. 데모에서도 해당 경로는 고정 안내를 사용합니다.
+일반 안내는 기존 answer_node 함수를 재사용하며, 생성 장애나 근거 검증 실패 시 수동 검토로 종료합니다.
+이전 체크포인트의 answer 노드는 재개 호환을 위해 등록을 유지합니다.
+승인 후 실행·검증 결과는 finish의 짧은 고정 문구로 안내하며, 담당자 알림은 연결하지 않습니다.
 기존 체크포인트에 response_context나 명시적 상한이 없으면 저장된 조회 사실로 입력을 구성합니다.
 
 `interpret`는 `Intent.request_type`에 사용자가 원하는 도움을 기록합니다.

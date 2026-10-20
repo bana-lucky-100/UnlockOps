@@ -1,16 +1,18 @@
 """답변·승인·거절·수동 검토 및 RAG 근거 검증. 외부 모델은 호출하지 않는다."""
 
 from dataclasses import replace
+from copy import deepcopy
 
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.types import Command
 
 from conftest import FakeTools, ROOT
 from test_scenarios import job
 from unlockops import answering
 from unlockops.answering import AnswerDraft, AnswerReview, AnswerStep, Citation
 from unlockops.graph import build_graph
-from unlockops.models import ToolFailure
+from unlockops.models import Plan, ToolFailure
 from unlockops_rag.search import DocumentIndex
 
 
@@ -179,3 +181,118 @@ async def test_cross_platform_sources_cannot_ground_an_answer():
     state["answer_sources"][0]["doc_id"] = "JR-OFF-01"
     draft, code = await answering.generate_answer(state)
     assert draft is None and code == "ANSWER_SOURCE_UNAVAILABLE"
+
+
+@pytest.mark.parametrize("contents,handling", [
+    ("payment-core push가 안 돼요", "APPROVAL"),
+    ("payment-core Admin 권한 주세요", "REJECT"),
+    ("어느 프로젝트인지 모르겠는데 접근이 안 돼요", "MANUAL_REVIEW"),
+])
+@pytest.mark.parametrize("failure", [None, "unavailable", "invalid_evidence"])
+async def test_common_response_preserves_decision_and_plan(monkeypatch, contents, handling, failure):
+    """각 경로에서 proposal만 교체하고 생성·검증 실패에도 판정과 승인 대기를 유지한다."""
+    seen = []
+
+    async def generate(state):
+        seen.append(deepcopy(state))
+        if failure == "unavailable":
+            raise ToolFailure("MODEL_UNAVAILABLE", "provider secret")
+        if failure:
+            return None, "INVALID_ANSWER_EVIDENCE"
+        return AnswerDraft(answerable=True, steps=[AnswerStep(
+            text="확정된 판정에 대한 설명입니다.",
+            citations=[Citation(chunk_id="source-1", quote="관련 규정")],
+        )]), "RAG_GUIDANCE"
+
+    monkeypatch.setattr("unlockops.graph.generate_answer", generate)
+    state, tools, snapshot = await invoke(contents)
+    assert len(seen) == 1 and seen[0]["handling"] == handling
+    before = seen[0]
+    assert before["response_context"]["decision"]["handling"] == handling
+    assert state["plan"] == before["plan"] and state["handling"] == handling
+    assert {k: v for k, v in state["result"].items() if k != "proposal"} == {
+        k: v for k, v in before["result"].items() if k != "proposal"
+    }
+    if failure:
+        assert state["result"] == before["result"]
+    else:
+        assert "확정된 판정에 대한 설명" in state["result"]["proposal"]
+    assert tools.writes == 0
+    assert snapshot.next == (("approval",) if handling == "APPROVAL" else ())
+
+
+@pytest.mark.parametrize("handling,status", [
+    ("APPROVAL", "WAITING_APPROVAL"), ("REJECT", "REJECTED"),
+    ("MANUAL_REVIEW", "MANUAL_REVIEW"),
+])
+@pytest.mark.parametrize("supported", [True, False])
+async def test_common_llm_response_is_reviewed_against_fixed_decision(monkeypatch, handling, status, supported):
+    """일반 안내 이외의 경로도 동일한 판정·근거로 생성하고 불일치 검토 결과를 거부한다."""
+    import json
+
+    state = answer_state()
+    state["handling"] = handling
+    state["result"].update(status=status, reasonCode="FIXED_DECISION")
+    contexts = []
+
+    class FakeModel:
+        def with_structured_output(self, schema):
+            self.schema = schema
+            return self
+
+        async def ainvoke(self, messages):
+            payload = json.loads(messages[-1][1])
+            contexts.append(payload if self.schema is AnswerDraft else payload["context"])
+            if self.schema is AnswerReview:
+                return AnswerReview(supported=supported)
+            return AnswerDraft(answerable=True, steps=[AnswerStep(
+                text="판정 설명" if supported else "승인 및 권한 변경을 완료했습니다.",
+                citations=[Citation(chunk_id="GH-OFF-02:summary", quote="팀의 저장소 역할을 확인합니다.")],
+            )])
+
+    monkeypatch.setattr(answering, "settings", replace(answering.settings, mode="llm"))
+    monkeypatch.setattr(answering, "model", FakeModel)
+    draft, code = await answering.generate_answer(state)
+    assert (draft is not None) == supported
+    assert code == ("RAG_GUIDANCE" if supported else "ANSWER_NOT_GROUNDED")
+    assert len(contexts) == 2 and contexts[0] == contexts[1]
+    assert contexts[0]["decision"]["status"] == status
+
+
+async def test_guidance_outage_falls_back_to_manual_review(monkeypatch):
+    async def unavailable(state):
+        raise ToolFailure("MODEL_UNAVAILABLE", "provider secret")
+
+    monkeypatch.setattr("unlockops.graph.generate_answer", unavailable)
+    state, tools, snapshot = await invoke("Read와 Write 역할 차이를 설명해주세요")
+    assert state["result"]["status"] == "MANUAL_REVIEW"
+    assert state["result"]["reasonCode"] == "MODEL_UNAVAILABLE"
+    assert "provider secret" not in state["result"]["proposal"]
+    assert state["plan"] is None and not snapshot.next and tools.writes == 0
+
+
+async def test_composed_approval_resumes_without_regenerating_or_changing_plan_hash(monkeypatch):
+    calls = []
+
+    async def generate(state):
+        calls.append(Plan.model_validate(state["plan"]).digest())
+        return AnswerDraft(answerable=True, steps=[AnswerStep(
+            text="Write 권한 부여를 위해 지정 승인자의 승인이 필요합니다.",
+            citations=[Citation(chunk_id="source-1", quote="승인 필요")],
+        )]), "RAG_GUIDANCE"
+
+    monkeypatch.setattr("unlockops.graph.generate_answer", generate)
+    tools = FakeTools()
+    graph = build_graph(tools, InMemorySaver())
+    config = {"configurable": {"thread_id": "composed-approval"}}
+    waiting = await graph.ainvoke({"job": job("GITHUB", "payment-core push가 안 돼요")}, config)
+    digest = Plan.model_validate(waiting["plan"]).digest()
+    assert calls == [digest]
+    assert waiting["result"]["plan"] == waiting["plan"]
+    tools.approved = True
+    completed = await graph.ainvoke(Command(resume={
+        "approved": True, "plan_hash": digest, "idempotency_key": "approved-key",
+    }), config)
+    assert completed["result"]["status"] == "DONE" and tools.writes == 1
+    assert completed["result"]["proposal"] == "payment-core의 권한을 Write 권한으로 변경했습니다."
+    assert calls == [digest]

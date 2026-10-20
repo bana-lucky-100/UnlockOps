@@ -288,7 +288,10 @@ def prepare_response_node(state: AgentState) -> dict:
 
 async def answer_node(state: AgentState) -> dict:
     """검색 근거로 안내하고 인용·내용 검사를 통과하지 못하면 수동 검토로 넘긴다."""
-    draft, code = await generate_answer(state)
+    try:
+        draft, code = await generate_answer(state)
+    except ToolFailure as exc:
+        draft, code = None, exc.code
     if draft is None:
         result = outcome(state, "MANUAL_REVIEW", code, "안내할 근거를 충분히 확인하지 못해 담당자 검토가 필요합니다.")
         return {"result": result, "plan": None, "handling": "MANUAL_REVIEW",
@@ -308,6 +311,25 @@ async def answer_node(state: AgentState) -> dict:
     result["evidence"] = [*state.get("evidence", []), *citations]
     return {"result": result, "plan": None,
             "events": event(state, "answer", grounded=True, reason_code=code)}
+
+
+async def compose_response_node(state: AgentState) -> dict:
+    """확정 판정을 설명한다. 업무 경로에서는 proposal만 바꾸고 실패 시 기존 안내를 보존한다."""
+    if state.get("handling") == "ANSWER":
+        return await answer_node(state)
+    try:
+        draft, code = await generate_answer(state)
+    except ToolFailure as exc:
+        draft, code = None, exc.code
+    if draft is None:
+        return {"events": event(state, "compose_response", grounded=False, reason_code=code)}
+    lines = []
+    for step in draft.steps:
+        refs = ", ".join(dict.fromkeys(c.chunk_id for c in step.citations))
+        lines.append(f"{step.text}\n근거: {refs}")
+    result = {**state["result"], "proposal": "\n\n".join(lines)}
+    return {"result": result,
+            "events": event(state, "compose_response", grounded=True, reason_code=code)}
 
 
 def approval_node(state: AgentState) -> dict:
@@ -435,8 +457,6 @@ def route_after_scope(state: AgentState) -> str:
 
 def route_after_judge(state: AgentState) -> str:
     """답변과 승인 경로를 연결하고 거절·수동 검토는 종료한다."""
-    if state.get("handling") == "ANSWER":
-        return "answer"
     if state["result"]["status"] == "WAITING_APPROVAL":
         return "approval"
     return END
@@ -478,6 +498,8 @@ def build_graph(tools, checkpointer):
     builder.add_node("gather", partial(gather_node, tools=tools))
     builder.add_node("judge", judge_node)
     builder.add_node("prepare_response", prepare_response_node)
+    builder.add_node("compose_response", compose_response_node)
+    # 이전 체크포인트의 answer 대기 작업도 재개할 수 있도록 이름을 유지한다.
     builder.add_node("answer", answer_node)
     builder.add_node("approval", approval_node)
     builder.add_node("execute", partial(execute_node, tools=tools))
@@ -492,7 +514,8 @@ def build_graph(tools, checkpointer):
     builder.add_edge("context", "gather")
     builder.add_edge("gather", "judge")
     builder.add_edge("judge", "prepare_response")
-    builder.add_conditional_edges("prepare_response", route_after_judge, ["answer", "approval", END])
+    builder.add_edge("prepare_response", "compose_response")
+    builder.add_conditional_edges("compose_response", route_after_judge, ["approval", END])
     builder.add_edge("answer", END)
 
     builder.add_edge("approval", "execute")
