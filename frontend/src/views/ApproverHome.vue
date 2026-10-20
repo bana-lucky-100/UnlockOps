@@ -19,12 +19,18 @@ const pending = computed(() => items.value
   .filter(p => p.status === 'WAITING_APPROVAL')
   // 오래 기다린 요청부터
   .sort((a, b) => a.updated_at.localeCompare(b.updated_at)))
-// 승인이 필요할 때만 approver_id가 정해지므로, 대기를 지난 요청은 내가 결정한 요청이다.
-const DECIDED = new Set(['EXECUTING', 'DONE', 'REJECTED', 'FAILED'])
+// 사람이 확인해야 하는 요청: AI가 대상을 정하지 못했거나(담당자 검토) 승인 뒤 부여에 실패한 요청.
+// 운영 담당자는 전체 요청을 받으므로 여기서 모아 보여 준다. 처리 API는 아직 없어서 확인(상세 보기)만 된다.
+const review = computed(() => items.value
+  .filter(p => p.status === 'MANUAL_REVIEW' || p.status === 'FAILED')
+  .sort((a, b) => b.updated_at.localeCompare(a.updated_at)))
+const DECIDED = new Set(['EXECUTING', 'DONE', 'REJECTED'])
 const recent = computed(() => items.value
   .filter(p => DECIDED.has(p.status))
   .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
   .slice(0, 5))
+// 운영 담당자처럼 다른 승인자에게 배정된 요청까지 받는 계정이면, '내가 결정한' 목록이라고 부르지 않는다.
+const seesAll = computed(() => items.value.some(p => p.approver_id && p.approver_id !== currentUser.value?.id))
 
 const stats = computed(() => [
   { name: '승인', count: summary.value?.approved ?? 0, desc: '이번 주 내가 승인한 요청', bg: '#E6F4EC', fg: '#1A7340' },
@@ -165,6 +171,7 @@ const help = {
         <!-- 못 불러왔을 때 '기다리는 요청이 없어요'로 보이면 승인자가 할 일이 없다고 오해한다. -->
         <template v-else-if="loadError && !items.length">승인함을 불러오지 못했어요</template>
         <template v-else-if="pending.length">승인을 기다리는 요청이<br><span>{{ pending.length }}건</span> 있어요</template>
+        <template v-else-if="review.length">확인이 필요한 요청이<br><span>{{ review.length }}건</span> 있어요</template>
         <template v-else>지금은 기다리는 요청이 없어요</template>
       </h1>
       <p class="ah-lead">AI가 소속 부서와 현재 권한, 사내 규정을 먼저 대조했어요. 근거를 보고 결정만 해 주세요.</p>
@@ -246,6 +253,12 @@ const help = {
       </div>
     </section>
 
+    <section v-if="review.length" aria-labelledby="ah-rv-h" class="ah-week">
+      <h2 id="ah-rv-h" class="ah-h2">확인 필요 <span class="ah-en ah-warn">{{ review.length }}</span></h2>
+      <p class="ah-sub">AI가 대상을 정하지 못했거나(담당자 검토) 승인 뒤 부여에 실패한 요청이에요. 눌러서 진단과 근거를 확인하세요.</p>
+      <RequestList title="담당자 검토 · 부여 실패" :items="review" :loaded="loaded" empty="" show-requester />
+    </section>
+
     <section aria-labelledby="ah-week-h" class="ah-week">
       <h2 id="ah-week-h" class="ah-h2">이번 주 내 승인 현황</h2>
       <!-- 부서 정보도 이번 주 숫자라서 현황과 한곳에 모은다. 첫 화면 오른쪽은 요청자 홈처럼 자물쇠 자리. -->
@@ -263,8 +276,8 @@ const help = {
       </div>
 
       <RequestList
-        class="ah-recent" title="최근 결정" :items="recent" :loaded="loaded" :error="loadError"
-        empty="아직 결정한 요청이 없어요." show-requester @retry="polling.restart()"
+        class="ah-recent" :title="seesAll ? '최근 처리된 요청' : '최근 결정'" :items="recent" :loaded="loaded" :error="loadError"
+        :empty="seesAll ? '아직 처리된 요청이 없어요.' : '아직 결정한 요청이 없어요.'" show-requester @retry="polling.restart()"
       />
     </section>
   </AppShell>
@@ -332,6 +345,7 @@ const help = {
 .ah-stat-count b { font-family: var(--uo-font-en); font-size: 48px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
 .ah-stat-desc { margin-top: 12px; font-size: 14px; line-height: 1.6; color: var(--uo-ink-2); }
 .ah-recent { margin-top: 16px; }
+.ah-sub { margin: -8px 0 14px; font-size: 14px; color: var(--uo-muted); }
 @media (max-width: 720px) {
   .ah-hero { padding: 32px 0 28px; }
   .ah-hello { font-size: 30px; }

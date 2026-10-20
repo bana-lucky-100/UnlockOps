@@ -292,6 +292,7 @@ const requesterHelp = {
             <h2 id="rd-nt">{{ notice.title }}</h2>
             <div v-if="notice.memo && isRequester" class="rd-memo"><p class="k">승인자 메모</p><p>{{ notice.memo }}</p></div>
             <div v-if="isRequester" class="rd-todo"><p class="k">{{ notice.nextLabel }}</p><p>{{ notice.next }}</p></div>
+            <RouterLink v-if="isRequester && notice.resend" :to="{ path: '/', query: { platform: p.platform, text: p.contents } }" class="rd-cta rd-cta-main">이름 넣어 다시 보내기</RouterLink>
             <RouterLink :to="back" class="rd-cta">{{ isRequester ? '내 요청으로 돌아가기' : '승인함으로 돌아가기' }}</RouterLink>
           </section>
 
@@ -418,6 +419,7 @@ const requesterHelp = {
 .rd-decided-h { margin: 0; font-size: 15px; font-weight: 700; color: var(--dfg); }
 .rd-decided-memo { margin: 8px 0 0; font-size: 14px; line-height: 1.6; background: rgba(255,255,255,0.8); border-radius: 10px; padding: 10px 12px; }
 .rd-decided-memo strong { color: var(--uo-ink-2); margin-right: 4px; }
+.rd-cta-main { color: #fff; background: var(--nfg); }
 .rd-success { border-radius: 20px; padding: 24px; background: var(--uo-ok-bg); border: 1px solid #BFE3CC; }
 .rd-success h2 { margin: 0 0 10px; font-size: 20px; color: var(--uo-ok); }
 .rd-success p { margin: 0; font-size: 15px; line-height: 1.65; }

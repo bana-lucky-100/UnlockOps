@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { api, ApiError, type Platform, type Problem } from '../api'
 import AppShell from '../components/AppShell.vue'
 import RequestList from '../components/RequestList.vue'
@@ -10,6 +10,7 @@ import { groupOf, needsRefresh, type StatusGroup } from '../lib/status'
 import { currentUser } from '../session'
 
 const router = useRouter()
+const route = useRoute()
 const MAX = 500
 // AI는 적힌 이름으로만 자원을 찾는다(이름이 없거나 모호하면 추측하지 않고 담당자 검토로 넘긴다).
 // 그래서 예시에도 이름 자리를 꼭 넣는다.
@@ -23,6 +24,15 @@ const EXAMPLE: Record<Platform, string> = {
 // 요청 1건 = 플랫폼 1개. 화면에서도 한 번에 하나만 고르게 해서 헷갈리지 않게 한다.
 const selected = ref<Platform | null>(null)
 const contents = ref('')
+// 상세의 '이름 넣어 다시 보내기'에서 왔으면 같은 플랫폼 · 이전 문구를 채워 두고, 주소는 깨끗하게 되돌린다.
+{
+  const qp = String(route.query.platform ?? '') as Platform
+  if (qp in PLATFORMS) {
+    selected.value = qp
+    contents.value = String(route.query.text ?? '').slice(0, 500)
+    void router.replace({ query: {} })
+  }
+}
 const sending = ref(false)
 const formError = ref('')
 
