@@ -1,5 +1,22 @@
 # 검증 기록과 재현 절차
 
+## 백엔드 구조 리팩토링 전 기준 (이슈 #9)
+
+- 기준 코드: `9e1d98f` (`main`). 리팩토링 초안은 stash에 보관한 상태에서 테스트를 추가했습니다.
+- `backend/mvn verify -Pregression -Dapi.version=1.44`: 기존 단위 테스트 19개와 신규 회귀 테스트 46개 통과, 실패·오류·건너뜀 0건.
+- 회귀 테스트는 Testcontainers의 독립 PostgreSQL 16·RabbitMQ 4에서 실제 Flyway V1~V3, Spring HTTP·세션·CSRF, outbox 발행·결과 소비를 실행합니다.
+- 검증 범위: 4개 플랫폼 접수·메시지 필드, 공개/담당자 응답, 지정 승인·본인 승인 금지·계획 재검증, 승인/반려, 직급·직무·TF·부서·예산·기존 좌석·Jira 조회 권한, 중복/지연 이벤트, 구 예산 결과 호환, 완료 영수증/검증 필수 및 트랜잭션 롤백, KST 주간 배정 집계.
+- Python worker의 결과 envelope를 테스트에서 발행합니다. Agent/MCP가 실제 권한을 부여하는 전체 스택 및 브로커 장애 복구 검증을 대신하지 않습니다.
+- 테스트 실행 명령과 Docker API 호환 옵션은 [backend/README.md](../backend/README.md)에 있습니다.
+
+## 백엔드 구조 리팩토링 후 검증 (이슈 #9)
+
+- 원본 기준 회귀 테스트와 설정은 `3373856` 커밋에 보존했습니다. `BackendRegressionIT.java`는 이 커밋 이후 변경하지 않고 동일한 46개 테스트를 적용합니다.
+- `backend/mvn clean verify -Pregression -Dapi.version=1.44`: 리팩토링 코드에서 단위 테스트 19개·회귀 테스트 46개 통과, 실패·오류·건너뜀 0건. 실행 가능한 Spring Boot JAR 패키징도 완료했습니다.
+- 단위 테스트는 분리된 Repository/Service와 DTO에 맞춰 변경했으며, 실제 HTTP·PostgreSQL·RabbitMQ 동작을 검증하는 회귀 테스트는 그대로 유지했습니다.
+- SQL은 Repository에만 있고 운영 코드의 `queryForMap` / `queryForList` / `Map<String, Object>` 전달을 제거했습니다. Flyway V1~V3와 API·worker 계약 문서는 변경하지 않았습니다.
+- 리팩토링 전후의 테스트 통과는 위 시나리오에 대한 근거입니다. 실제 Python worker/MCP 실행과 브로커 장애·복구·동시 처리 전체를 검증했다는 의미는 아닙니다.
+
 ## 이식 후 확인
 
 - `.venv/bin/python -m pytest -q`: 30 passed, 1 skipped. 전체 스택 옵트인 테스트 1개만 건너뛰었습니다.
