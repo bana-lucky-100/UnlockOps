@@ -1,5 +1,7 @@
 # API와 큐 계약 v2
 
+Agent와 두 MCP 서버 사이의 도구별 입출력·오류 형식은 [MCP 도구 계약](mcp.md)에 정리합니다.
+
 상태 이름은 Spring `ProblemStatus`, Python `Status`, Vue `Status`, DB CHECK에서 동일하게 사용합니다.
 `RECEIVED / DIAGNOSING / WAITING_APPROVAL / EXECUTING / DONE / REJECTED / MANUAL_REVIEW / FAILED`.
 되묻기 상태, PARTIAL_FAILED는 없습니다.
