@@ -1,0 +1,34 @@
+/* 화면 시안(디자인 캔버스)의 색 · 글꼴 · 모서리. 새 화면은 .uo 안에서 이 값만 쓴다. */
+.uo {
+  --uo-ink: #141A33;
+  --uo-ink-2: #3A4160;
+  --uo-muted: #5A6178;
+  --uo-line: #E4E7F2;
+  --uo-line-strong: #868CA5;
+  --uo-bg: #F6F7FC;
+  --uo-surface: #FFFFFF;
+  --uo-primary: #3B4BD8;
+  --uo-primary-ink: #2F3DB8;
+  --uo-primary-soft: #EEF0FF;
+  --uo-violet: #7A5CF0;
+  --uo-gradient: linear-gradient(135deg, #3B4BD8, #7A5CF0);
+  --uo-hero: linear-gradient(150deg, #2A37A8 0%, #3B4BD8 45%, #7A5CF0 100%);
+  --uo-warn-bg: #FDF0E4; --uo-warn: #9A4A08;
+  --uo-ok-bg: #E6F4EC;   --uo-ok: #1A7340;
+  --uo-bad-bg: #FCE8EA;  --uo-bad: #A61E30;
+  /* 담당자 검토: 홈에서 승인 대기와 함께 '확인 대기'로 묶으므로 같은 주황. 사람 아이콘과 글자로 구분한다. */
+  --uo-review-bg: #FDF0E4; --uo-review: #9A4A08;
+  --uo-radius: 12px;
+  --uo-radius-lg: 20px;
+  /* CSP가 외부 글꼴을 막으므로 설치된 글꼴을 우선 쓰고 시스템 글꼴로 넘어간다. */
+  --uo-font: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  --uo-font-en: 'Space Grotesk', var(--uo-font);
+
+  min-height: 100vh;
+  background: var(--uo-bg);
+  color: var(--uo-ink);
+  font-family: var(--uo-font);
+  line-height: 1.5;
+}
+.uo :focus-visible { outline: 2px solid var(--uo-primary); outline-offset: 2px; }
+.uo input::placeholder { color: #6B7290; }
