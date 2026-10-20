@@ -37,10 +37,12 @@ const selected = ref<string[]>([])
 const allOn = computed(() => pending.value.length > 0 && selected.value.length === pending.value.length)
 function toggle(id: string) {
   notice.value = null
+  confirming.value = false
   selected.value = selected.value.includes(id) ? selected.value.filter(x => x !== id) : [...selected.value, id]
 }
 function toggleAll() {
   notice.value = null
+  confirming.value = false
   selected.value = allOn.value ? [] : pending.value.map(p => p.id)
 }
 
@@ -68,9 +70,13 @@ const polling = usePolling(load)
 
 // 여러 건 승인: 화면에서만 묶고, API는 요청마다 각자의 plan_hash로 따로 부른다.
 const approving = ref(false)
+// 근거를 보지 않고 여러 건을 누르는 실수를 막으려고, 한 번 더 확인한 뒤에 승인한다.
+const confirming = ref(false)
+function askConfirm() { if (selected.value.length && !approving.value) confirming.value = true }
 const notice = ref<{ tone: 'ok' | 'warn'; text: string } | null>(null)
 async function approveSelected() {
   if (approving.value || !selected.value.length) return
+  confirming.value = false
   approving.value = true
   notice.value = null
   const targets = pending.value.filter(p => selected.value.includes(p.id))
@@ -120,25 +126,15 @@ const help = {
 </script>
 
 <template>
-  <AppShell :help="help">
+  <AppShell :help="help" show-lock>
     <section class="ah-hero">
-      <div class="ah-hero-text">
-        <p class="ah-hello">안녕하세요, {{ currentUser?.name }}님</p>
-        <h1 class="ah-title">
-          <template v-if="!loaded">승인함을 불러오고 있어요</template>
-          <template v-else-if="pending.length">승인을 기다리는 요청이<br><span>{{ pending.length }}건</span> 있어요</template>
-          <template v-else>지금은 기다리는 요청이 없어요</template>
-        </h1>
-        <p class="ah-lead">AI가 소속 부서와 현재 권한, 사내 규정을 먼저 대조했어요. 근거를 보고 결정만 해 주세요.</p>
-      </div>
-      <aside v-if="summary" class="ah-dept" aria-label="내 부서">
-        <p class="ah-dept-label">내 부서</p>
-        <p class="ah-dept-name">{{ summary.department }}</p>
-        <div class="ah-dept-grid">
-          <div><p>구성원</p><p><b>{{ summary.memberCount }}</b> 명</p></div>
-          <div><p>이번 주 나에게 온 요청</p><p><b>{{ summary.weekRequests }}</b> 건</p></div>
-        </div>
-      </aside>
+      <p class="ah-hello">안녕하세요, {{ currentUser?.name }}님</p>
+      <h1 class="ah-title">
+        <template v-if="!loaded">승인함을 불러오고 있어요</template>
+        <template v-else-if="pending.length">승인을 기다리는 요청이<br><span>{{ pending.length }}건</span> 있어요</template>
+        <template v-else>지금은 기다리는 요청이 없어요</template>
+      </h1>
+      <p class="ah-lead">AI가 소속 부서와 현재 권한, 사내 규정을 먼저 대조했어요. 근거를 보고 결정만 해 주세요.</p>
     </section>
 
     <section aria-labelledby="ah-wait-h">
@@ -149,13 +145,20 @@ const help = {
           <span class="ah-box" :class="{ on: allOn }" aria-hidden="true">{{ allOn ? '✓' : '' }}</span>전체 선택
         </button>
         <div class="ah-bar-right">
-          <span class="ah-bar-note">선택한 요청마다 따로 승인 기록이 남아요</span>
-          <button
-            type="button" class="ah-bulk" :class="{ on: selected.length && !approving }"
-            :aria-disabled="!selected.length || approving" @click="approveSelected"
-          >
-            {{ approving ? '승인하는 중…' : selected.length ? `선택한 ${selected.length}건 승인` : '승인할 요청을 고르세요' }}
-          </button>
+          <template v-if="confirming">
+            <span class="ah-bar-note ah-bar-ask" role="status">{{ selected.length }}건을 승인할까요? 승인하면 바로 권한이 부여돼요</span>
+            <button type="button" class="ah-cancel" @click="confirming = false">취소</button>
+            <button type="button" class="ah-bulk on" @click="approveSelected">{{ selected.length }}건 승인</button>
+          </template>
+          <template v-else>
+            <span class="ah-bar-note">선택한 요청마다 따로 승인 기록이 남아요</span>
+            <button
+              type="button" class="ah-bulk" :class="{ on: selected.length && !approving }"
+              :aria-disabled="!selected.length || approving" @click="askConfirm"
+            >
+              {{ approving ? '승인하는 중…' : selected.length ? `선택한 ${selected.length}건 승인` : '승인할 요청을 고르세요' }}
+            </button>
+          </template>
         </div>
       </div>
 
@@ -201,6 +204,12 @@ const help = {
 
     <section aria-labelledby="ah-week-h" class="ah-week">
       <h2 id="ah-week-h" class="ah-h2">이번 주 내 승인 현황</h2>
+      <!-- 부서 정보도 이번 주 숫자라서 현황과 한곳에 모은다. 첫 화면 오른쪽은 요청자 홈처럼 자물쇠 자리. -->
+      <p v-if="summary" class="ah-dept">
+        <strong>{{ summary.department }}</strong>
+        <span>구성원 <b class="ah-en">{{ summary.memberCount }}</b>명</span>
+        <span>이번 주 나에게 온 요청 <b class="ah-en">{{ summary.weekRequests }}</b>건</span>
+      </p>
       <div class="ah-stats">
         <div v-for="s in stats" :key="s.name" class="ah-stat" :style="{ background: s.bg, '--fg': s.fg }">
           <span class="ah-stat-name">{{ s.name }}</span>
@@ -218,20 +227,14 @@ const help = {
 </template>
 
 <style scoped>
-.ah-hero { padding: 64px 0 36px; display: flex; gap: 32px; align-items: flex-end; flex-wrap: wrap; }
-.ah-hero-text { flex: 1 1 520px; min-width: 0; }
+.ah-hero { padding: 72px 0 40px; }
 .ah-hello { margin: 0 0 12px; font-family: var(--uo-font-en); font-size: 44px; font-weight: 700; letter-spacing: -0.02em; color: var(--uo-primary); }
 .ah-title { margin: 0; font-size: 34px; line-height: 1.4; font-weight: 600; letter-spacing: -0.01em; }
 .ah-title span { color: var(--uo-warn); }
 .ah-lead { margin: 16px 0 0; font-size: 16px; line-height: 1.6; color: var(--uo-ink-2); }
-.ah-dept { flex: 0 1 320px; background: #fff; border: 1px solid var(--uo-line); border-radius: 20px; padding: 20px 22px; box-sizing: border-box; box-shadow: 0 8px 30px rgba(59,75,216,0.08); }
-.ah-dept p { margin: 0; }
-.ah-dept .ah-dept-label { margin-bottom: 10px; font-size: 13px; font-weight: 700; color: var(--uo-muted); }
-.ah-dept .ah-dept-name { margin-bottom: 14px; font-size: 18px; font-weight: 700; }
-.ah-dept-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.ah-dept-grid p:first-child { font-size: 12px; color: var(--uo-muted); }
-.ah-dept .ah-dept-grid p:last-child { margin-top: 2px; font-size: 14px; font-weight: 600; }
-.ah-dept-grid b { font-family: var(--uo-font-en); font-size: 22px; font-weight: 700; }
+.ah-dept { margin: 0 0 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 14px 20px; background: #fff; border: 1px solid var(--uo-line); border-radius: 14px; font-size: 14px; color: var(--uo-muted); }
+.ah-dept strong { font-size: 15px; color: var(--uo-ink); }
+.ah-dept b { font-size: 18px; font-weight: 700; color: var(--uo-ink); margin: 0 2px; }
 .ah-h2 { margin: 0 0 16px; font-size: 22px; font-weight: 700; }
 .ah-en { font-family: var(--uo-font-en); }
 .ah-warn { color: var(--uo-warn); }
@@ -241,8 +244,13 @@ const help = {
 .ah-check-all { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 600; color: var(--uo-ink-2); cursor: pointer; }
 .ah-box { width: 24px; height: 24px; flex: 0 0 24px; border-radius: 6px; border: 1.5px solid var(--uo-line-strong); background: #fff; color: #fff; font-size: 14px; padding: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; cursor: pointer; }
 .ah-box.on { background: var(--uo-primary); border-color: var(--uo-primary); }
+/* 체크박스는 24px로 보이되, 누르는 영역은 44px로 넓힌다. */
+.ah-req > .ah-box { position: relative; }
+.ah-req > .ah-box::after { content: ''; position: absolute; inset: -10px; }
 .ah-bulk { height: 44px; padding: 0 18px; border: 0; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 700; color: #fff; background: #B4B9CE; cursor: not-allowed; }
 .ah-bulk.on { background: var(--uo-gradient); cursor: pointer; }
+.ah-bar-ask { color: var(--uo-ink); font-weight: 600; }
+.ah-cancel { height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid #D5D9EA; background: #fff; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 .ah-notice { margin: 0 0 12px; font-size: 14px; font-weight: 600; border-radius: 12px; padding: 10px 14px; }
 .ah-notice.ok { color: var(--uo-ok); background: var(--uo-ok-bg); }
 .ah-notice.warn { color: var(--uo-warn); background: var(--uo-warn-bg); }
@@ -279,7 +287,6 @@ const help = {
   .ah-hello { font-size: 30px; }
   .ah-title { font-size: 24px; }
   .ah-ai { min-width: 0; flex-basis: 100%; }
-  .ah-dept { flex-basis: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .ah-req, .ah-open svg { transition: none; transform: none; } }
 </style>
