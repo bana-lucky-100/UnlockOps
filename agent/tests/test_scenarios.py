@@ -8,6 +8,7 @@ from conftest import FakeTools
 
 
 def job(platform,contents):
+    """선택한 플랫폼과 사용자 문장을 담은 분석 작업을 만든다."""
     return {"event_id":"event-1","job_type":"ANALYZE","problem_id":"problem-1",
             "requester_id":"requester-uuid","platform":platform,"contents":contents}
 
@@ -19,6 +20,7 @@ def job(platform,contents):
     ("NOTION","결제 개편 TF 위키 페이지에 접근할 수 없어요","Can view"),
 ])
 async def test_independent_requests_pause_before_any_mutation(platform,contents,role):
+    """플랫폼별 요청이 권한 변경 없이 올바른 역할의 승인 대기에 도달한다."""
     tools=FakeTools(); graph=build_graph(tools,InMemorySaver())
     config={"configurable":{"thread_id":"p"}}
     await graph.ainvoke({"job":job(platform,contents),"events":[]},config)
@@ -27,6 +29,22 @@ async def test_independent_requests_pause_before_any_mutation(platform,contents,
     assert saved.values["plan"]["requested_role"]==role
     assert any(task.interrupts for task in saved.tasks)
     assert tools.writes==0
+
+
+@pytest.mark.parametrize("current_role", [None, "Read"])
+async def test_readme_push_creates_write_approval_even_with_existing_read(current_role):
+    """README push 요청은 기존 Read 보유 여부와 관계없이 Write 승인을 대기한다."""
+    tools = FakeTools()
+    if current_role:
+        tools.current["repo-uuid"] = current_role
+    graph = build_graph(tools, InMemorySaver())
+    result = await graph.ainvoke(
+        {"job": job("GITHUB", "payment-core README 수정을 push하려는데 안 돼요")},
+        {"configurable": {"thread_id": "readme-push"}},
+    )
+    assert result["result"]["status"] == "WAITING_APPROVAL"
+    assert result["plan"]["requested_role"] == "Write"
+    assert tools.writes == 0
 
 
 @pytest.mark.parametrize("employee,platform,contents,status,code",[
@@ -41,6 +59,7 @@ async def test_independent_requests_pause_before_any_mutation(platform,contents,
     ("E-001","NOTION","인사팀 기밀 자료 페이지 읽어야 해요","REJECTED","CONFIDENTIAL_DEPARTMENT"),
 ])
 async def test_terminal_business_decisions_never_write(employee,platform,contents,status,code):
+    """거절·수동 검토 대상 요청은 예상 사유로 종료하고 쓰기를 수행하지 않는다."""
     tools=FakeTools(employee); graph=build_graph(tools,InMemorySaver())
     result=await graph.ainvoke({"job":job(platform,contents),"events":[]},{"configurable":{"thread_id":"p"}})
     assert result["result"]["status"]==status
@@ -50,6 +69,7 @@ async def test_terminal_business_decisions_never_write(employee,platform,content
 
 
 async def test_saved_approval_resumes_to_verified_completion():
+    """저장된 계획의 승인으로 그래프를 재개하고 부여·확인 후 완료한다."""
     tools=FakeTools(); graph=build_graph(tools,InMemorySaver())
     config={"configurable":{"thread_id":"p"}}
     await graph.ainvoke({"job":job("GITHUB","payment-core push가 안 돼요"),"events":[]},config)
@@ -62,7 +82,10 @@ async def test_saved_approval_resumes_to_verified_completion():
 
 
 async def test_jira_failure_stops_at_three_total_attempts(monkeypatch):
-    async def no_delay(_): pass
+    """Jira 부여가 계속 실패하면 총 세 번만 시도하고 검증 없이 실패한다."""
+    async def no_delay(_):
+        """재시도 횟수를 기다림 없이 검사하도록 지연을 대체한다."""
+        pass
     monkeypatch.setattr("unlockops.graph.pause",no_delay)
     tools=FakeTools(fail_jira=True); graph=build_graph(tools,InMemorySaver())
     config={"configurable":{"thread_id":"p"}}
@@ -76,6 +99,7 @@ async def test_jira_failure_stops_at_three_total_attempts(monkeypatch):
 
 
 async def test_missing_policy_cannot_create_an_approval_card():
+    """필수 정책 원문이 없으면 승인 대신 수동 검토로 종료한다."""
     tools=FakeTools(); tools.missing_policy=True
     graph=build_graph(tools,InMemorySaver())
     result=await graph.ainvoke({"job":job("GITHUB","payment-core push가 안 돼요"),"events":[]},{"configurable":{"thread_id":"p"}})
@@ -85,9 +109,11 @@ async def test_missing_policy_cannot_create_an_approval_card():
 
 
 async def test_out_of_scope_stops_before_any_lookup_or_approval(monkeypatch):
+    """지원 범위를 벗어난 요청은 조회와 승인 계획 생성 전에 종료한다."""
     from unlockops.models import Intent
 
     async def outside_scope(contents, platform):
+        """외부 모델 없이 범위 밖으로 해석된 의도를 반환한다."""
         return Intent(resource_hint="payment-core", out_of_scope=True)
 
     monkeypatch.setattr("unlockops.graph.interpret", outside_scope)
@@ -103,6 +129,7 @@ async def test_out_of_scope_stops_before_any_lookup_or_approval(monkeypatch):
 
 
 async def test_mentioning_a_working_platform_does_not_block_selected_platform():
+    """정상인 다른 서비스를 비교로 언급해도 선택한 플랫폼의 요청을 처리한다."""
     tools = FakeTools()
     graph = build_graph(tools, InMemorySaver())
     result = await graph.ainvoke(
@@ -127,15 +154,19 @@ async def test_mentioning_a_working_platform_does_not_block_selected_platform():
 async def test_verification_retry_policy_never_reexecutes_grant(
     monkeypatch, checks, expected_status, expected_code, expected_calls,
 ):
+    """검증 결과·오류별 재조회 횟수를 확인하고 부여는 반복하지 않는다."""
     from unlockops.models import ToolFailure
 
-    async def no_delay(_): pass
+    async def no_delay(_):
+        """검증 재시도 검사를 위해 대기 시간을 제거한다."""
+        pass
     monkeypatch.setattr("unlockops.graph.pause", no_delay)
 
     class VerificationTools(FakeTools):
         verify_calls = 0
 
         async def call(self, name, args):
+            """검증 호출에 지정한 성공·미반영·오류 응답을 순서대로 반환한다."""
             if name != "verify_permission": return await super().call(name, args)
             value = checks[self.verify_calls]
             self.verify_calls += 1
@@ -169,10 +200,12 @@ async def test_verification_retry_policy_never_reexecutes_grant(
     ("check_budget", {"budget": {"remaining_monthly_amount": "NaN", "unit_monthly_price": "19"}}, "Copilot 좌석 신청합니다"),
 ])
 async def test_malformed_mandatory_read_blocks_approval(tool_name, payload, contents):
+    """필수 조회 응답의 계약 위반은 승인 계획 생성과 쓰기를 차단한다."""
     from unlockops.models import ToolFailure
 
     class InvalidReadTools(FakeTools):
         async def call(self, name, args):
+            """지정한 필수 조회 도구에만 잘못된 응답을 주입한다."""
             if name == tool_name: return payload
             return await super().call(name, args)
 
@@ -191,8 +224,10 @@ async def test_malformed_mandatory_read_blocks_approval(tool_name, payload, cont
     {"ok": True}, {"ok": 1, "changed": True, "role": "Write"},
 ])
 async def test_invalid_grant_response_does_not_repeat_side_effects(payload):
+    """부여 후 응답이 잘못되어도 부여를 반복하거나 검증으로 넘어가지 않는다."""
     class InvalidGrantTools(FakeTools):
         async def call(self, name, args):
+            """모의 부여는 수행하되 부여 응답만 계약 위반 값으로 바꾼다."""
             result = await super().call(name, args)
             return payload if name == "grant_permission" else result
 
@@ -212,6 +247,7 @@ async def test_invalid_grant_response_does_not_repeat_side_effects(payload):
 
 
 async def test_tampered_approval_plan_is_rejected_before_write():
+    """승인 시 전달한 계획 해시가 다르면 권한 변경 전에 거부한다."""
     from unlockops.models import ToolFailure
     tools=FakeTools(); graph=build_graph(tools,InMemorySaver())
     config={"configurable":{"thread_id":"p"}}

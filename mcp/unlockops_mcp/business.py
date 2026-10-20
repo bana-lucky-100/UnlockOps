@@ -23,6 +23,7 @@ repo = Repository()
 @lru_cache(maxsize=1)
 def index():
     # 규정 인덱스는 재사용하고, 직원·로그인 예시가 있는 절은 검색에서 제외한다.
+    """허용한 회사 권한 규정 절만 색인하고 프로세스에서 재사용한다."""
     return DocumentIndex(settings.data_dir / "company-a-access-matrix.md", "business", {3, 4, 7})
 
 

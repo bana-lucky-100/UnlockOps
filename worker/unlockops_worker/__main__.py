@@ -26,6 +26,7 @@ class DeliveryFailure(RuntimeError):
 
 
 async def main():
+    """큐·체크포인트를 준비하고 분석·실행 작업을 순차 소비하는 워커를 실행한다."""
     if settings.mode not in {"demo", "llm"}: raise RuntimeError("AGENT_MODE must be demo or llm")
     Path(settings.checkpoint_path).parent.mkdir(parents=True, exist_ok=True)
     connection = await aio_pika.connect_robust(settings.rabbit_url) if settings.rabbit_url else await aio_pika.connect_robust(
@@ -45,6 +46,7 @@ async def main():
         lock = asyncio.Lock()  # This SQLite checkpoint worker is intentionally single-flight.
 
         async def publish(job, kind, data):
+            """결과 형식을 검증해 영속 메시지로 발행하고 브로커 확인 실패를 알린다."""
             if "result" in data:
                 data = {**data, "result": Result.model_validate(data["result"]).model_dump(mode="json")}
             body = {"event_id": str(uuid4()), "problem_id": job.problem_id,
@@ -57,6 +59,7 @@ async def main():
                 raise DeliveryFailure("Result publication not confirmed") from None
 
         async def consume(message):
+            """작업의 그래프를 실행·재개하고 결과 발행 확인 뒤 원본 메시지를 승인한다."""
             async with lock:
                 try: job = Job.model_validate_json(message.body)
                 except Exception:

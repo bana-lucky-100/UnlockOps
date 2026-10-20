@@ -54,6 +54,7 @@ class ContractMCP(FastMCP):
     """일반 도구 함수는 업무만 담당하고, 공통 검사는 서버 경계에서 수행한다."""
 
     async def list_tools(self):
+        """공개 도구 목록의 입출력 스키마를 Agent와 공유하는 계약으로 맞춘다."""
         definitions = await super().list_tools()
         for tool in definitions:
             tool.inputSchema = INPUTS[tool.name].model_json_schema()
@@ -62,6 +63,7 @@ class ContractMCP(FastMCP):
 
     async def call_tool(self, name, arguments):
         # 입력 검사 → 도구 실행 → 응답 검사 순서로 처리한다.
+        """입력 검사·도구 실행·출력 검사를 수행하고 예외를 공통 MCP 오류로 반환한다."""
         try:
             if name not in {tool.name for tool in await super().list_tools()}:
                 raise ToolFailure("UNKNOWN_TOOL", "Tool is not provided by this server")

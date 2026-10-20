@@ -33,6 +33,7 @@ class Repository:
     """MCP 도구가 사용하는 저장소. Agent 노드는 DB 연결을 직접 만들지 않는다."""
 
     def connect(self):
+        """설정된 DB 주소 또는 접속 항목으로 행을 딕셔너리로 읽는 연결을 연다."""
         if settings.database_url:
             return psycopg.connect(settings.database_url, row_factory=dict_row, connect_timeout=10)
         return psycopg.connect(
@@ -63,6 +64,7 @@ class Repository:
         return public(row)
 
     def resource(self, resource_id, conn=None):
+        """자원 ID로 등록된 속성을 조회하고 없으면 조회 오류를 발생시킨다."""
         if conn is None:
             with self.connect() as c:
                 return self.resource(resource_id, c)
@@ -87,6 +89,7 @@ class Repository:
             names = [row["external_id"], row["name"], *row["aliases"]]
 
             def mentioned(name):
+                """영문 자원명은 경계를 검사하고 그 외 이름은 원문 포함 여부를 확인한다."""
                 name = name.casefold()
                 if re.fullmatch(r"[a-z0-9_-]+", name):
                     return bool(
@@ -102,6 +105,7 @@ class Repository:
         return {"matches": matches, "ambiguous": len(matches) != 1}
 
     def membership(self, employee_id, resource_id, conn=None):
+        """요청자의 활성 TF 가입 여부와 TF 유효 기간·리더를 함께 조회한다."""
         if conn is None:
             with self.connect() as c:
                 return self.membership(employee_id, resource_id, c)
@@ -157,6 +161,7 @@ class Repository:
         return {"role": row["saas_role"] if row else None, "source": "mock-saas-permissions"}
 
     def budget(self, employee_id, conn=None, lock=False):
+        """직원 소속 부서의 좌석 예산을 조회하고 요청 시 예산 행을 잠근다."""
         if conn is None:
             with self.connect() as c:
                 return self.budget(employee_id, c, lock)

@@ -28,6 +28,7 @@ GrantRole = Literal[
 
 
 def uuid_string(value: str) -> str:
+    """유효한 UUID인지 확인하고 표준 문자열 형식으로 정규화한다."""
     return str(UUID(value))
 
 
@@ -42,6 +43,7 @@ Money = Annotated[str, Field(strict=True, pattern=r"^\d+(?:\.\d{1,2})?$")]
 
 def boolean_only(value):
     # Literal만 사용하면 숫자 1/0도 통과할 수 있어 JSON 불리언인지 먼저 확인한다.
+    """숫자 1·0 등의 자동 변환을 막고 실제 JSON 불리언만 허용한다."""
     if type(value) is not bool:
         raise ValueError("A JSON boolean is required")
     return value
@@ -126,6 +128,7 @@ class Resource(Output):
     @model_validator(mode="after")
     def protected_resource(self):
         # 개별 필드 검사 후, 기밀·부서 자원에 필요한 관련 값도 확인한다.
+        """기밀·부서 자원에 필요한 보안 등급과 담당 부서 정보가 있는지 확인한다."""
         if self.access_scope == "CONFIDENTIAL" and self.security_grade != "CONFIDENTIAL":
             raise ValueError("Confidential resource requires its classification")
         if self.security_grade == "CONFIDENTIAL" and not self.designated_department_id:
@@ -141,6 +144,7 @@ class ResourceResolution(Output):
 
     @model_validator(mode="after")
     def consistent_ambiguity(self):
+        """후보가 정확히 하나인지와 ambiguous 표시가 일치하는지 확인한다."""
         if self.ambiguous != (len(self.matches) != 1):
             raise ValueError("Resource ambiguity does not match the candidates")
         return self
@@ -162,6 +166,7 @@ class Budget(Output):
 
     @model_validator(mode="after")
     def positive_price(self):
+        """좌석 단가가 0보다 큰 금액인지 확인한다."""
         if Decimal(self.unit_monthly_price) <= 0:
             raise ValueError("Seat price must be positive")
         return self

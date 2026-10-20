@@ -35,12 +35,14 @@ class MCPTools:
     """두 MCP 서버를 연결하고 도구 이름에 맞는 서버로 호출을 보낸다."""
 
     def __init__(self):
+        """MCP 연결 수명과 도구별 세션·설명 저장소를 준비한다."""
         self.stack = AsyncExitStack()
         self.sessions = {}
         self.descriptions = {}
 
     async def __aenter__(self):
         # async with 진입 시 연결하고, 도구 목록·입력 스키마를 받아 둔다.
+        """두 MCP 서버에 연결해 세션을 초기화하고 도구 목록을 수집한다."""
         try:
             for url in (settings.policy_url, settings.business_url):
                 read, write, _ = await self.stack.enter_async_context(
@@ -69,6 +71,7 @@ class MCPTools:
             raise
 
     async def __aexit__(self, *args):
+        """관리 중인 MCP 세션과 HTTP 연결을 닫는다."""
         await self.stack.aclose()
 
     async def call(self, name, arguments):
@@ -120,6 +123,7 @@ class ScopedTools:
     """한 분석 안에서 요청자·플랫폼·자원을 고정하고 읽기 호출 예산을 관리한다."""
 
     def __init__(self, tools, requester_id, platform, resource_id=None):
+        """한 분석의 요청자·플랫폼·자원 범위와 호출 횟수·캐시를 초기화한다."""
         self.tools, self.requester_id, self.platform = tools, requester_id, platform
         self.resource_id = resource_id
         self.calls = 0
@@ -129,6 +133,7 @@ class ScopedTools:
         self.cache = {}
 
     async def read(self, name, arguments, *, optional=False):
+        """선택 조회 횟수를 제한하고 실패 코드를 추적하며 읽기 도구를 호출한다."""
         if optional:
             if self.optional_calls >= settings.max_optional_tools:
                 raise ToolFailure("OPTIONAL_TOOL_BUDGET", "Optional tool selection limit reached")
@@ -141,6 +146,7 @@ class ScopedTools:
             raise
 
     async def _read(self, name, arguments, *, optional):
+        """읽기 범위·총 호출 한도를 검사하고 응답 검증 및 분석 내 캐시를 처리한다."""
         if name not in READ_TOOLS:
             raise ToolFailure(
                 "WRITE_DURING_DIAGNOSIS", "Only read tools are exposed during diagnosis"

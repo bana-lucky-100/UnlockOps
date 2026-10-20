@@ -51,6 +51,7 @@ def event(state: AgentState, node: str, **details) -> list[dict]:
 
 
 async def pause(seconds):
+    """재시도 전에 지정한 시간만큼 비동기로 기다린다."""
     await asyncio.sleep(seconds)
 
 
@@ -353,18 +354,21 @@ def finish_node(state: AgentState) -> dict:
 
 # 3. 분기 함수: State를 읽고 다음 노드의 이름만 반환한다.
 def route_after_scope(state: AgentState) -> str:
+    """범위 밖 요청은 종료하고 지원 대상 요청은 사실 조회로 보낸다."""
     if state["intent"]["out_of_scope"]:
         return END
     return "context"
 
 
 def route_after_judge(state: AgentState) -> str:
+    """승인이 필요한 판정만 승인 노드로 보내고 나머지는 종료한다."""
     if state["result"]["status"] == "WAITING_APPROVAL":
         return "approval"
     return END
 
 
 def route_after_execute(state: AgentState) -> str:
+    """부여 성공은 검증으로, 재시도 가능한 실패는 한도 내 재실행으로 보낸다."""
     error = state.get("execution_error")
     if not error:
         return "verify"
@@ -389,6 +393,7 @@ def route_after_verify(state: AgentState) -> str:
 
 # 4. 그래프: 노드 등록 → 연결 → 조건부 연결 → 체크포인트를 붙여 컴파일한다.
 def build_graph(tools, checkpointer):
+    """노드와 조건 분기를 연결하고 체크포인트로 승인 후 재개할 그래프를 만든다."""
     builder = StateGraph(AgentState)
 
     # partial은 공통 MCP 연결을 미리 넣어, 그래프가 state만 전달할 수 있게 한다.

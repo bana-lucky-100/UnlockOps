@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from functools import lru_cache
 
 from .models import Intent, ToolFailure
@@ -28,6 +29,14 @@ def model():
 
 
 # 2. 요청 해석: 데모 규칙과 LLM의 구조화된 출력을 같은 Intent로 맞춘다.
+def contains_token(text: str, token: str) -> bool:
+    """영문 토큰은 ASCII 단어 경계로, 한글 표현은 부분 문자열로 확인한다."""
+    if token.isascii():
+        # README는 Read가 아니지만, Read권한처럼 한글이 붙은 요청은 인식한다.
+        return re.search(r"\b" + re.escape(token) + r"\b", text, flags=re.ASCII) is not None
+    return token in text
+
+
 def raw_intent(contents: str) -> Intent:
     """데모에서 사용할 최소 해석이며, LLM 모드에서도 명시적 권한 요청을 보존한다."""
     text = contents.casefold()
@@ -50,12 +59,12 @@ def raw_intent(contents: str) -> Intent:
         ("developer", "Developer"),
         ("viewer", "Viewer"),
     ):
-        if token in text:
+        if contains_token(text, token):
             role = value
             break
-    if not role and ("push" in text or "코드를 올" in text):
+    if not role and (contains_token(text, "push") or "코드를 올" in text):
         role = "Write"
-    if not role and ("copilot" in text or "코파일럿" in text):
+    if not role and (contains_token(text, "copilot") or "코파일럿" in text):
         role = "Seat"
     return Intent(resource_hint=contents[:200], requested_role=role, symptom=contents[:500])
 

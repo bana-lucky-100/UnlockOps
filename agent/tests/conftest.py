@@ -16,6 +16,7 @@ class FakeTools:
     """Transport substitute for graph tests, never a claimed live MCP test."""
     descriptions = {}
     def __init__(self, employee="E-001", fail_jira=False):
+        """직원 유형별 모의 자원·자격과 호출·쓰기 기록을 초기화한다."""
         self.employee=employee
         self.fail_jira=fail_jira
         self.approved=False
@@ -40,6 +41,7 @@ class FakeTools:
         ]
 
     async def call(self,name,args):
+        """도구 호출을 기록하고 외부 연결 없이 정해진 조회·부여 결과를 반환한다."""
         from unlockops.models import ToolFailure
         self.calls.append((name,deepcopy(args)))
         if name=="get_employee_profile": return deepcopy(self.profile)
@@ -69,4 +71,6 @@ class FakeTools:
 
 
 @pytest.fixture
-def fake_tools(): return FakeTools()
+def fake_tools():
+    """테스트마다 상태를 공유하지 않는 모의 MCP 도구를 제공한다."""
+    return FakeTools()

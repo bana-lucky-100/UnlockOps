@@ -23,6 +23,7 @@ RESOURCE = "20000000-0000-0000-0000-000000000001"
 
 @contextmanager
 def rpc(server):
+    """실제 도구를 새 테스트 서버에 등록하고 인증된 JSON-RPC 호출 함수를 제공한다."""
     from unlockops_mcp import business, policy
 
     # The SDK session manager has a single lifespan. Use a fresh server per test
@@ -46,6 +47,7 @@ def rpc(server):
         }
 
         def request(method, params):
+            """인증 헤더를 포함한 MCP 요청을 보내고 JSON-RPC 결과를 반환한다."""
             response = client.post(
                 "/mcp",
                 headers=headers,
@@ -64,6 +66,7 @@ def rpc(server):
 
 @pytest.mark.parametrize("server", [policy_mcp, business_mcp])
 def test_server_starts_and_requires_token_for_discovery(server):
+    """서버 기동과 토큰 인증 뒤 초기화·도구 목록 조회가 가능한지 확인한다."""
     with TestClient(
         TokenAuth(server.streamable_http_app()), base_url="http://127.0.0.1:8000"
     ) as client:
@@ -125,6 +128,7 @@ def test_server_starts_and_requires_token_for_discovery(server):
     ],
 )
 def test_invalid_input_returns_structured_nonretryable_error(server, name, args):
+    """입력 계약 위반을 공통 형식의 재시도 불가 오류로 반환하는지 확인한다."""
     with rpc(server) as request:
         result = request("tools/call", {"name": name, "arguments": args})
     assert result["isError"] is True
@@ -133,6 +137,7 @@ def test_invalid_input_returns_structured_nonretryable_error(server, name, args)
 
 
 def test_published_schemas_and_real_policy_output_match(monkeypatch):
+    """공개한 출력 스키마와 실제 정책 응답·출처 메타데이터가 일치한다."""
     from unlockops_mcp.policy import index
 
     monkeypatch.setenv("EMBEDDING_BASE_URL", "")
@@ -172,9 +177,11 @@ def test_published_schemas_and_real_policy_output_match(monkeypatch):
 def test_business_outputs_and_exceptions_follow_wire_contract(
     monkeypatch, payload, expected_code, retryable
 ):
+    """업무 응답과 예외를 HTTP 경계에서 검증하고 내부 오류 원문을 숨긴다."""
     from unlockops_mcp.business import repo
 
     def verify(*args):
+        """검증 도구에 지정한 업무 응답이나 예외를 주입한다."""
         if isinstance(payload, Exception):
             raise payload
         return payload
@@ -206,6 +213,7 @@ def test_business_outputs_and_exceptions_follow_wire_contract(
 
 
 def test_legacy_grant_error_is_normalized_without_changing_repository(monkeypatch):
+    """저장소의 이전 부여 오류를 MCP 경계에서 공통 오류 형식으로 변환한다."""
     from unlockops_mcp.business import repo
 
     monkeypatch.setattr(
@@ -238,6 +246,7 @@ def test_legacy_grant_error_is_normalized_without_changing_repository(monkeypatc
 
 @pytest.mark.parametrize("server", [policy_mcp, business_mcp])
 async def test_tool_decorators_publish_read_and_write_hints(server):
+    """도구 목록에 읽기와 승인 후 쓰기 데코레이터의 힌트가 노출된다."""
     for tool in await server.list_tools():
         read_only = tool.name != "grant_permission"
         assert tool.annotations.readOnlyHint is read_only
