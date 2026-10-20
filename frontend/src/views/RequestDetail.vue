@@ -163,11 +163,16 @@ const requesterHelp = {
       <div class="rd-cols">
         <div class="rd-main">
           <section class="rd-card" aria-labelledby="rd-dg">
-            <h2 id="rd-dg">{{ aiMessage || proposal ? '요청 내용과 AI 진단' : '요청 내용' }}</h2>
-            <div class="rd-facts">
-              <span>{{ platform.label }}</span>
-              <span v-if="resourceName">{{ resourceName }}</span>
-              <span v-if="p.requested_role">{{ p.requested_role }}</span>
+            <!-- 플랫폼 · 자원 · 권한은 대화가 아니라 요청 정보라서, 말풍선과 떨어진 제목 줄 오른쪽에 배지로 둔다. -->
+            <div class="rd-card-head">
+              <h2 id="rd-dg">{{ aiMessage || proposal ? '요청 내용과 AI 진단' : '요청 내용' }}</h2>
+              <div class="rd-facts" aria-label="요청 정보">
+                <span class="rd-ptag" :style="{ background: platform.soft, color: platform.color }">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="platform.icon" /></svg>{{ platform.label }}
+                </span>
+                <span v-if="resourceName" class="rd-fact rd-en">{{ resourceName }}</span>
+                <span v-if="p.requested_role" class="rd-fact">{{ p.requested_role }}</span>
+              </div>
             </div>
             <div class="rd-msgs">
               <p class="rd-msg me">{{ p.contents }}</p>
@@ -319,8 +324,10 @@ const requesterHelp = {
 .rd-side { flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
 .rd-card { background: #fff; border: 1px solid var(--uo-line); border-radius: 20px; padding: 24px; }
 .rd-card h2, .rd-side h2 { margin: 0 0 14px; font-size: 18px; font-weight: 700; }
-.rd-facts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
-.rd-facts span { font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; background: var(--uo-primary-soft); color: var(--uo-primary-ink); }
+.rd-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.rd-card .rd-card-head h2 { margin: 0; }
+.rd-facts { display: flex; flex-wrap: wrap; gap: 6px; }
+.rd-fact { font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 999px; background: #F0F1F5; color: var(--uo-ink-2); }
 .rd-msgs { display: flex; flex-direction: column; gap: 12px; }
 .rd-msg { margin: 0; max-width: 82%; padding: 12px 16px; font-size: 15px; line-height: 1.7; white-space: pre-line; }
 .rd-msg.me { align-self: flex-end; background: var(--uo-primary); color: #fff; border-radius: 16px 16px 4px 16px; }

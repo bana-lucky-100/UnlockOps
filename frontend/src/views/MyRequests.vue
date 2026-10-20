@@ -85,6 +85,9 @@ const help = {
 .mr-top h1 { margin: 10px 0 0; font-size: 30px; font-weight: 700; letter-spacing: -0.01em; }
 .mr-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .mr-tab { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid #D5D9EA; background: #fff; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.mr-tab { transition: background-color .2s ease, border-color .2s ease, color .2s ease; }
+.mr-tab[aria-selected="false"]:hover { background: var(--uo-primary-soft); border-color: #B9C0E8; color: var(--uo-primary-ink); }
 .mr-tab[aria-selected="true"] { background: var(--uo-ink); border-color: var(--uo-ink); color: #fff; }
 .mr-count { font-family: var(--uo-font-en); font-size: 13px; opacity: .8; }
+@media (prefers-reduced-motion: reduce) { .mr-tab { transition: none; } }
 </style>

@@ -197,7 +197,10 @@ const help = {
 .rh-tip strong { color: var(--uo-ink-2); font-weight: 600; }
 .rh-mine-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; min-height: 36px; }
 .rh-mine-head h2 { margin: 0; font-size: 22px; font-weight: 700; }
-.rh-all { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 16px; border-radius: 999px; background: #fff; border: 1px solid #D5D9EA; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.rh-all { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 16px; border-radius: 999px; background: #fff; border: 1px solid #D5D9EA; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color .2s ease, border-color .2s ease, color .2s ease; }
+.rh-all svg { transition: transform .2s ease; }
+.rh-all:hover, .rh-all:focus-visible { background: var(--uo-primary-soft); border-color: #B9C0E8; color: var(--uo-primary-ink); }
+.rh-all:hover svg, .rh-all:focus-visible svg { transform: translateX(3px); }
 .rh-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
 .rh-step { text-decoration: none; position: relative; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; padding: 28px 28px 32px; border: 0; border-radius: 20px; color: var(--uo-ink); min-height: 200px; text-align: left; font: inherit; cursor: pointer; }
 .rh-step:focus-visible { outline: none; }
@@ -209,7 +212,7 @@ const help = {
 .rh-cut { position: absolute; right: 0; bottom: 0; width: 80px; height: 80px; background: var(--uo-bg); border-top-left-radius: 26px; }
 .rh-cut-a { position: absolute; right: 0; bottom: 80px; width: 26px; height: 26px; background: radial-gradient(circle at 0 0, rgba(246,247,252,0) 25.5px, var(--uo-bg) 26px); }
 .rh-cut-b { position: absolute; right: 80px; bottom: 0; width: 26px; height: 26px; background: radial-gradient(circle at 0 0, rgba(246,247,252,0) 25.5px, var(--uo-bg) 26px); }
-.rh-arr { position: absolute; right: 10px; bottom: 10px; width: 60px; height: 60px; border-radius: 50%; background: #fff; color: var(--fg); border: 1px solid var(--uo-line); box-shadow: 0 4px 14px rgba(20,26,51,0.08); box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
+.rh-arr { position: absolute; right: 10px; bottom: 10px; width: 60px; height: 60px; border-radius: 50%; background: #fff; color: var(--fg); border: 1px solid var(--uo-line); box-shadow: 0 4px 14px rgba(20,26,51,0.08); box-sizing: border-box; display: flex; align-items: center; justify-content: center; transition: background-color .25s ease, color .25s ease, border-color .25s ease; }
 .rh-arr svg { transition: transform .2s ease; }
 .rh-step:hover .rh-arr svg, .rh-step:focus-visible .rh-arr svg { transform: translate(3px, -3px); }
 .rh-step:hover .rh-arr { background: var(--fg); color: #fff; border-color: var(--fg); }
@@ -221,5 +224,5 @@ const help = {
   .rh-title { font-size: 24px; }
   .rh-count { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .rh-chip, .rh-send svg, .rh-arr svg { transition: none; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .rh-chip, .rh-send svg, .rh-arr, .rh-arr svg, .rh-all, .rh-all svg { transition: none; transform: none; } }
 </style>

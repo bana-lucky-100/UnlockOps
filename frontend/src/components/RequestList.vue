@@ -38,7 +38,11 @@ defineEmits<{ retry: [] }>()
 .rl-retry { height: 36px; padding: 0 16px; border-radius: 999px; background: #fff; border: 1px solid #D5D9EA; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 .rl-row { display: grid; grid-template-columns: 116px minmax(0, 1fr) auto 18px; align-items: center; gap: 16px; padding: 16px 24px; border-bottom: 1px solid #EEF0F6; text-decoration: none; color: var(--uo-ink); min-width: 600px; }
 .rl-row:last-child { border-bottom: 0; }
+.rl-row { transition: background-color .2s ease; }
+.rl-row svg { transition: transform .2s ease; }
 .rl-row:hover { background: #FAFBFE; }
+.rl-row:hover > svg { transform: translateX(3px); }
+@media (prefers-reduced-motion: reduce) { .rl-row, .rl-row svg { transition: none; transform: none; } }
 .rl-badge { justify-self: start; font-size: 13px; font-weight: 700; padding: 5px 12px; border-radius: 999px; white-space: nowrap; }
 .rl-badge.run { background: var(--uo-primary-soft); color: var(--uo-primary-ink); }
 .rl-badge.warn { background: var(--uo-warn-bg); color: var(--uo-warn); }
