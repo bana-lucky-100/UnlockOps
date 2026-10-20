@@ -34,7 +34,7 @@ evidence, plan, plan_hash, approved_plan_hash, thread_id, idempotency_key 및 �
 
 공개 이력은 `{kind, payload: {message}, created_at}` 형식입니다. 원본 도구·근거·실행 계획·내부 오류 코드를
 재귀적으로 제거하는 대신 새 메시지를 구성합니다. 담당자에게는 기존 원본 이력을 제공합니다.
-diagnosis/proposal의 기존 생성·저장 방식은 이번 변경에서 유지합니다.
+안내 결과의 proposal에는 답변과 출처 청크 ID를 포함하며 원본 evidence나 내부 실행 정보는 노출하지 않습니다.
 
 ### 내 승인 현황 · 이번 주
 
@@ -51,6 +51,15 @@ failed는 현재 FAILED입니다. 승인 후 실패하면 approved와 failed에 
 예산 부족 S4는 `REJECTED / BUDGET_INSUFFICIENT`이며 예산 증액 후 새 요청을 접수합니다.
 V3 마이그레이션은 기존 ON_HOLD 행과 INSUFFICIENT_BUDGET 코드를 변환하고 상태 CHECK를 8개로 바꿉니다.
 적용된 V1/V2와 감사 이력은 수정하지 않습니다. 구 큐 결과·체크포인트는 Python 발행 및 Spring 수신 시 새 상태·코드로 정규화합니다.
+
+RAG 안내는 기존 계약의 `MANUAL_REVIEW / RAG_GUIDANCE`로 전달합니다. plan·verification_ok는 null이며
+proposal에 안내문과 출처 ID를 담습니다. evidence에는 원문 청크와
+`{kind:"answer_citation",chunk_id,quote}` 인용 항목을 보존하고, 인용·내용 검증은 에이전트에서 수행합니다.
+검색 근거·생성 내용이 불충분해도 MANUAL_REVIEW로 처리하되 reasonCode로 구분합니다.
+모델·도구 호출 장애는 FAILED입니다. 내부 handling=ANSWER는 답변 생성 경로를 뜻하며
+외부 상태의 완료를 뜻하지 않습니다. 화면 상태와 공개 이력은 기존 담당자 검토 안내로 표시됩니다.
+서버·DB 상태·HTTP 응답 형식·프론트는 변경하지 않습니다. 기존 proposal 표시를 사용하며,
+DONE에는 기존 권한 반영 검증이 필요합니다.
 
 ## RabbitMQ
 

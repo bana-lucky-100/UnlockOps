@@ -9,8 +9,9 @@ from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import interrupt
 
+from .answering import generate_answer
 from .contracts import validate_output
-from .models import Plan, Result, ToolFailure
+from .models import Intent, Plan, Result, ToolFailure
 from .planner import interpret, investigate
 from .rules import evaluate, FORBIDDEN
 from .settings import settings
@@ -29,6 +30,8 @@ class AgentState(TypedDict, total=False):
     budget: dict | None
     evidence: list[dict]  # 규정 원문과 조회 사실
     evidence_complete: bool
+    answer_sources: list[dict]  # 실제 검색한 안내 근거
+    handling: str  # ANSWER / APPROVAL / REJECT / MANUAL_REVIEW
 
     plan: dict | None  # 사람에게 승인받을 실행 계획
     result: dict
@@ -110,7 +113,8 @@ def scope_node(state: AgentState) -> dict:
         "REQUEST_OUT_OF_SCOPE",
         "선택한 플랫폼의 단일 권한 요청으로 범위를 확정할 수 없어 담당자 검토가 필요합니다.",
     )
-    return {"result": result, "plan": None, "events": event(state, "scope", accepted=False)}
+    return {"result": result, "plan": None, "handling": "MANUAL_REVIEW",
+            "events": event(state, "scope", accepted=False)}
 
 
 async def context_node(state: AgentState, *, tools) -> dict:
@@ -192,6 +196,12 @@ async def gather_node(state: AgentState, *, tools) -> dict:
         )
         # 필수 조회가 끝난 뒤에만 LLM 선택 조회 예산을 사용한다.
         investigation = await investigate(scoped, state["profile"], resource, job["contents"])
+    answer_sources = [*search.get("hits", []), *scoped.optional_evidence]
+    # 추가 조사에서 찾은 문서도 최종 근거와 답변에 반영한다.
+    for (name, _), value in scoped.cache.items():
+        if name in {"search_policy", "read_policy", "search_access_rules", "read_access_rule"}:
+            chunks = value.get("hits", value.get("chunks", []))
+            evidence.extend(chunks)
     unique = {x.get("chunk_id", str(i)): x for i, x in enumerate(evidence)}
     return {
         "membership": membership,
@@ -201,13 +211,16 @@ async def gather_node(state: AgentState, *, tools) -> dict:
         "tool_calls": scoped.calls,
         "optional_tool_calls": scoped.optional_calls,
         "evidence_complete": evidence_complete,
+        "answer_sources": answer_sources,
         "events": event(state, "collect_evidence", tools=scoped.trace, investigation=investigation),
     }
 
 
 def judge_node(state: AgentState) -> dict:
-    """수집한 사실과 코드의 정책 규칙으로 승인·거절·수동 검토를 판정한다."""
-    explicit = state["intent"]["requested_role"]
+    """문의 의도와 조회 사실로 답변·승인·거절·수동 검토를 결정한다."""
+    intent = Intent.model_validate(state["intent"])
+    explicit = intent.requested_role
+    handling = None
     if not state.get("evidence_complete"):
         status, code, message, role = (
             "MANUAL_REVIEW",
@@ -215,6 +228,9 @@ def judge_node(state: AgentState) -> dict:
             "필수 규정 근거를 확인할 수 없어 담당자 검토가 필요합니다.",
             "",
         )
+    elif intent.request_type == "GUIDE":
+        handling = "ANSWER"
+        status, code, message, role = "MANUAL_REVIEW", "GUIDE_REQUEST", "사용법 문의에 대한 문서 안내입니다.", ""
     elif explicit.lower() in FORBIDDEN:
         status, code, message, role = (
             "REJECTED",
@@ -239,14 +255,44 @@ def judge_node(state: AgentState) -> dict:
             explicit,
         )
         status, code, message, role = verdict.status, verdict.code, verdict.message, verdict.role
-    result = outcome(
-        state, status, code, message, role, True if code == "ALREADY_HAS_ACCESS" else None
-    )
+        if code == "ALREADY_HAS_ACCESS" or (
+            code == "DUPLICATE_SEAT" and intent.request_type == "TROUBLESHOOT"
+        ):
+            handling = "ANSWER"
+            status, message, role = "MANUAL_REVIEW", "조회 결과 필요한 권한을 이미 보유하고 있습니다.", ""
+    if handling is None:
+        handling = {"WAITING_APPROVAL": "APPROVAL", "REJECTED": "REJECT"}.get(status, "MANUAL_REVIEW")
+    result = outcome(state, status, code, message, role)
     return {
         "result": result,
         "plan": result["plan"],
-        "events": event(state, "judge", status=status, reason_code=code),
+        "handling": handling,
+        "events": event(state, "judge", handling=handling, status=status, reason_code=code),
     }
+
+
+async def answer_node(state: AgentState) -> dict:
+    """검색 근거로 안내하고 인용·내용 검사를 통과하지 못하면 수동 검토로 넘긴다."""
+    draft, code = await generate_answer(state)
+    if draft is None:
+        result = outcome(state, "MANUAL_REVIEW", code, "안내할 근거를 충분히 확인하지 못해 담당자 검토가 필요합니다.")
+        return {"result": result, "plan": None, "handling": "MANUAL_REVIEW",
+                "events": event(state, "answer", grounded=False, reason_code=code)}
+    # 기존 서버 계약으로 안내를 전달한다. 안내 완료 전용 상태는 서버와 합의 후 추가한다.
+    result = outcome(state, "MANUAL_REVIEW", code, state["result"]["diagnosis"])
+    result["nextAction"] = "안내 확인 후 해결되지 않으면 담당자 검토"
+    intro = "확인한 문서를 바탕으로 안내합니다."
+    if state.get("current", {}).get("role"):
+        intro = f"조회한 현재 권한은 {state['current']['role']}입니다. 문서의 점검 안내를 확인해 주세요."
+    lines, citations = [intro], []
+    for number, step in enumerate(draft.steps, 1):
+        refs = ", ".join(dict.fromkeys(c.chunk_id for c in step.citations))
+        lines.append(f"{number}. {step.text}\n근거: {refs}")
+        citations.extend({"kind": "answer_citation", **c.model_dump()} for c in step.citations)
+    result["proposal"] = "\n\n".join(lines)
+    result["evidence"] = [*state.get("evidence", []), *citations]
+    return {"result": result, "plan": None,
+            "events": event(state, "answer", grounded=True, reason_code=code)}
 
 
 def approval_node(state: AgentState) -> dict:
@@ -364,7 +410,9 @@ def route_after_scope(state: AgentState) -> str:
 
 
 def route_after_judge(state: AgentState) -> str:
-    """승인이 필요한 판정만 승인 노드로 보내고 나머지는 종료한다."""
+    """답변과 승인 경로를 연결하고 거절·수동 검토는 종료한다."""
+    if state.get("handling") == "ANSWER":
+        return "answer"
     if state["result"]["status"] == "WAITING_APPROVAL":
         return "approval"
     return END
@@ -405,6 +453,7 @@ def build_graph(tools, checkpointer):
     builder.add_node("context", partial(context_node, tools=tools))
     builder.add_node("gather", partial(gather_node, tools=tools))
     builder.add_node("judge", judge_node)
+    builder.add_node("answer", answer_node)
     builder.add_node("approval", approval_node)
     builder.add_node("execute", partial(execute_node, tools=tools))
     builder.add_node("retry", retry_node)
@@ -417,7 +466,8 @@ def build_graph(tools, checkpointer):
     builder.add_conditional_edges("scope", route_after_scope, ["context", END])
     builder.add_edge("context", "gather")
     builder.add_edge("gather", "judge")
-    builder.add_conditional_edges("judge", route_after_judge, ["approval", END])
+    builder.add_conditional_edges("judge", route_after_judge, ["answer", "approval", END])
+    builder.add_edge("answer", END)
 
     builder.add_edge("approval", "execute")
     builder.add_conditional_edges("execute", route_after_execute, ["verify", "retry", "finish"])

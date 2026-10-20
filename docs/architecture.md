@@ -26,7 +26,10 @@ flowchart TD
   START --> interpret --> scope
   scope -->|범위 확정| context --> gather --> judge
   scope -->|범위 밖·수동 검토| END
-  judge -->|거절·수동검토·이미 보유| END
+  judge -->|거절·수동 검토| END
+  judge -->|사용법·필요 권한 이미 보유| answer
+  answer -->|근거 검사 통과·안내 전달| END
+  answer -->|근거 부족·수동 검토| END
   judge -->|부여 가능| approval
   approval -->|interrupt 후 승인 기록으로 재개| execute
   execute -->|성공| verify
@@ -39,6 +42,15 @@ flowchart TD
 
 State에는 원본 작업, 해석 결과, 직원 사실, 자원, TF 소속, 현재 권한, 예산, 두 문서의 근거,
 불변 실행 계획, 실행·검증 시도 횟수와 진행 이벤트가 들어갑니다.
+의도에는 사용법 문의·오류 해결·권한 신청을 구분하는 request_type이 있고,
+판정 후 handling에는 ANSWER / APPROVAL / REJECT / MANUAL_REVIEW를 기록합니다.
+
+답변 경로는 검색 문서와 조회 사실로 안내를 작성합니다. 데모에서는 검색 원문을 발췌하고,
+LLM 모드에서는 생성 후 별도 근거 검토를 거칩니다. 코드가 인용 ID·원문 발췌의 일치도 확인합니다.
+자료 부족·내용 미지원은 MANUAL_REVIEW입니다. 안내도 기존 서버 계약에 맞춰
+MANUAL_REVIEW / RAG_GUIDANCE로 전달하며 proposal에 답변을 담습니다.
+화면 상태는 담당자 검토로 남고 실제 오류 해결·권한 반영을 완료했다고 표현하지 않습니다.
+새 상태·DB 마이그레이션은 추가하지 않으며 plan·verification_ok는 null입니다.
 
 LLM 모드의 `planner.investigate`는 두 MCP의 도구 설명·입력 스키마를 받아 읽기 도구를 선택합니다.
 `ScopedTools`는 직원·플랫폼·자원 범위와 호출 횟수를 제한합니다. 필수 조회는 선택 조회보다 먼저 코드에서
@@ -58,7 +70,8 @@ exactly-once 전송을 주장하지 않습니다. outbox/inbox와 실행 영수�
 `MANUAL_REVIEW`입니다. 정보가 부족해도 사용자에게 추가 질문을 보내지 않습니다.
 
 요청자는 본인 요청만 조회하며, 공개 이력은 원본 에이전트 이벤트에서 정해진 안내 문장으로 변환합니다.
-규정 근거·도구 호출·실행 계획·해시는 요청자 응답에 포함하지 않습니다. 승인 및 변경 도구의 권한 검사는 유지합니다.
+원본 evidence·도구 호출·실행 계획·해시는 요청자 응답에 포함하지 않습니다.
+답변의 proposal에는 사용자에게 안내할 내용과 인용 문서·청크 ID를 포함합니다. 승인 및 변경 도구의 권한 검사는 유지합니다.
 
 구현에서 참고한 공식 자료:
 

@@ -25,6 +25,7 @@ LLM 환경변수 변경은 worker 재시작 후 반영합니다.
 | --- | --- |
 | `unlockops/graph.py` | AgentState, 노드, 분기, 승인 interrupt, 실행·검증 재시도 |
 | `unlockops/planner.py` | 규칙 기반 의도 추출, LLM 프롬프트·읽기 도구 선택 |
+| `unlockops/answering.py` | 검색 문서를 활용한 안내 생성, 인용 원문 검사, LLM 내용 검토 |
 | `unlockops/tools.py` | 두 MCP 클라이언트, timeout, 사용자·자원·플랫폼 범위 제한 |
 | `unlockops/models.py` | Platform, Status, Job, Plan, Result |
 | `unlockops/contracts.py` | MCP 도구별 입력·응답 모델, 공통 오류 정규화; 두 서버와 공유 |
@@ -35,7 +36,8 @@ LLM 환경변수 변경은 worker 재시작 후 반영합니다.
 작업 흐름은 `interpret → scope → context → gather → judge → approval → execute → verify → finish`입니다.
 의도 추출 결과 `out_of_scope=true`는 scope에서 `MANUAL_REVIEW / REQUEST_OUT_OF_SCOPE`로 종료합니다.
 다른 플랫폼 이름의 단순 언급으로 차단하지 않으며, 범위 검사를 통과해도 별도의 정책·승인 검증을 거칩니다.
-거절·수동 검토·이미 보유는 judge에서 끝나고 승인 대기는 체크포인트에 저장합니다.
+judge에서 답변·승인·거절·수동 검토를 결정합니다. 거절·수동 검토는 종료하고 승인 대기는 체크포인트에 저장합니다.
+사용법 문의와 필요한 권한을 이미 보유한 요청은 `answer → END`로 연결합니다.
 RabbitMQ 진입점은 `worker/unlockops_worker/__main__.py`입니다.
 
 `interpret`는 `Intent.request_type`에 사용자가 원하는 도움을 기록합니다.
@@ -49,7 +51,21 @@ RabbitMQ 진입점은 `worker/unlockops_worker/__main__.py`입니다.
 데모는 최소 규칙으로 분류하고 LLM 모드는 문맥에 따라 구조화된 값을 반환합니다.
 이 값은 State와 interpret 진행 이벤트에 저장하며 실제 권한 부족·부여 자격은 MCP 조회와 정책 판정으로
 확인합니다. 기존 Intent 데이터에 값이 없으면 `TROUBLESHOOT`로 읽습니다.
-현재 이 분류는 기록 단계이며, 분류별 RAG 답변 노드와 라우팅은 아직 연결하지 않았습니다.
+`GUIDE`는 자원 이름 없이도 문서 안내가 가능하며 권한 부여 계획을 만들지 않습니다.
+`TROUBLESHOOT`와 `ACCESS_REQUEST`는 조회 결과에 따라 승인·거절·수동 검토로 분기하고,
+필요 권한을 이미 보유한 경우에는 답변으로 보냅니다. 기존 좌석의 명시적 중복 신청은 거절합니다.
+
+답변은 Policy MCP의 실제 검색 결과를 사용합니다. 추가 조사에서 읽은 문서는 최종 evidence에도 보존합니다.
+데모는 검색 원문을 발췌하고, LLM 모드는 문서·현재 권한·질문으로 안내를 생성한 뒤 별도 모델 호출로
+각 주장과 질문의 관련성을 검토합니다. 단계마다 인용 ID와 원문 발췌의 일치를 코드로 검사합니다.
+선택 플랫폼의 검색 근거가 없거나 검토를 통과하지 못하면 `MANUAL_REVIEW`로 종료합니다.
+모델 호출 장애는 worker의 기술 실패 처리로 전달합니다.
+
+안내는 기존 서버 계약의 `MANUAL_REVIEW / RAG_GUIDANCE`로 전달하며 plan과 verification_ok는 null입니다.
+proposal에 답변과 출처를 담고, 내부 handling은 ANSWER로 기록합니다.
+화면 상태와 공개 이력은 기존 담당자 검토 표시로 남습니다. 안내 완료 전용 상태는 서버 담당자와
+계약을 합의한 뒤 별도로 도입할 수 있습니다. 백엔드·DB·프론트 변경 없이 기존 proposal 표시를 사용합니다.
+권한 반영 완료인 `DONE`의 verification_ok=true 검사와 실행 영수증 검사는 유지합니다.
 
 gather는 필수 사실·규정을 먼저 조회한 뒤 LLM 선택 조회를 실행합니다. 실제 읽기 호출 한도는
 분석당 30회(context 포함), 선택 조회 시도는 캐시·범위 오류를 포함해 최대 10회입니다.

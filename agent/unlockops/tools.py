@@ -129,6 +129,7 @@ class ScopedTools:
         self.calls = 0
         self.optional_calls = 0
         self.trace = []
+        self.optional_evidence = []
         # 이 분석 노드에서만 재사용한다. 승인 후 실행·검증에는 넘기지 않는다.
         self.cache = {}
 
@@ -140,7 +141,10 @@ class ScopedTools:
             # 잘못된 범위 요청·캐시 적중도 모델의 선택 횟수에는 포함한다.
             self.optional_calls += 1
         try:
-            return await self._read(name, arguments, optional=optional)
+            value = await self._read(name, arguments, optional=optional)
+            if optional and name in {"search_policy", "read_policy"}:
+                self.optional_evidence.extend(value.get("hits", value.get("chunks", [])))
+            return value
         except ToolFailure as exc:
             self.trace.append({"tool": name, "ok": False, "code": exc.code, "optional": optional})
             raise

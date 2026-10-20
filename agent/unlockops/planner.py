@@ -68,6 +68,7 @@ def request_type(text: str) -> str:
 def raw_intent(contents: str) -> Intent:
     """데모에서 사용할 최소 해석이며, LLM 모드에서도 명시적 권한 요청을 보존한다."""
     text = contents.casefold()
+    kind = request_type(contents)
     role = ""
     for token, value in (
         ("full access", "Full access"),
@@ -90,12 +91,15 @@ def raw_intent(contents: str) -> Intent:
         if contains_token(text, token):
             role = value
             break
-    if not role and (contains_token(text, "push") or "코드를 올" in text):
+    # 오류 설명의 Read 언급은 현재 보유 권한일 수 있다. push에 필요한 권한은 Write다.
+    if (not role or (kind == "TROUBLESHOOT" and role not in {"Admin", "Owner", "Full access"})) and (
+        contains_token(text, "push") or "코드를 올" in text
+    ):
         role = "Write"
     if not role and (contains_token(text, "copilot") or "코파일럿" in text):
         role = "Seat"
     return Intent(
-        request_type=request_type(contents),
+        request_type=kind,
         resource_hint=contents[:200],
         requested_role=role,
         symptom=contents[:500],
