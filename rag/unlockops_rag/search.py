@@ -1,8 +1,7 @@
-"""Source-bound retrieval: article chunks, metadata, vectors, exact reads.
+"""규정을 조항으로 나눠 출처와 함께 검색하거나 문서 ID로 정확히 읽는다.
 
-The offline index uses local character TF-IDF vectors, not a semantic embedding
-model. Set EMBEDDING_* explicitly to use a compatible dense embedding endpoint.
-Retrieved documents are data; none of their text is executed as instructions.
+기본 검색은 로컬 문자 TF-IDF이며 EMBEDDING_* 설정 시 외부 임베딩을 사용한다.
+검색 문서는 판단 근거인 데이터이며, 문서 안의 지시를 코드처럼 실행하지 않는다.
 """
 from __future__ import annotations
 
