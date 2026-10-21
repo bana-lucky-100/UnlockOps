@@ -56,7 +56,18 @@ RAG 안내는 기존 계약의 `MANUAL_REVIEW / RAG_GUIDANCE`로 전달합니다
 proposal에 안내문과 출처 ID를 담습니다. evidence에는 원문 청크와
 `{kind:"answer_citation",chunk_id,quote}` 인용 항목을 보존하고, 인용·내용 검증은 에이전트에서 수행합니다.
 검색 근거·생성 내용이 불충분해도 MANUAL_REVIEW로 처리하되 reasonCode로 구분합니다.
-모델·도구 호출 장애는 FAILED입니다. 내부 handling=ANSWER는 답변 생성 경로를 뜻하며
+답변 생성·검토 단계의 모델 호출 장애는 경로별로 처리합니다.
+
+- 일반 안내 경로: answer_node가 장애를 처리하고 `MANUAL_REVIEW / MODEL_UNAVAILABLE`을 반환합니다.
+- 승인·거절·수동 검토 경로: compose_response_node가 장애를 처리하고 기존 판정과 고정 안내를 유지합니다.
+  상태·reasonCode·승인 계획은 변경하지 않으며, 결과가 FAILED로 전환되지 않습니다.
+- 노드에서 처리하지 않고 worker까지 전달된 모델·도구 호출 장애는 `FAILED`로 처리합니다.
+  규정 오류·권한 제안 모델 오류 등 별도로 수동 검토로 전환하는 경우는 각 단계의 규칙을 따릅니다.
+
+따라서 답변 모델 장애를 FAILED 상태만으로 집계하지 않습니다. 일반 안내는
+`MANUAL_REVIEW / MODEL_UNAVAILABLE`, 기존 판정 유지 경로는 compose_response 진행 이벤트의
+`grounded=false`, `reason_code=MODEL_UNAVAILABLE`로 구분합니다.
+내부 handling=ANSWER는 답변 생성 경로를 뜻하며
 외부 상태의 완료를 뜻하지 않습니다. 화면 상태와 공개 이력은 기존 담당자 검토 안내로 표시됩니다.
 서버·DB 상태·HTTP 응답 형식·프론트는 변경하지 않습니다. 기존 proposal 표시를 사용하며,
 DONE에는 기존 권한 반영 검증이 필요합니다.

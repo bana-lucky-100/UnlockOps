@@ -77,7 +77,7 @@ LLM 모드는 모든 판정 경로에서 같은 입력으로 생성·인용 검�
 데모는 문서 원문을 발췌하고, LLM 모드는 준비한 입력으로 안내를 생성한 뒤 별도 모델 호출로
 각 주장과 질문의 관련성을 검토합니다. 단계마다 인용 ID와 원문 발췌의 일치를 코드로 검사합니다.
 선택 플랫폼의 검색 근거가 없거나 검토를 통과하지 못하면 `MANUAL_REVIEW`로 종료합니다.
-모델 호출 장애는 worker의 기술 실패 처리로 전달합니다.
+일반 안내의 모델 생성·검토 호출 장애는 answer_node에서 처리하여 `MANUAL_REVIEW / MODEL_UNAVAILABLE`로 종료합니다.
 
 안내는 기존 서버 계약의 `MANUAL_REVIEW / RAG_GUIDANCE`로 전달하며 plan과 verification_ok는 null입니다.
 proposal에 답변과 출처를 담고, 내부 handling은 ANSWER로 기록합니다.
