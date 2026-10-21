@@ -88,3 +88,17 @@ UUID·SQL sequence 측정·DB 상태와 inbox/감사 건수를 함께 봅니다.
 Management UI의 Get messages로 메시지를 꺼내지 않고 metrics와 화면만 관측합니다.
 
 산출물은 기존 target ignore 규칙에 따라 커밋하지 않습니다. `mvn clean`을 실행하면 삭제되므로 발표에 사용할 캡처는 별도로 복사합니다.
+
+### 공유용 검증 캡처
+
+PR·발표 설명에 사용할 PNG 6장만 선별하여 `docs/images/messaging-retry/`에 보존했습니다.
+실제 RabbitMQ 화면과 같은 테스트 실행의 DB 보고서를 한 쌍으로 확인합니다.
+
+| 검증 시나리오 | 실측 결과 | DB 보고서 | RabbitMQ 화면 |
+| --- | --- | --- | --- |
+| 일시 오류 복구 | 시도 2회, DONE, 동일 이벤트 반영 1회, DLQ 0 | [보고서](images/messaging-retry/01-transient-recovered-evidence.png) | [큐 현황](images/messaging-retry/01-transient-recovered-rabbitmq.png) |
+| 영구 완료 검증 오류 | 시도 1회, EXECUTING 유지, 이벤트 전체 롤백, DLQ 1 | [보고서](images/messaging-retry/02-permanent-rejected-evidence.png) | [큐 현황](images/messaging-retry/02-permanent-rejected-rabbitmq.png) |
+| 일시 오류 소진 | 시도 3회, RECEIVED 유지, 이벤트 전체 롤백, DLQ 1 | [보고서](images/messaging-retry/03-transient-exhausted-evidence.png) | [큐 현황](images/messaging-retry/03-transient-exhausted-rabbitmq.png) |
+
+발표 요약: 복구 가능한 DB 오류만 제한적으로 다시 처리하고, 잘못된 결과와 미분류 오류는 반복하지 않고 DLQ로 격리합니다.
+재시도 성공은 큐가 비었다는 사실과 함께 동일 이벤트의 DB 반영이 한 번뿐임을 확인해 증명합니다.
