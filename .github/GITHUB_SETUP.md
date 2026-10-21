@@ -1,0 +1,56 @@
+# GitHub 협업 설정
+
+레포지토리 공통 협업 설정을 관리합니다.
+
+- 주요 범위: PR·이슈 템플릿, 담당 영역 설정 및 GitHub Actions 워크플로
+- 기본 CI는 변경 파일의 공백·충돌 표시를 검사합니다. 서비스별 빌드·테스트는 초기화 후 추가합니다.
+
+설정 추가 후 브랜치·PR 운영 규칙과 자동 검사 내용을 이 문서에 추가합니다.
+
+## Feature 이슈 템플릿
+
+새 이슈를 만들 때 **Feature** 템플릿을 선택하면 이슈 설명과 진행 체크리스트가 표시됩니다. 제목은 `[Feature] `로 시작하며 `enhancement` 라벨을 사용합니다. 라벨이 저장소에 없다면 먼저 생성해야 합니다.
+
+## 이슈 작성자 자동 담당자 지정
+
+`workflows/auto-assign-issue.yml`은 새 이슈의 작성자를 담당자(Assignee)로 지정합니다.
+
+- 모든 새 이슈에 적용하며, 이미 담당자가 있거나 봇이 작성한 이슈는 건너뜁니다.
+- 기본 제공 `GITHUB_TOKEN`을 사용하며, 별도 개인 액세스 토큰은 필요하지 않습니다.
+- 템플릿과 워크플로를 기본 브랜치에 반영하고 GitHub Actions를 활성화해야 동작합니다.
+- 자동화에는 `issues: write` 권한이 필요합니다. 저장소 또는 조직 정책에서 Actions 실행을 제한하면 설정 확인이 필요합니다.
+- Assignee는 이슈 담당자입니다. 저장소의 Contributors 표시나 코드 기여 기록을 변경하는 기능은 아닙니다.
+
+## PR 템플릿
+
+`pull_request_template.md`는 관련 이슈, 작업 내용과 확인 결과, 스크린샷, 미완료 작업, 리뷰 요청 사항을 안내합니다.
+
+- 관련 이슈는 `Closes #이슈번호`로 연결합니다. 기본 브랜치에 병합되면 해당 이슈가 자동으로 닫힙니다. 단순 참조는 `Related to #이슈번호`로 작성합니다.
+- 스크린샷, 미완료 작업, 리뷰 요청 사항이 없으면 `N/A`를 유지합니다.
+- 기본 브랜치에 반영하면 새 PR의 본문에 템플릿이 자동으로 채워집니다.
+
+## 기본 CI와 main 보호
+
+`workflows/ci.yml`의 **Repository checks**가 변경 파일의 공백·충돌 표시를 검사합니다. 별도 검사 스크립트나 의존성 파일은 사용하지 않습니다. 현재는 파일 추가 단계이며, PR에 푸시한 뒤 실행 결과를 확인해야 합니다.
+
+[GitHub CI 안내](../docs/github-ci.md)에서 로컬 검사, GitHub 실행 확인, main 보호 설정 방법을 확인합니다. 현재 토큰의 관리 권한 제한으로 main 보호 설정은 직접 적용하지 않았습니다.
+
+## CodeRabbit 보조 리뷰
+
+[.coderabbit.yaml](../.coderabbit.yaml)에서 한국어 리뷰(`ko-KR`), 자동 PR 리뷰, 균형 잡힌 리뷰 강도(`chill`)를 설정합니다. Draft PR은 준비 완료로 전환한 후 리뷰합니다. 요약은 PR 본문 대신 봇 댓글에 표시합니다.
+
+- `request_changes_workflow: false`로 CodeRabbit의 변경 요청·자동 승인 흐름을 사용하지 않습니다.
+- CodeRabbit을 GitHub 브랜치 보호의 **필수 검사**로 추가하지 않습니다. 팀원 리뷰와 기존 CI 기준은 별도로 유지합니다.
+- 이 설정 파일만으로 GitHub 앱이 설치되지는 않습니다. 실제 리뷰는 앱 설치와 설정 파일 반영 후 PR에서 확인합니다.
+
+### GitHub 앱 설치
+
+1. [CodeRabbit GitHub Marketplace](https://github.com/marketplace/coderabbitai)에서 **Open Source ($0)**를 선택하고 GitHub 계정으로 설치를 시작합니다.
+2. 설치 대상 조직은 `bana-lucky-100`, 저장소 범위는 **Only select repositories → UnlockOps**로 선택합니다. 이미 설치했다면 앱 설정에서 UnlockOps의 접근 허용 여부를 확인합니다.
+3. 설치 화면의 권한을 확인하고 설치합니다. 앱은 코드·워크플로·이슈·PR·검사 상태 쓰기와 Actions·토론·병합 큐·조직 멤버 정보 등의 읽기 권한을 요청합니다. 조직 승인이 필요하면 관리자가 승인합니다.
+4. 이 변경을 커밋·푸시한 뒤 `main` 대상 PR에서 한국어 리뷰를 확인합니다.
+5. 자동 리뷰가 시작되지 않으면 PR 댓글에 `@coderabbitai review`로 리뷰를 요청할 수 있습니다.
+
+필수 검사 목록에 CodeRabbit을 넣지 않아도, GitHub에서 모든 리뷰 대화 해결을 요구하면 봇의 미해결 대화도 정리해야 할 수 있습니다. 이 규칙은 CodeRabbit 설정과 별개입니다.
+
+[CodeRabbit 공식 설정 안내](https://docs.coderabbit.ai/reference/configuration)
