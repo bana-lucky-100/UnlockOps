@@ -19,8 +19,9 @@ public class ProblemController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public Status create(@AuthenticationPrincipal AppUser user, @RequestBody @Valid Create request) {
-        return service.create(user, request);
+    public Status create(@AuthenticationPrincipal AppUser user, @RequestBody @Valid Create request,
+                         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return service.create(user, request, idempotencyKey);
     }
 
     @GetMapping

@@ -47,7 +47,7 @@ flowchart TD
 | `POST /api/auth/login` | `{"loginId":"kim_dev","password":"…"}` | `200 User` + 세션 쿠키 | 로그인 전 가능. CSRF 필요 |
 | `GET /api/auth/me` | 세션 쿠키 | `200 User` | 로그인 사용자 |
 | `POST /api/auth/logout` | 본문 없음 | `204` 본문 없음 | 세션·CSRF 사용 |
-| `POST /api/problems` | `platform`, `contents`, 선택 `simulateJiraFailure` | `202 {"id":"<요청 UUID>","status":"RECEIVED"}` | 로그인 사용자 |
+| `POST /api/problems` | `platform`, `contents`, 선택 `simulateJiraFailure`. 선택 헤더 `Idempotency-Key` | `202 {"id":"<요청 UUID>","status":"RECEIVED"}` | 로그인 사용자 |
 | `GET /api/problems?mine=true` | query: `mine=true` | `200 RequesterProblem[]` | 본인 요청 최근 100건 |
 | `GET /api/problems` | `mine` 생략 또는 `false` | `200 ApproverProblem[]` | 지정 승인자에게 배정된 최근 100건. 운영 담당자는 전체 열람 |
 | `GET /api/problems/{id}` | path: 요청 UUID | `200 ProblemDetail` | 본인·지정 승인자·운영 담당자 |
@@ -78,6 +78,12 @@ flowchart TD
 ```json
 {"id":"<요청 UUID>","status":"RECEIVED"}
 ```
+
+공식 UI는 접수 시 `Idempotency-Key: <접수 키>` 헤더를 전송한다. 동일 사용자의 같은 키·같은 유효 본문은
+추가 작업을 만들지 않고 최초 응답을 재사용한다. 처리 상태가 진행됐어도 재전송 응답은 최초 RECEIVED이며 최신 상태는 GET으로 확인한다.
+같은 키의 다른 유효 본문은 409다. 키는 1~128자의 영문·숫자·`._:-`로 제한하며 잘못된 키는 400이다.
+다른 사용자·같은 키는 독립이고, 새 키 또는 키 없는 요청은 새 접수다. 헤더 없는 클라이언트는 접수 멱등성이 적용되지 않는다.
+키 수명·정규화·트랜잭션 경계는 [접수 멱등성 계약](contracts/README.md#요청-접수-멱등성)을 참고한다.
 
 승인 요청 예시:
 
