@@ -256,6 +256,44 @@ Content-Type: application/json
 사유 없는 error.reason은 생략한다. 실패 시 승인 기록을 취소하거나 요청 상태를 직접 FAILED/DONE으로 바꾸지 않는다.
 문서 파일은 `ACCESS_MATRIX_PATH`의 회사 권한표와 같은 디렉터리에 있는 `policy_corpus.md`를 사용한다.
 
+### Spring 내부 API — 최신 권한 반영 검증
+
+| 항목 | 계약 |
+| --- | --- |
+| Method / Path | `POST /internal/access-verifications` |
+| 인증 | 동일한 `Authorization: Bearer <INTERNAL_API_TOKEN>`. 브라우저 세션만으로 호출 불가 |
+| Request | `employeeId`, `resourceId`: 필수 UUID. `platform`: 필수 플랫폼 enum. `requestedRole`: 필수 지원 역할 이름 |
+| 지원 역할 | `Read / Write / Viewer / Developer / Can view / Can edit / Member / Seat`. Admin·Owner·빈 문자열은 400 |
+| Response | `200 {ok:true,verified:boolean,current:{role,source,…}}` |
+| 오류 | `400` 입력 오류, `401` 서비스 인증 실패, `404` 직원·자원 없음, `409` 플랫폼 불일치, `500` 조회 장애 등. 기존 `{message}` 형식 |
+
+요청:
+
+```json
+{"employeeId":"<직원 UUID>","resourceId":"<자원 UUID>","platform":"GITHUB","requestedRole":"Write"}
+```
+
+응답 예시:
+
+```json
+{
+  "ok": true,
+  "verified": true,
+  "current": {"role":"Write","source":"github-team-membership","teams":["<팀 ID>"]}
+}
+```
+
+- 기존 State·계획의 부여 예정 권한·성공 영수증이 아닌 실제 모의 SaaS 테이블을 다시 조회한다.
+- 매 호출 별도 읽기 전용 REQUIRES_NEW / REPEATABLE_READ 트랜잭션을 시작해 이전 분석 트랜잭션의 스냅샷을 재사용하지 않는다.
+- `ok=true`는 조회 성공이다. 권한 부재·부족·타 역할군은 `verified=false`인 정상 200 응답이다.
+- 같은 역할군 안의 상위 권한도 충족으로 처리한다: Write→Read, Developer→Viewer, Can edit→Can view.
+- 좌석은 Seat만 비교하고 저장소 Read/Write와 비교하지 않는다. 서비스가 다른 역할은 순위 숫자가 같아도 충족하지 않는다.
+- Jira는 역할 충족과 `current.can_browse=true`가 모두 필요하다. 조회 스킴 누락·조회 불가는 false이다.
+- `current`는 기존 조회 형식을 재사용한다. GitHub 저장소는 teams, Jira는 can_browse를 포함하고 다른 선택 필드는 생략한다.
+- Can edit는 기존 보유 권한의 검증을 위한 지원이며 자동 부여 가능 여부나 승인 자격을 의미하지 않는다.
+- API 호출은 권한·예산·영수증·요청 상태를 변경하지 않는다. 성공만으로 DONE을 기록하지 않으며 재시도·최종 상태는 worker의 책임이다.
+- DB 오류를 `verified=false`로 바꾸지 않는다. Business MCP와 Agent는 아직 이 API를 사용하지 않는다.
+
 ## 3. MCP 도구 API — 에이전트용
 
 독립 로컬 실행: Policy `http://localhost:8001/mcp`, Business `http://localhost:8002/mcp`.

@@ -1,5 +1,19 @@
 # 검증 기록과 재현 절차
 
+## 내부 최신 권한 반영 검증 API (2026-10-21)
+
+- `POST /internal/access-verifications`를 기존 Controller → Service → Repository 구조 및 내부 토큰 인증 방식으로 추가했습니다.
+- 기존 현재 권한 조회를 재사용하며 매 호출 독립된 읽기 전용 트랜잭션에서 확인합니다. State·영수증을 재사용하지 않고 권한·예산·상태를 변경하지 않습니다.
+- 역할군 비교는 실행 전 이미 보유한 권한 확인과 공통 `ResourceRolePolicy`를 사용합니다. 기존 실행 정책의 동작도 함께 회귀 검증했습니다.
+- 신규 Service 22개·HTTP 5개와 기존 테스트를 대체 실행기로 실행해 **109개 통과, 실패·건너뜀 0개**를 확인했습니다.
+- 검증 범위: 같은 서비스의 상위·하위 역할, 권한 없음, 다른 역할군·좌석 구분, Notion 편집 보유 권한, Jira 조회 스킴,
+  반복 조회 중 부여·철회 반영, 없는 직원·자원, 플랫폼 불일치, 입력·인증 오류, 조회 오류와 미반영(false) 구분입니다.
+- 이전과 같은 캐시된 JUnit Platform/Jupiter 6.0.3 및 Mockito javaagent 임시 실행기를 사용했습니다.
+  표준 Maven/JUnit 5 실행은 Surefire 의존성 제약으로 미완료이며 의존성 확보 후 `cd backend && mvn test` 확인이 필요합니다.
+- `GrantExecutionIT`에 실제 부여 후 조회 및 영수증이 남아 있어도 철회가 반영되는 테스트 1개를 추가했습니다(통합 테스트 총 5개).
+  Docker 환경이 없어 실제 PostgreSQL 통합 실행은 미완료입니다. `mvn verify -Pregression -Dit.test=GrantExecutionIT`로 실행합니다.
+- 운영/테스트 코드 컴파일, `docker compose config -q`, `git diff --check` 통과. Business MCP·Agent 연결은 변경하지 않았습니다.
+
 ## 내부 승인 계획 실행 API (2026-10-21)
 
 - `POST /internal/problems/{id}/grant`를 추가했습니다. Business MCP와 Agent 호출은 변경하지 않았습니다.

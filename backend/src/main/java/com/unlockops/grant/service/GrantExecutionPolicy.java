@@ -66,27 +66,11 @@ public class GrantExecutionPolicy {
             if (remaining.compareTo(price) < 0) throw precondition("BUDGET_INSUFFICIENT");
         }
         String requested = plan.requestedRole().value();
-        if (rules.role().isEmpty() || !family(resource).contains(rules.role())) throw precondition("UNSUPPORTED_ROLE");
-        if (!family(resource).contains(requested) || rank(requested) > rank(rules.role()))
+        if (!ResourceRolePolicy.supports(resource, rules.role())) throw precondition("UNSUPPORTED_ROLE");
+        if (!ResourceRolePolicy.satisfies(resource, rules.role(), requested))
             throw precondition("ABOVE_ACCESS_CEILING");
         if (resource.platform() == Platform.JIRA && current.role() != null && Boolean.FALSE.equals(current.canBrowse()))
             throw precondition("JIRA_SCHEME_MISMATCH");
-        return !seat && current.role() != null && family(resource).contains(current.role()) && rank(current.role()) >= rank(requested);
-    }
-
-    private Set<String> family(Resource resource) {
-        if (resource.accessScope() == AccessScope.SEAT) return Set.of("Seat");
-        return switch (resource.platform()) {
-            case GITHUB -> Set.of("Read", "Write"); case JIRA -> Set.of("Viewer", "Developer");
-            case SLACK -> Set.of("Member"); case NOTION -> Set.of("Can view", "Can edit");
-        };
-    }
-
-    private int rank(String role) {
-        return switch (role) {
-            case "Read", "Viewer", "Can view", "Member", "Seat" -> 1;
-            case "Write", "Developer", "Can edit" -> 2;
-            default -> 0;
-        };
+        return !seat && ResourceRolePolicy.satisfies(resource, current.role(), requested);
     }
 }

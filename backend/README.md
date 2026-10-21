@@ -49,7 +49,7 @@ Python worker 대신 결과 JSON을 발행하므로 실제 Agent/MCP 권한 부�
 | `approval` | `ApprovalsController` → `ApprovalService` → `ApprovalRepository`. 내 담당 요청의 KST 주간 집계 |
 | `grant` | `GrantPolicy` → `UserRepository` / `GrantRepository`. 지정 승인자·직급·직무·TF·부서·예산·좌석·계획 검증 |
 | `resource` | `InternalResourceController` → `ResourceService` → `ResourceRepository`. 내부 API에서 플랫폼별 대상 자원 이름·별칭 검색 |
-| `access` | `InternalAccessContextController` → `AccessContextService` → `AccessContextRepository` / `GrantRepository`. 직원·TF·현재 권한·좌석 예산 묶음 조회. `AccessCeilingPolicy`는 회사 권한표의 상한 조회 |
+| `access` | `InternalAccessContextController` / `InternalAccessVerificationController` → Service → `AccessContextRepository` / `GrantRepository`. 접근 조건 묶음 조회와 최신 권한 반영 검증. `AccessCeilingPolicy`는 회사 권한표의 상한 조회 |
 | `messaging` | `AgentResultsListener` → `AgentResultService` → Repository. `OutboxPublisher` → `OutboxService` → `OutboxRepository` / `RabbitMessagePublisher` |
 | `config` | 세션·CSRF·인증 설정과 RabbitMQ 토폴로지·JSON 변환기 |
 | `common` | 헬스 체크, JSON 직렬화·계획 해시, 공통 오류 DTO·예외 응답 |
@@ -164,3 +164,24 @@ Jira 실패 시연은 503·재시도 가능으로 반환하고 영수증을 저�
 이 API 성공은 모의 권한 변경과 영수증 저장 성공입니다. 실제 반영 재조회나 DONE 전환은 하지 않으며 기존 worker 결과 처리 흐름을 유지합니다.
 상세 응답·오류는 [API 명세](../docs/api-spec.md#spring-내부-api--승인된-계획-실행)를 참고하세요.
 DB 동시성·롤백 통합 테스트는 Docker를 실행한 뒤 `mvn verify -Pregression -Dit.test=GrantExecutionIT`로 실행합니다.
+
+## 내부 최신 권한 검증 API
+
+`POST /internal/access-verifications`는 동일한 내부 서비스 토큰을 사용합니다.
+
+```json
+{"employeeId":"<직원 UUID>","resourceId":"<자원 UUID>","platform":"GITHUB","requestedRole":"Write"}
+```
+
+`InternalAccessVerificationController` → `AccessVerificationService` → 기존 `GrantRepository` / `AccessContextRepository`로 처리합니다.
+분석 State나 실행 영수증을 사용하지 않고 매 호출 독립된 읽기 전용 REPEATABLE_READ 트랜잭션(REQUIRES_NEW)에서 현재 권한을 재조회합니다.
+응답은 `{ "ok": true, "verified": true, "current": { "role": "Write", "source": "github-team-membership", "teams": ["<팀 ID>"] } }` 형식입니다.
+
+권한이 없거나 부족하면 정상 조회 응답으로 `ok=true, verified=false`를 반환합니다. Jira는 역할 외에 can_browse=true여야 합니다.
+역할 비교는 `ResourceRolePolicy`를 실행 전 기존 권한 확인과 공유합니다. GitHub Write는 Read, Jira Developer는 Viewer,
+Notion Can edit는 Can view를 충족하지만 서로 다른 서비스 역할이나 저장소 권한과 좌석은 비교하지 않습니다.
+Can edit 검증을 지원해도 기존 자동 부여 범위는 확대하지 않습니다.
+
+직원·자원이 없으면 404, 플랫폼 불일치는 409, 조회 장애는 500으로 반환하고 검증 실패(false)로 숨기지 않습니다.
+이 API는 권한·예산·영수증·작업 상태를 변경하거나 재실행·재시도를 수행하지 않습니다. 기존 worker의 검증 재시도 및 최종 결과 처리는 유지합니다.
+Business MCP와 Agent 연결은 아직 변경하지 않았습니다. 실제 서비스는 모의 SaaS 테이블 기준이며 외부 SaaS API를 호출하지 않습니다.

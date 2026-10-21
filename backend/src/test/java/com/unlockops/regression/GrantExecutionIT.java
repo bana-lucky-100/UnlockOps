@@ -3,6 +3,8 @@ package com.unlockops.regression;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.unlockops.access.repository.AccessContextRepository;
 import com.unlockops.access.service.AccessCeilingPolicy;
+import com.unlockops.access.service.AccessVerificationService;
+import com.unlockops.access.dto.AccessVerificationRequests.Verify;
 import com.unlockops.common.json.Jsons;
 import com.unlockops.grant.model.*;
 import com.unlockops.grant.repository.*;
@@ -35,7 +37,7 @@ import static org.mockito.Mockito.*;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({GrantExecutionIT.JsonConfiguration.class, Jsons.class, ProblemRepository.class, GrantRepository.class,
     GrantExecutionRepository.class, AccessContextRepository.class, AccessCeilingPolicy.class,
-    GrantExecutionPolicy.class, GrantExecutionService.class})
+    GrantExecutionPolicy.class, GrantExecutionService.class, AccessVerificationService.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Testcontainers
 class GrantExecutionIT {
@@ -51,6 +53,7 @@ class GrantExecutionIT {
 
     @Autowired JdbcTemplate jdbc;
     @Autowired GrantExecutionService service;
+    @Autowired AccessVerificationService verification;
     @Autowired AccessContextRepository facts;
     @Autowired GrantRepository grants;
     @Autowired AccessCeilingPolicy source;
@@ -148,5 +151,16 @@ class GrantExecutionIT {
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM grant_receipts", Integer.class));
         doCallRealMethod().when(executions).saveReceipt(eq(id), anyString(), any());
         assertTrue(service.execute(id, id.toString()).changed());
+    }
+
+    @Test void verificationRereadsCommittedPermissionEvenWhenAReceiptStillExists() {
+        UUID id = approved(employee);
+        var request = new Verify(employee, seat, Platform.GITHUB, "Seat");
+        assertFalse(verification.verify(request).verified());
+        service.execute(id, id.toString());
+        assertTrue(verification.verify(request).verified());
+        jdbc.update("DELETE FROM permissions WHERE user_id=? AND resource_id=?", employee, seat);
+        assertFalse(verification.verify(request).verified());
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM grant_receipts WHERE problem_id=?", Integer.class, id));
     }
 }
