@@ -441,6 +441,8 @@ async def execute_node(state: AgentState, *, tools) -> dict:
         )
     except ToolFailure as exc:
         error = {"code": exc.code, "retryable": exc.retryable}
+        if exc.reason:
+            error["reason"] = exc.reason
     return {
         "attempts": attempt,
         "execution_error": error,
@@ -473,6 +475,8 @@ async def verify_node(state: AgentState, *, tools) -> dict:
         verified = response["verified"]
     except ToolFailure as exc:
         error = {"code": exc.code, "retryable": exc.retryable}
+        if exc.reason:
+            error["reason"] = exc.reason
     return {
         "verified": verified,
         "verify_error": error,

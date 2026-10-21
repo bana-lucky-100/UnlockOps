@@ -212,6 +212,7 @@ class ErrorDetail(Input):
     code: Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[A-Z][A-Z0-9_]*$")]
     message: Annotated[str, Field(min_length=1, max_length=500)]
     retryable: bool
+    reason: Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[A-Z][A-Z0-9_]*$")] | None = None
 
 
 class ErrorResult(Input):
@@ -276,7 +277,7 @@ def validate_output(name: str, data: object, *, is_error: bool = False) -> dict:
         if data.get("ok") is False:
             if "error" in data:
                 error = ErrorResult.model_validate(data).error
-                raise ToolFailure(error.code, error.message, error.retryable)
+                raise ToolFailure(error.code, error.message, error.retryable, error.reason)
             legacy = LegacyError.model_validate(data)
             raise ToolFailure(
                 legacy.error_code, "Business operation was not applied", legacy.retryable
@@ -304,5 +305,6 @@ def error_payload(error: ToolFailure) -> dict:
             code=error.code,
             message=str(error),
             retryable=error.retryable,
+            reason=error.reason,
         ),
-    ).model_dump(mode="json")
+    ).model_dump(mode="json", exclude_none=True)

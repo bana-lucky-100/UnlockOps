@@ -77,4 +77,13 @@ class AccessContextServiceTest {
             service.lookup(new Lookup(employeeId, resourceId, Platform.GITHUB))).getStatusCode().value());
         verify(facts, never()).current(any(), any());
     }
+
+    @Test void employeeOnlyModeNeverReadsResourceOrPolicyAndOnlyReadsBudgetWhenRequested() {
+        assertNull(service.lookup(new Lookup(employeeId, null, null)).budget());
+        verify(facts, never()).budget(any());
+        var budget = new Budget(departmentId, "150.00", "19.00", "USD", null);
+        when(facts.budget(departmentId)).thenReturn(budget);
+        assertSame(budget, service.lookup(new Lookup(employeeId, null, null, true)).budget());
+        verifyNoInteractions(grants, policy);
+    }
 }

@@ -6,6 +6,7 @@ import com.unlockops.access.repository.AccessContextRepository;
 import com.unlockops.grant.model.AccessScope;
 import com.unlockops.grant.model.Resource;
 import com.unlockops.grant.repository.GrantRepository;
+import java.util.Map;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -28,11 +29,20 @@ public class AccessContextService {
     /** DB 조회는 같은 스냅샷에서 수행한다. 승인·권한·예산을 변경하지 않는다. */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Context lookup(Lookup request) {
+        if (request.resourceId() == null) {
+            try {
+                Profile profile = facts.profile(request.employeeId());
+                Budget budget = request.includeBudget() ? facts.budget(profile.departmentId()) : null;
+                return new Context(profile, null, null, null, null, budget, null, Map.of());
+            } catch (EmptyResultDataAccessException e) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "직원을 찾을 수 없습니다.");
+            }
+        }
         Resource resource;
         Profile profile;
         try {
             resource = grants.resource(request.resourceId());
-            if (resource.platform() != request.platform())
+            if (request.platform() != null && resource.platform() != request.platform())
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "선택한 플랫폼과 대상 자원이 다릅니다.");
             profile = facts.profile(request.employeeId());
         } catch (EmptyResultDataAccessException e) {

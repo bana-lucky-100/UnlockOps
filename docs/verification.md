@@ -1,5 +1,24 @@
 # 검증 기록과 재현 절차
 
+## Business MCP → Spring 내부 API 전환 (2026-10-21)
+
+- Business MCP의 SQL Repository와 DB 드라이버 의존성·Compose DB 접속 정보를 제거했습니다.
+  `BackendClient`가 자원 검색·접근 조건·실행·검증의 네 Spring API를 호출합니다. 규정 검색·원문 조회는 기존 문서 인덱스를 유지합니다.
+- 기존 MCP 도구 입력·성공 응답과 Graph 노드 순서를 유지했습니다. 기존 직원·예산 도구를 위해 접근 조건 API에 직원 단독 조회 및 includeBudget 옵션을 추가했습니다.
+  자원·검증 API의 platform은 생략 시 실제 자원에서 확정하고 명시되면 일치 여부를 검사합니다. 자원 없는 platform 단독 조회는 허용하지 않습니다.
+- 서비스 토큰 인증, 10초 제한, 리다이렉트 차단, 직원·자원 범위 검사, 엄격한 응답 검증을 적용했습니다.
+  HTTP 어댑터는 자동 재시도·전역 조회 캐시·DB fallback을 사용하지 않으며 실행은 기존 키, 검증은 최신 조회를 사용합니다.
+- Spring의 code/retryable/reason을 MCP·Agent 오류까지 보존하고 실행/검증 이벤트에도 선택 reason을 기록합니다.
+  원문 오류는 POLICY_SOURCE_UNAVAILABLE로 구분하며, 일반 연결·시간 초과·5xx와 혼동하지 않습니다. 내부 응답 원문·URL·토큰은 오류에 노출하지 않습니다.
+- `.venv/bin/python -m pytest -q`: **310 passed, 1 skipped**. 실행 중인 전체 스택 테스트 1개만 미실행입니다.
+  Spring MockTransport, 실제 MCP ASGI HTTP 및 실제 Graph를 연결해 승인 전 변경 차단 → 승인 후 실행 API → 재조회 → DONE까지 확인했습니다.
+  Spring 대신 HTTP 응답을 대체한 경계 검증이며 실제 DB·큐·Spring 네트워크 통합을 대신하지 않습니다.
+- Java 운영·테스트 코드 컴파일 통과. 기존과 동일한 임시 JUnit 6.0.3/Mockito javaagent 실행기로 **114개 통과**를 확인했습니다.
+  프로젝트 기본 Maven/JUnit 5 실행은 Surefire 캐시 제약이 있어 별도 환경 재확인이 필요합니다.
+- `uv --cache-dir .cache/uv lock --offline` 및 `lock --check --offline` 통과. psycopg·psycopg-binary 및 불필요한 tzdata 제거 외 기존 버전 변경은 없습니다.
+- 기본/디버그 Compose 설정 검사 및 `git diff --check` 통과. 실제 PostgreSQL·RabbitMQ 전체 스택은 미실행입니다.
+- 적용 시 Backend·Business MCP·worker를 함께 재시작합니다. 기존 승인 체크포인트는 같은 도구 이름·입력으로 재개할 수 있으며 실행 영수증·잠금은 Spring에서 확인합니다.
+
 ## 내부 최신 권한 반영 검증 API (2026-10-21)
 
 - `POST /internal/access-verifications`를 기존 Controller → Service → Repository 구조 및 내부 토큰 인증 방식으로 추가했습니다.

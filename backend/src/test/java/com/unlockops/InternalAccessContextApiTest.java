@@ -75,7 +75,8 @@ class InternalAccessContextApiTest {
 
     @Test void missingInvalidIdsAndPlatformFailBeforeDatabaseAccess() throws Exception {
         for (String input : List.of("{}", body().replace(employee.toString(), "invalid"),
-                body().replace("GITHUB", "OTHER"), body().replace("\"employeeId\"", "\"employee_id\"")))
+                body().replace("GITHUB", "OTHER"), body().replace("\"employeeId\"", "\"employee_id\""),
+                "{\"employeeId\":\"" + employee + "\",\"platform\":\"GITHUB\"}"))
             mvc.perform(post("/internal/access-context").header("Authorization", "Bearer context-test-token")
                 .contentType("application/json").content(input))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").exists());
@@ -94,5 +95,45 @@ class InternalAccessContextApiTest {
         mvc.perform(post("/internal/access-context").header("Authorization", "Bearer context-test-token")
             .contentType("application/json").content(body())).andExpect(status().isServiceUnavailable())
             .andExpect(jsonPath("$.message").value("규정 확인 불가"));
+    }
+
+    @Test void employeeOnlyLookupCanExplicitlyRequestBudgetWithoutAResource() throws Exception {
+        UUID department = UUID.randomUUID();
+        when(facts.profile(employee)).thenReturn(new Profile(employee, "E-001", "직원", department, "개발팀",
+            JobGrade.STAFF, JobFamily.DEV, null));
+        when(facts.budget(department)).thenReturn(new Budget(department, "150.00", "19.00", "USD", null));
+        mvc.perform(post("/internal/access-context").header("Authorization", "Bearer context-test-token")
+            .contentType("application/json").content("{\"employeeId\":\"" + employee + "\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.profile.id").value(employee.toString()))
+            .andExpect(jsonPath("$.resource_id").isEmpty()).andExpect(jsonPath("$.maximum_role").isEmpty())
+            .andExpect(jsonPath("$.budget").isEmpty());
+        verify(facts, never()).budget(any());
+        mvc.perform(post("/internal/access-context").header("Authorization", "Bearer context-test-token")
+            .contentType("application/json").content("{\"employeeId\":\"" + employee + "\",\"includeBudget\":true}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.budget.unit_monthly_price").value("19.00"));
+        verifyNoInteractions(grants, policy);
+    }
+
+    @Test void resourceIdCanDetermineThePlatformForExistingMcpTools() throws Exception {
+        when(grants.resource(resource)).thenReturn(new Resource(resource, Platform.GITHUB, "example", AccessScope.GENERAL,
+            null, null, null, null));
+        when(facts.profile(employee)).thenReturn(new Profile(employee, "E-001", "직원", UUID.randomUUID(), "개발팀",
+            JobGrade.STAFF, JobFamily.DEV, null));
+        when(policy.ceiling(any(), any())).thenReturn(new AccessCeilingPolicy.Ceiling("Read", Map.of()));
+        mvc.perform(post("/internal/access-context").header("Authorization", "Bearer context-test-token")
+            .contentType("application/json").content(body().replace(",\"platform\":\"GITHUB\"", "")))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.maximum_role").value("Read"));
+    }
+
+    @Test void policySourceErrorsHaveDistinctCodesInsteadOfLookingLikeNetworkOutages() throws Exception {
+        when(grants.resource(resource)).thenReturn(new Resource(resource, Platform.GITHUB, "example", AccessScope.GENERAL,
+            null, null, null, null));
+        when(facts.profile(employee)).thenReturn(new Profile(employee, "E-001", "직원", UUID.randomUUID(), "개발팀",
+            JobGrade.STAFF, JobFamily.DEV, null));
+        when(policy.ceiling(any(), any())).thenThrow(new com.unlockops.common.error.PolicySourceUnavailableException());
+        mvc.perform(post("/internal/access-context").header("Authorization", "Bearer context-test-token")
+            .contentType("application/json").content(body())).andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.code").value("POLICY_SOURCE_UNAVAILABLE"))
+            .andExpect(jsonPath("$.retryable").value(false)).andExpect(jsonPath("$.message").exists());
     }
 }

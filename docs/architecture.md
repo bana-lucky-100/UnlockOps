@@ -9,7 +9,7 @@ flowchart TD
   Q --> A[Python LangGraph]
   A <--> P[Policy MCP]
   A <--> B[Business MCP]
-  B <--> DB
+  B <-->|내부 API·서비스 토큰| S
   A --> R[RabbitMQ 결과 큐]
   R --> I[Spring inbox·상태 전이 검사]
   I --> DB
@@ -17,8 +17,9 @@ flowchart TD
   AV --> S
 ```
 
-Spring은 `users`/`problems`의 쓰기와 승인 기록을 소유합니다. Business MCP는 모의 SaaS의 권한·팀·예산을
-변경하며, 동일 DB의 승인된 불변 계획을 읽고 다시 검증합니다. 에이전트 워커는 업무 테이블을 직접 수정하지 않습니다.
+Spring은 사용자·요청·승인과 모의 SaaS의 권한·팀·예산·영수증을 소유합니다. Business MCP는 내부 API를 호출하며
+업무 DB에 직접 연결하지 않습니다. 승인된 계획·현재 자격·근거 검증과 원자적 변경은 Spring이 수행합니다.
+에이전트 워커도 업무 테이블을 직접 수정하지 않습니다.
 에이전트 상태는 별도 SQLite 체크포인트 볼륨에 저장합니다. 이 버전은 체크포인트 워커 한 개로 실행합니다.
 
 ```mermaid
@@ -72,7 +73,7 @@ LLM 모드의 `planner.investigate`는 두 MCP의 도구 설명·입력 스키�
 만들어도 권한 변경을 승인하지 않습니다. MCP 경계의 스키마·오류는 [공유 계약](contracts/mcp.md)으로 검증합니다.
 
 승인 카드의 계획 SHA-256과 UI가 제출한 해시를 비교합니다. 승인 시 Spring이 조건과 승인자를 재검증하고,
-Business MCP도 실행 직전 DB 승인·계획 해시·TF·직무·부서·예산을 검사합니다. 모델이나 클라이언트는 실행 도구에
+Business MCP가 호출하는 Spring 실행 API도 실행 직전 DB 승인·계획 해시·TF·직무·부서·예산을 검사합니다. 모델이나 클라이언트는 실행 도구에
 사용자·자원·역할을 임의 지정할 수 없습니다. 실행 도구 입력은 `problem_id`, `idempotency_key` 두 개뿐입니다.
 
 권한 변경·예산 차감·실행 영수증은 같은 트랜잭션으로 커밋합니다. 사용자×자원 advisory lock과

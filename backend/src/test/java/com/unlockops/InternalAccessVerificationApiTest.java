@@ -86,4 +86,12 @@ class InternalAccessVerificationApiTest {
             .andExpect(jsonPath("$.verified").doesNotExist())
             .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("private SQL"))));
     }
+
+    @Test void resourceIdAloneCanSupplyThePlatformForExistingMcpVerification() throws Exception {
+        when(grants.resource(id)).thenReturn(resource);
+        when(facts.current(employee, resource)).thenReturn(new Current("Write", "github-team-membership", List.of("write-team"), null));
+        mvc.perform(post("/internal/access-verifications").header("Authorization", "Bearer verification-test-token")
+            .contentType("application/json").content(body().replace(",\"platform\":\"GITHUB\"", "")))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.verified").value(true));
+    }
 }

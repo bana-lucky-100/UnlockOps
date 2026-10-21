@@ -28,7 +28,7 @@ public class AccessVerificationService {
         Resource resource;
         try {
             resource = grants.resource(request.resourceId());
-            if (resource.platform() != request.platform())
+            if (request.platform() != null && resource.platform() != request.platform())
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "선택한 플랫폼과 대상 자원이 다릅니다.");
             facts.profile(request.employeeId()); // 없는 직원과 권한이 없는 직원을 구분한다.
         } catch (EmptyResultDataAccessException e) {

@@ -10,6 +10,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    public record CodedError(String message, String code, boolean retryable) {}
+
+    @ExceptionHandler(PolicySourceUnavailableException.class)
+    public ResponseEntity<CodedError> policySource(PolicySourceUnavailableException e) {
+        return ResponseEntity.status(503).body(new CodedError(e.getReason(), "POLICY_SOURCE_UNAVAILABLE", false));
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiError> status(ResponseStatusException e) {
         return ResponseEntity.status(e.getStatusCode()).body(new ApiError(e.getReason() == null ? "요청을 처리할 수 없습니다." : e.getReason()));

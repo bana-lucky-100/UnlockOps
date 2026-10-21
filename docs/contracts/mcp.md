@@ -55,11 +55,15 @@ matches 수와 ambiguous 값이 불일치하면 응답 형식 오류입니다.
 | 검증 성공 응답의 verified=false | 반영 지연으로 보고 한도 내 재조회 |
 
 예외 메시지의 SQL·연결 문자열·외부 응답은 공통 메시지로 바꿉니다. 클라이언트는 isError만 보고 원래
-오류 코드를 버리지 않고 code/retryable을 보존해 ToolFailure로 바꿉니다. 형식이 잘못된 오류도
+오류 코드를 버리지 않고 code/retryable과 선택 reason을 보존해 ToolFailure로 바꿉니다. 형식이 잘못된 오류도
 INVALID_TOOL_OUTPUT으로 처리합니다. 구형 비구조화 isError 응답은 일반 TOOL_ERROR로 종료합니다.
 
-Repository의 기존 `{ok:false,error_code,retryable}`는 MCP 서버 경계에서 새 오류 구조로 변환합니다.
-신규 Agent도 이전 구조를 읽을 수 있습니다. 성공 payload에 data/schema_version envelope를 추가하지 않습니다.
+Business MCP는 Spring 내부 API를 호출하며 SQL 저장소는 제거했습니다. Spring의 구조화된 실행 오류에서
+code/retryable/reason을 보존하고, 문서 오류는 POLICY_SOURCE_UNAVAILABLE로 통신 장애와 구분합니다.
+401/403은 BACKEND_AUTH_FAILED로 재시도하지 않습니다. 일반 5xx·429·408은 UPSTREAM_UNAVAILABLE,
+요청 시간 초과는 UPSTREAM_TIMEOUT으로 재시도 가능 처리합니다. 응답 원문·URL·토큰은 오류에 포함하지 않습니다.
+기존 `{ok:false,error_code,retryable}` 형식도 이전 MCP와의 호환을 위해 계속 읽습니다.
+성공 payload에 data/schema_version envelope를 추가하지 않습니다.
 새 서버의 오류 형식을 이해하도록 Agent와 MCP를 함께 배포해야 합니다.
 
 ## 실행과 조회 한도

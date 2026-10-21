@@ -3,6 +3,7 @@ package com.unlockops.access.service;
 import com.unlockops.access.dto.AccessContextResponses.Profile;
 import com.unlockops.auth.model.*;
 import com.unlockops.grant.model.*;
+import com.unlockops.common.error.PolicySourceUnavailableException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -113,7 +114,7 @@ public class AccessCeilingPolicy {
     }
 
     private ResponseStatusException unavailable() {
-        return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "회사 권한표의 적용 기준을 확인할 수 없습니다.");
+        return new PolicySourceUnavailableException();
     }
 
     public record Ceiling(String role, Map<String, String> sourceHashes) {}

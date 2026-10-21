@@ -109,12 +109,12 @@ Spring에 명시적으로 빈 값을 설정하면 내부 호출을 거부합니�
 3글자 이상 이름에만 적용하고, 영문 자원명에는 경계를 검사합니다. 후보 0개·복수이면 ambiguous=true이며
 권한 부여 여부를 판단하거나 후보를 임의 선택하지 않습니다. 빈 hint도 후보 없음으로 반환합니다.
 
-Business MCP의 DB 조회는 아직 변경하지 않았습니다. 이 API는 이후 일괄 전환을 위해 먼저 추가한 것입니다.
+Business MCP의 resolve_resource가 이 API를 호출하며 직접 SQL을 실행하지 않습니다.
 자세한 계약은 [API 명세](../docs/api-spec.md#spring-내부-api--대상-자원-검색)를 참고하세요.
 
 ## 내부 접근 조건 묶음 조회 API
 
-`POST /internal/access-context`는 자원 검색 후 확정된 직원·자원 ID로 분석에 필요한 사실을 조회합니다.
+`POST /internal/access-context`는 직원·자원 ID로 분석에 필요한 사실을 조회합니다.
 동일한 내부 서비스 토큰 인증을 사용하며 입력은 camelCase입니다.
 
 ```json
@@ -123,8 +123,10 @@ Business MCP의 DB 조회는 아직 변경하지 않았습니다. 이 API는 이
 
 응답은 `profile`, `resource_id`, `membership`, `current`, `maximum_role`, `budget`,
 `rule_source`, `source_hashes`입니다. 직원 정보는 명시한 필드만 반환하며 이메일·로그인·비밀번호를 포함하지 않습니다.
+직원 ID만 보내면 직원 정보만 반환하고 자원 관련 값은 null입니다. 이때 includeBudget=true를 지정하면 부서 예산도 조회합니다.
+자원 ID가 있으면 DB에서 플랫폼을 확정하며 platform을 함께 보낸 경우 일치 여부를 확인합니다.
 조회는 읽기 전용 REPEATABLE_READ 트랜잭션으로 묶습니다. GitHub 저장소는 실제 모의 팀 멤버십,
-Jira는 역할·조회 스킴, 나머지는 모의 SaaS 권한 테이블을 읽습니다. 예산은 SEAT 자원일 때만 조회합니다.
+Jira는 역할·조회 스킴, 나머지는 모의 SaaS 권한 테이블을 읽습니다. 자원 조회에서 예산은 SEAT일 때만 조회합니다.
 
 권한 상한은 `data/company-a-access-matrix.md` 3절에서 읽습니다. 파일을 코드에 복사하거나
 임의 상한으로 대체하지 않으며, 원문 해시도 함께 반환합니다. `ACCESS_MATRIX_PATH`로 경로를 지정할 수 있고,
@@ -136,7 +138,7 @@ TF 비가입·다른 부서·예산 부족·승인 여부는 별도 최종 판�
 SEAT에서 `budget=null`이면 예산 미확인, 다른 자원에서는 예산 비대상입니다. 없는 직원·자원은 404,
 요청 플랫폼과 실제 자원 플랫폼이 다르면 409를 반환합니다. 문서 검색·RAG 근거 반환은 이 API의 책임이 아닙니다.
 
-기존 Business MCP와 Agent는 그대로 유지했습니다. 이후 MCP 일괄 전환 시 이 조회 API를 연결합니다.
+Business MCP의 기존 직원·TF·현재 권한·상한·예산 도구는 이 API의 응답에서 필요한 부분을 반환합니다. Agent의 도구 입력과 노드 순서는 유지했습니다.
 
 ## 내부 승인 계획 실행 API
 
@@ -148,7 +150,7 @@ SEAT에서 `budget=null`이면 예산 미확인, 다른 자원에서는 예산 �
 기존 `ProblemRepository`, `GrantRepository`, `AccessContextRepository` 조회를 재사용합니다.
 `GrantExecutionPolicy`는 원문 상한·현재 소속·부서·좌석·예산·근거를 실행 직전에 검증합니다.
 `AccessCeilingPolicy.executionRules`는 같은 회사 권한표의 3절·7절과 인접한 `policy_corpus.md`의 해시를 읽습니다.
-기존 화면 승인용 `GrantPolicy` 및 Business MCP 호출 경로는 변경하지 않았습니다.
+기존 화면 승인용 `GrantPolicy`는 유지하고 Business MCP의 grant_permission을 이 실행 API에 연결했습니다.
 
 1. 요청 행을 잠그고 실행 키를 비교합니다. 기존 영수증이 있으면 상태가 DONE이어도 같은 결과를 반환합니다.
 2. 사람 승인·EXECUTING·결정 시각·결정자·승인 계획 해시와 요청자·플랫폼·대상·역할 일치를 확인합니다.
@@ -184,4 +186,5 @@ Can edit 검증을 지원해도 기존 자동 부여 범위는 확대하지 않�
 
 직원·자원이 없으면 404, 플랫폼 불일치는 409, 조회 장애는 500으로 반환하고 검증 실패(false)로 숨기지 않습니다.
 이 API는 권한·예산·영수증·작업 상태를 변경하거나 재실행·재시도를 수행하지 않습니다. 기존 worker의 검증 재시도 및 최종 결과 처리는 유지합니다.
-Business MCP와 Agent 연결은 아직 변경하지 않았습니다. 실제 서비스는 모의 SaaS 테이블 기준이며 외부 SaaS API를 호출하지 않습니다.
+Business MCP verify_permission이 이 API를 호출합니다. platform은 기존 MCP 입력에 없으므로 생략 가능하며 실제 자원에서 확정합니다.
+실제 서비스는 모의 SaaS 테이블 기준이며 외부 SaaS API를 호출하지 않습니다.

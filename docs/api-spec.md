@@ -1,6 +1,6 @@
 # UnlockOps 간략 API 명세서
 
-기준: 2026-10-20 현재 작업 폴더의 구현 코드. 실행 중인 서버를 호출한 결과가 아니라 코드에서 확인한 계약이다.
+기준: 2026-10-21 현재 작업 폴더의 구현 코드. 실행 중인 서버를 호출한 결과가 아니라 코드에서 확인한 계약이다.
 아래 예시의 `<요청 UUID>`, `<직원 UUID>`, `<자원 UUID>`, `<계획 해시>`는 실제 조회값으로 바꾼다.
 
 ## 1. 서버와 MCP의 역할
@@ -10,14 +10,14 @@ MCP도 서버 프로세스다. 이 문서에서 “서버 API”는 화면이 �
 
 | 구분 | 호출하는 쪽 | 담당 기능 | 데이터 접근 |
 | --- | --- | --- | --- |
-| Spring Backend | Vue 화면 | 로그인, 요청 접수·조회, 사람의 승인·반려, 최종 상태·이력 저장 | PostgreSQL의 사용자·요청·승인·이력 |
+| Spring Backend | Vue 화면 / Business MCP | 로그인, 접수·승인·상태·이력, 내부 업무 조회·권한 변경·검증 | PostgreSQL의 사용자·요청·승인·모의 SaaS·예산·영수증 |
 | LangGraph Worker | RabbitMQ 작업 큐 | 질문 분석, MCP 도구 호출, 정책 판정, 승인 대기·재개, 실행·검증 순서 제어 | SQLite 체크포인트. 업무 DB 직접 변경 없음 |
 | Policy MCP | LangGraph Worker | 공통·플랫폼 규정 검색 및 원문 조회 | `data/policy_corpus.md` |
-| Business MCP | LangGraph Worker | 직원·권한·예산 조회, 회사 규정 검색, 승인된 권한 변경·검증 | PostgreSQL의 모의 SaaS 테이블 및 `data/company-a-access-matrix.md` |
+| Business MCP | LangGraph Worker | 직원·권한·예산 조회, 회사 규정 검색, 승인된 권한 변경·검증 | Spring 내부 API 및 `data/company-a-access-matrix.md`. DB 직접 접근 없음 |
 
-**현재 Business MCP는 Spring REST API를 거치지 않고 같은 PostgreSQL에 직접 접근한다.**
+**Business MCP의 업무 조회·변경은 Spring `/internal/**` API를 경유한다.**
 실제 GitHub/Jira/Slack/Notion 외부 API 연동은 모의 SaaS DB로 구현되어 있다.
-Spring이 사람의 승인과 요청 상태를 기록하고, Business MCP가 실행 직전 승인 기록과 조건을 다시 확인한다.
+Spring이 사람의 승인·요청 상태와 모의 권한·예산·실행 영수증을 관리하고, 실행 직전 승인 기록과 조건을 다시 확인한다.
 
 ```mermaid
 flowchart TD
@@ -27,7 +27,7 @@ flowchart TD
   A -->|"MCP: 업무 조회·권한 변경"| B["Business MCP"]
   A -->|"RabbitMQ: 진행·결과"| S
   S <-->|"요청·승인·상태"| DB[("PostgreSQL")]
-  B <-->|"승인 재확인·모의 SaaS 조회/변경"| DB
+  B <-->|"내부 API: 조회·실행·검증"| S
 ```
 
 ## 2. Spring REST API — 화면용
@@ -98,7 +98,7 @@ flowchart TD
 
 ### Spring 내부 API — 대상 자원 검색
 
-이 API만 먼저 구현했으며 Business MCP는 아직 기존 DB 조회를 사용한다.
+Business MCP의 resolve_resource가 이 API를 사용한다.
 
 | 항목 | 계약 |
 | --- | --- |
@@ -152,7 +152,7 @@ Content-Type: application/json
 | --- | --- |
 | Method / Path | `POST /internal/access-context` |
 | 인증 | 자원 검색과 동일한 `Authorization: Bearer <INTERNAL_API_TOKEN>`. 세션 로그인만으로 호출 불가 |
-| Request | `employeeId`, `resourceId`: 필수 UUID. `platform`: 필수 플랫폼 enum |
+| Request | `employeeId`: 필수 UUID. `resourceId`: 선택 UUID. `platform`: 선택 플랫폼 enum. `includeBudget`: 선택 boolean(기본 false) |
 | Response | `200 {profile,resource_id,membership,current,maximum_role,budget,rule_source,source_hashes}` |
 | 오류 | `400` 입력 오류, `401` 서비스 인증 실패, `404` 직원·자원 없음, `409` 자원 플랫폼 불일치, `503` 권한표 읽기·해석 실패, `500` 기타 서버 오류. 기존 `{message}` 형식 |
 
@@ -190,14 +190,17 @@ Content-Type: application/json
 - GitHub 좌석은 팀 멤버십 대신 permissions를 조회한다. GitHub 팀에서 Read·Write를 함께 보유하면 Write를 반환한다.
 - Jira 역할이 있어도 조회 스킴이 없거나 조회 불가이면 `can_browse=false`이며, 역할이 없어도 false이다.
 - 비TF 자원의 membership은 `{tf_id:null,member:false,leader_id:null}`이다.
-- SEAT일 때만 부서 예산을 조회한다. 예산이 있으면 `{department_id,remaining_monthly_amount,unit_monthly_price,currency,updated_at}`를 반환한다.
+- 자원이 있으면 SEAT일 때만 예산을 조회한다. 직원 단독 조회에서 includeBudget=true이면 부서 예산을 조회한다. 예산이 있으면 `{department_id,remaining_monthly_amount,unit_monthly_price,currency,updated_at}`를 반환한다.
   금액은 소수점 문자열이다. 예산 행이 없으면 null이며 0이나 충분함으로 추측하지 않는다. 비SEAT도 budget은 null이다.
 - `maximum_role`은 원문 3절의 직무·직급·자원별 상한이며 빈 문자열은 신청 불가이다. TF 구성원 자격·부서·예산·사람 승인을 대신하지 않는다.
 - 문서의 Can edit 상한과 기존 자동 부여 범위는 다르다. 이 API는 최종 승인 가능 여부를 반환하지 않는다.
 - 원문 누락·잘못된 표·중복 적용 기준·미지원 역할은 503이다. 읽은 원문과 source_hashes는 같은 파일 내용에 대응한다.
 - `ACCESS_MATRIX_PATH`로 원문 경로를 지정할 수 있다. Compose에서는 기존 Python과 동일한 data를 읽기 전용으로 사용한다.
 - DB 사실은 읽기 전용 REPEATABLE_READ 트랜잭션으로 수집한다. 권한 변경·예산 차감·이력·큐 작업 생성은 하지 않는다.
-- 문서 청크·검색 결과는 별도의 RAG 도구 책임이다. Business MCP와 Agent의 기존 호출은 아직 변경하지 않았다.
+- 직원 ID만 보내면 profile을 반환하고 자원 관련 필드·상한은 null, source_hashes는 빈 객체이다. 이 모드에서는 규정을 읽지 않으며 includeBudget=true일 때만 예산을 조회한다.
+- resourceId가 있으면 DB의 자원에서 플랫폼을 확정한다. platform을 함께 보냈다면 일치 여부를 검사한다. 자원 없는 platform 지정은 400이다.
+- 원문 오류 응답에는 `{message,code:"POLICY_SOURCE_UNAVAILABLE",retryable:false}`를 포함해 일반 통신·DB 장애와 구분한다.
+- 문서 청크·검색 결과는 별도의 RAG 도구 책임이다. 기존 MCP 도구가 이 API를 호출하고 응답에서 필요한 항목을 반환한다.
 
 ### Spring 내부 API — 승인된 계획 실행
 
@@ -224,7 +227,7 @@ Content-Type: application/json
 - 권한 변경·예산 차감·영수증 저장은 같은 트랜잭션이다. 오류는 예외로 전파해 전체 롤백한다.
 - 같은 요청·실행 키로 이미 성공한 경우 원래 영수증을 반환한다. 이때 `changed`는 첫 실행 결과를 그대로 유지한다.
 - 비좌석 자원의 권한을 이미 보유한 경우 `changed=false`이며 영수증만 저장한다. 다른 요청으로 이미 보유한 좌석은 DUPLICATE_SEAT로 차단한다.
-- 성공 응답은 실제 반영 검증·DONE 전환을 대신하지 않는다. Business MCP·worker는 아직 이 API로 전환하지 않았다.
+- 성공 응답은 실제 반영 검증·DONE 전환을 대신하지 않는다. Business MCP grant_permission이 이 API를 호출한다.
 
 업무·실행 오류는 HTTP 오류 코드와 다음 기계 판독 응답을 함께 반환한다.
 
@@ -262,7 +265,7 @@ Content-Type: application/json
 | --- | --- |
 | Method / Path | `POST /internal/access-verifications` |
 | 인증 | 동일한 `Authorization: Bearer <INTERNAL_API_TOKEN>`. 브라우저 세션만으로 호출 불가 |
-| Request | `employeeId`, `resourceId`: 필수 UUID. `platform`: 필수 플랫폼 enum. `requestedRole`: 필수 지원 역할 이름 |
+| Request | `employeeId`, `resourceId`: 필수 UUID. `platform`: 선택 플랫폼 enum(지정 시 자원 플랫폼과 비교). `requestedRole`: 필수 지원 역할 이름 |
 | 지원 역할 | `Read / Write / Viewer / Developer / Can view / Can edit / Member / Seat`. Admin·Owner·빈 문자열은 400 |
 | Response | `200 {ok:true,verified:boolean,current:{role,source,…}}` |
 | 오류 | `400` 입력 오류, `401` 서비스 인증 실패, `404` 직원·자원 없음, `409` 플랫폼 불일치, `500` 조회 장애 등. 기존 `{message}` 형식 |
@@ -292,7 +295,7 @@ Content-Type: application/json
 - `current`는 기존 조회 형식을 재사용한다. GitHub 저장소는 teams, Jira는 can_browse를 포함하고 다른 선택 필드는 생략한다.
 - Can edit는 기존 보유 권한의 검증을 위한 지원이며 자동 부여 가능 여부나 승인 자격을 의미하지 않는다.
 - API 호출은 권한·예산·영수증·요청 상태를 변경하지 않는다. 성공만으로 DONE을 기록하지 않으며 재시도·최종 상태는 worker의 책임이다.
-- DB 오류를 `verified=false`로 바꾸지 않는다. Business MCP와 Agent는 아직 이 API를 사용하지 않는다.
+- DB 오류를 `verified=false`로 바꾸지 않는다. Business MCP verify_permission이 이 API를 호출한다. platform을 생략하면 DB 자원의 플랫폼을 사용한다.
 
 ## 3. MCP 도구 API — 에이전트용
 
