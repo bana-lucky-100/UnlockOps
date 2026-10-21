@@ -15,7 +15,7 @@ const SR: Record<StageKind, string> = { done: '완료', cur: '진행 중', todo:
 <template>
   <section class="sb" aria-label="진행 단계">
     <p :key="summary" class="sb-sum">{{ summary }}</p>
-    <ol class="sb-list">
+    <ol class="sb-list" :style="{ '--stage-count': stages.length }">
       <li v-for="(g, i) in stages" :key="g.label" class="sb-step" :class="g.kind" :style="{ '--d': `${i * 80}ms` }">
         <span class="sb-bar" aria-hidden="true"><span v-if="g.kind === 'cur'" class="sb-flow" /></span>
         <span class="sb-name">
@@ -36,7 +36,7 @@ const SR: Record<StageKind, string> = { done: '완료', cur: '진행 중', todo:
 <style scoped>
 .sb { background: #fff; border: 1px solid var(--uo-line); border-radius: 20px; padding: 24px 28px; margin-bottom: 24px; }
 .sb-sum { margin: 0 0 22px; font-size: 19px; font-weight: 600; line-height: 1.5; animation: sb-in .4s ease both; }
-.sb-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.sb-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--stage-count, 5), minmax(0, 1fr)); gap: 10px; }
 .sb-step { display: flex; flex-direction: column; gap: 10px; min-width: 0; --bar: #E4E7F2; --dbg: #F0F1F5; --dfg: #4A5068; --fg: var(--uo-muted); --w: 500; }
 .sb-step.done { --bar: #3B4BD8; --dbg: #3B4BD8; --dfg: #fff; --fg: var(--uo-ink); --w: 600; }
 .sb-step.cur { --bar: linear-gradient(90deg, #3B4BD8, #7A5CF0); --dbg: #EEF0FF; --dfg: #2F3DB8; --fg: #2F3DB8; --w: 700; }

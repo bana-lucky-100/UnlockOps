@@ -37,12 +37,12 @@ async function load() {
   } finally {
     loaded.value = true
   }
-  return items.value.some(p => needsRefresh(p.status))
+  return items.value.some(p => needsRefresh(p))
 }
 const polling = usePolling(load)
 
-const count = (key: StatusGroup | null) => key ? items.value.filter(p => groupOf(p.status) === key).length : items.value.length
-const visible = computed(() => group.value ? items.value.filter(p => groupOf(p.status) === group.value) : items.value)
+const count = (key: StatusGroup | null) => key ? items.value.filter(p => groupOf(p) === key).length : items.value.length
+const visible = computed(() => group.value ? items.value.filter(p => groupOf(p) === group.value) : items.value)
 const current = computed(() => TABS.find(t => t.key === group.value)!)
 
 const help = {

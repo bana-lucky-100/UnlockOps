@@ -1,8 +1,9 @@
 import type { Problem, Status } from '../api'
+import { isGuidanceComplete } from './status.ts'
 
 /**
  * 요청자 화면에 무엇을 보여줄지 정하는 규칙을 한곳에 둔다 (명세: 화면별 명세 · 판단 근거는 승인자에게만).
- * - REJECTED · MANUAL_REVIEW에서는 diagnosis를 받더라도 보여주지 않고 고정 문구를 쓴다.
+ * - REJECTED · 실제 MANUAL_REVIEW에서는 고정 문구를 쓰되, 안내 성공은 API의 진단을 보여준다.
  * - 거절 이유는 승인자가 남긴 메모(decision_reason)가 있을 때만 보여준다.
  */
 
@@ -26,6 +27,11 @@ export function needsName(p: Problem) {
 }
 
 export function stagesOf(p: Problem): Stage[] {
+  if (isGuidanceComplete(p)) return [
+    { label: '요청 접수', sub: '', kind: 'done' },
+    { label: 'AI 진단', sub: '분석 완료', kind: 'done' },
+    { label: '안내 제공', sub: '안내 완료', kind: 'done' },
+  ]
   const s: Status = p.status
   switch (s) {
     case 'RECEIVED': return stages(['cur', 'todo', 'todo', 'todo', 'todo'], ['접수됨', '', '승인자 검토', '자동 부여', '다시 조회해 확인'])
@@ -44,6 +50,7 @@ export function stagesOf(p: Problem): Stage[] {
 }
 
 export function summaryOf(p: Problem): string {
+  if (isGuidanceComplete(p)) return '안내가 완료됐어요.'
   switch (p.status) {
     case 'RECEIVED': return '요청을 받았어요. 곧 AI가 확인을 시작해요.'
     case 'DIAGNOSING': return 'AI가 소속과 현재 권한을 확인하고 있어요. 이 화면을 닫아도 계속 진행돼요.'
@@ -60,16 +67,17 @@ export function summaryOf(p: Problem): string {
 
 /**
  * AI 말풍선은 서버가 준 진단 문장(diagnosis)만 보여준다.
- * 거절 · 담당자 검토에서는 판단 근거가 섞여 있어 숨기되, 고정 문장을 AI가 말한 것처럼 꾸며 넣지 않는다.
+ * 안내 성공을 제외한 거절 · 담당자 검토에서는 판단 근거가 섞여 있어 숨긴다.
  * 그 상태의 안내는 오른쪽 안내 카드가 맡는다.
  */
 export function aiMessageOf(p: Problem): string | null {
-  if (p.status === 'REJECTED' || p.status === 'MANUAL_REVIEW') return null
+  if (p.status === 'REJECTED' || (p.status === 'MANUAL_REVIEW' && !isGuidanceComplete(p))) return null
   return p.diagnosis?.trim() || null
 }
 
-/** 제안 문구는 AI 문장이 아니라 계획(플랫폼 · 역할)으로 만든다 (명세: diagnosis와 proposal 분리 대신). */
+/** 안내 성공은 API 본문을 사용하고, 권한 부여 제안은 계획(플랫폼 · 역할)으로 만든다. */
 export function proposalOf(p: Problem, platformLabel: string): string | null {
+  if (isGuidanceComplete(p)) return p.proposal!.trim()
   if (!p.requested_role) return null
   if (!['WAITING_APPROVAL', 'EXECUTING', 'DONE', 'FAILED'].includes(p.status)) return null
   if (p.status === 'DONE' && !p.decided_at) return null
@@ -81,6 +89,7 @@ export interface Notice { tone: 'bad' | 'review'; title: string; memo: string | 
 
 /** 오른쪽 안내 카드. 판단 근거(규정 번호 · 판단 주체)는 넣지 않는다. */
 export function noticeOf(p: Problem): Notice | null {
+  if (isGuidanceComplete(p)) return null
   if (p.status === 'REJECTED') {
     const memo = p.decision_reason?.trim() || null
     return rejectedByApprover(p)
@@ -130,6 +139,19 @@ export function evidenceOf(p: Problem): { facts: EvidenceFact[]; docs: EvidenceD
   return { facts, docs: [...docs.values()].sort((a, b) => order(a.id) - order(b.id) || a.id.localeCompare(b.id)) }
 }
 
+/** 기존 서버가 안내 성공에 붙인 마지막 분석 이벤트의 검토 문구도 완료로 표시한다. */
+function guidanceEventIndex(p: Problem): number {
+  return isGuidanceComplete(p) ? (p.events ?? []).map(e => e.kind).lastIndexOf('ANALYZED') : -1
+}
+
+export function requesterEventsOf(p: Problem): { at: string; text: string }[] {
+  const guidanceIndex = guidanceEventIndex(p)
+  return (p.events ?? []).map((e, i) => ({
+    at: e.created_at,
+    text: i === guidanceIndex ? '안내가 완료됐어요' : typeof e.payload?.message === 'string' ? e.payload.message : '',
+  })).filter(e => e.text)
+}
+
 /** 승인자는 원본 이벤트를 받는다. 요청자 화면과 같은 말투의 짧은 문장으로 바꾼다. */
 export function approverEventsOf(p: Problem): { at: string; text: string }[] {
   const STATUS_TEXT: Partial<Record<Status, string>> = {
@@ -141,10 +163,12 @@ export function approverEventsOf(p: Problem): { at: string; text: string }[] {
   }
   const out: { at: string; text: string }[] = []
   let prev = ''
-  for (const e of p.events ?? []) {
+  const guidanceIndex = guidanceEventIndex(p)
+  for (const [i, e] of (p.events ?? []).entries()) {
     const pl = (e.payload ?? {}) as Record<string, unknown>
     const result = pl.result as Record<string, unknown> | undefined
-    const text = e.kind === 'PROGRESS' ? (pl.job_type === 'EXECUTE' ? '권한을 넣고 있어요' : 'AI가 요청을 분석하고 있어요')
+    const text = i === guidanceIndex ? '안내가 완료됐어요'
+      : e.kind === 'PROGRESS' ? (pl.job_type === 'EXECUTE' ? '권한을 넣고 있어요' : 'AI가 요청을 분석하고 있어요')
       : e.kind === 'HUMAN_DECISION' ? (pl.approved ? '승인했어요' : '거절했어요')
       : (e.kind === 'ANALYZED' || e.kind === 'EXECUTED') && result ? STATUS_TEXT[result.status as Status] ?? ''
       : e.kind === 'FAILED' ? '처리하지 못해 운영 담당자 확인이 필요해요'
@@ -165,6 +189,7 @@ export const REJECT_CHIPS = ['업무에 필요하지 않음', '더 낮은 권한
  * 담당자 검토를 이 화면에서 처리하는 API는 아직 없어서, 지금 할 수 있는 일만 안내한다.
  */
 export function approverNoticeOf(p: Problem): { tone: 'bad' | 'review'; title: string; body: string } | null {
+  if (isGuidanceComplete(p)) return null
   if (needsName(p)) return { tone: 'review', title: '대상이 정해지지 않은 요청이에요', body: '요청자가 저장소 · 프로젝트 이름을 적지 않아 AI가 대상을 정하지 못했어요. 요청자에게는 이름을 넣어 다시 보내도록 안내하고 있고, 다시 보내면 새 요청으로 승인함에 올라와요.' }
   if (p.status === 'MANUAL_REVIEW') return { tone: 'review', title: '담당자 확인이 필요한 요청이에요', body: 'AI가 자동으로 판단하지 못했어요. 왼쪽의 진단과 판단 근거를 확인해 주세요. 이 화면에서 바로 처리하는 기능은 아직 없어요.' }
   if (p.status === 'FAILED') return { tone: 'bad', title: '권한 부여에 실패했어요', body: '승인 뒤 처음 시도를 포함해 총 3번 시도했지만 권한을 넣지 못했어요. 대상 플랫폼의 상태를 확인해 주세요.' }
@@ -173,6 +198,7 @@ export function approverNoticeOf(p: Problem): { tone: 'bad' | 'review'; title: s
 }
 
 export function approverSummaryOf(p: Problem): string {
+  if (isGuidanceComplete(p)) return summaryOf(p)
   if (needsName(p)) return '요청자가 대상 이름을 적지 않아 AI가 대상을 정하지 못했어요.'
   if (p.status === 'MANUAL_REVIEW') return 'AI가 자동으로 판단하지 못해 담당자 확인이 필요해요.'
   if (p.status === 'REJECTED' && !p.decided_at) return '규정에 맞지 않아 AI가 바로 거절했어요.'

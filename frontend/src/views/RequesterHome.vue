@@ -50,7 +50,7 @@ const rows = computed(() => Math.min(4, Math.max(1, Math.ceil(contents.value.len
 
 const counts = computed(() => {
   const c: Record<StatusGroup, number> = { progress: 0, waiting: 0, finished: 0 }
-  for (const p of items.value) c[groupOf(p.status)]++
+  for (const p of items.value) c[groupOf(p)]++
   return c
 })
 const steps = computed(() => [
@@ -77,7 +77,7 @@ async function load() {
     loaded.value = true
   }
   // 아직 끝나지 않은 요청이 있을 때만 계속 조회한다.
-  return items.value.some(p => needsRefresh(p.status))
+  return items.value.some(p => needsRefresh(p))
 }
 const polling = usePolling(load)
 

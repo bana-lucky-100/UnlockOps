@@ -50,7 +50,13 @@ def test_real_queue_jira_failure_and_designated_approver():
         assert requester.post("/api/problems",json={"platform":"JIRA","contents":"PAY"}).status_code==403
         response=mutation(requester,"/api/problems",{"platform":"JIRA","contents":"PAY 프로젝트가 안 보여요","simulateJiraFailure":True})
         response.raise_for_status(); problem_id=response.json()["id"]
-        pending=wait_status(approver,problem_id,"WAITING_APPROVAL")
+        # 생성 직후에는 부서장이 임시 담당자다. 분석 완료 후 TF 승인자로 재배정된다.
+        # 신청자는 전 단계에서 조회할 수 있으므로 담당자 변경 전에도 안전하게 기다린다.
+        wait_status(requester,problem_id,"WAITING_APPROVAL")
+        pending_response=approver.get("/api/problems/"+problem_id)
+        pending_response.raise_for_status()
+        pending=pending_response.json()
+        assert pending["status"]=="WAITING_APPROVAL"
         own=requester.get("/api/problems/"+problem_id)
         own.raise_for_status()
         assert not ({"evidence","plan","plan_hash","approved_plan_hash","thread_id","idempotency_key"} & own.json().keys())
