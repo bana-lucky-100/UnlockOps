@@ -146,6 +146,59 @@ Content-Type: application/json
 - `MCP_TOKEN`과 같은 방식으로 로컬 기본 토큰을 사용하며 배포 시 교체한다. Spring에 명시적으로 빈 토큰을 설정하면 호출을 차단한다.
 - Compose는 Backend에 `INTERNAL_API_TOKEN`을 전달하지만 내부 경로를 화면 프록시에 공개하지 않는다.
 
+### Spring 내부 API — 접근 조건 묶음 조회
+
+| 항목 | 계약 |
+| --- | --- |
+| Method / Path | `POST /internal/access-context` |
+| 인증 | 자원 검색과 동일한 `Authorization: Bearer <INTERNAL_API_TOKEN>`. 세션 로그인만으로 호출 불가 |
+| Request | `employeeId`, `resourceId`: 필수 UUID. `platform`: 필수 플랫폼 enum |
+| Response | `200 {profile,resource_id,membership,current,maximum_role,budget,rule_source,source_hashes}` |
+| 오류 | `400` 입력 오류, `401` 서비스 인증 실패, `404` 직원·자원 없음, `409` 자원 플랫폼 불일치, `503` 권한표 읽기·해석 실패, `500` 기타 서버 오류. 기존 `{message}` 형식 |
+
+요청:
+
+```json
+{"employeeId":"<직원 UUID>","resourceId":"<자원 UUID>","platform":"GITHUB"}
+```
+
+응답 예시(설명용 식별자):
+
+```json
+{
+  "profile": {
+    "id": "<직원 UUID>",
+    "employee_no": "E-001",
+    "name": "김개발",
+    "department_id": "<부서 UUID>",
+    "department_name": "개발팀",
+    "job_grade": "사원",
+    "job_family": "DEV",
+    "head_id": "<부서장 UUID>"
+  },
+  "resource_id": "<자원 UUID>",
+  "membership": {"tf_id":"<TF UUID>","member":true,"leader_id":"<리더 UUID>"},
+  "current": {"role":null,"source":"github-team-membership","teams":[]},
+  "maximum_role": "Write",
+  "budget": null,
+  "rule_source": "A-ACCESS-03",
+  "source_hashes": {"company-a-access-matrix.md":"<해당 원문의 SHA-256>"}
+}
+```
+
+- `current`는 GitHub 저장소에서 `teams`, Jira에서 `can_browse`를 포함한다. 나머지 경우 해당 선택 필드는 생략한다.
+- GitHub 좌석은 팀 멤버십 대신 permissions를 조회한다. GitHub 팀에서 Read·Write를 함께 보유하면 Write를 반환한다.
+- Jira 역할이 있어도 조회 스킴이 없거나 조회 불가이면 `can_browse=false`이며, 역할이 없어도 false이다.
+- 비TF 자원의 membership은 `{tf_id:null,member:false,leader_id:null}`이다.
+- SEAT일 때만 부서 예산을 조회한다. 예산이 있으면 `{department_id,remaining_monthly_amount,unit_monthly_price,currency,updated_at}`를 반환한다.
+  금액은 소수점 문자열이다. 예산 행이 없으면 null이며 0이나 충분함으로 추측하지 않는다. 비SEAT도 budget은 null이다.
+- `maximum_role`은 원문 3절의 직무·직급·자원별 상한이며 빈 문자열은 신청 불가이다. TF 구성원 자격·부서·예산·사람 승인을 대신하지 않는다.
+- 문서의 Can edit 상한과 기존 자동 부여 범위는 다르다. 이 API는 최종 승인 가능 여부를 반환하지 않는다.
+- 원문 누락·잘못된 표·중복 적용 기준·미지원 역할은 503이다. 읽은 원문과 source_hashes는 같은 파일 내용에 대응한다.
+- `ACCESS_MATRIX_PATH`로 원문 경로를 지정할 수 있다. Compose에서는 기존 Python과 동일한 data를 읽기 전용으로 사용한다.
+- DB 사실은 읽기 전용 REPEATABLE_READ 트랜잭션으로 수집한다. 권한 변경·예산 차감·이력·큐 작업 생성은 하지 않는다.
+- 문서 청크·검색 결과는 별도의 RAG 도구 책임이다. Business MCP와 Agent의 기존 호출은 아직 변경하지 않았다.
+
 ## 3. MCP 도구 API — 에이전트용
 
 독립 로컬 실행: Policy `http://localhost:8001/mcp`, Business `http://localhost:8002/mcp`.

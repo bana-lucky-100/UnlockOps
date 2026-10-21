@@ -1,5 +1,18 @@
 # 검증 기록과 재현 절차
 
+## 내부 접근 조건 묶음 조회 API (2026-10-21)
+
+- `POST /internal/access-context`를 기존 Controller → Service → Repository 및 내부 토큰 인증 방식으로 추가했습니다.
+- 직원·TF·현재 권한·문서상 상한과 SEAT 대상 예산을 조회합니다. 기존 Business MCP·Agent·승인 정책은 변경하지 않았습니다.
+- 회사 권한표의 동일 원문을 읽어 상한과 SHA-256을 반환합니다. Compose에서 원문 data를 Backend에도 읽기 전용으로 마운트합니다.
+- 신규 테스트 33개(권한표 21, Service 4, Repository 경계 4, HTTP 4)와 기존 내부 자원 검색 HTTP 5개를 실행해 **38개 통과, 실패·건너뜀 0개**를 확인했습니다.
+- 기본 Maven Surefire 3.5.4의 의존성이 로컬 캐시에 없어 표준 `mvn test`는 실행하지 못했습니다.
+  임시 실행기에서 캐시된 JUnit Platform/Jupiter 6.0.3과 Mockito javaagent를 사용해 위 테스트를 실행했습니다.
+  프로젝트의 기본 JUnit 5.12.2/Maven 실행을 대체한 것으로 주장하지 않으며, 의존성을 확보한 환경에서 `cd backend && mvn test` 재확인이 필요합니다.
+- `mvn -o -Dmaven.repo.local=/tmp/unlockops-maven-repository -f backend/pom.xml test-compile -q`,
+  `docker compose config -q`, `git diff --check` 통과.
+- Repository 테스트는 JdbcTemplate/ResultSet 경계 대체를 사용했습니다. Docker가 꺼져 있어 실제 PostgreSQL의 SQL 실행·트랜잭션 통합 검증은 미실행입니다.
+
 ## 내부 대상 자원 검색 API (2026-10-21)
 
 - `POST /internal/resources/resolve`를 Controller → Service → Repository 구조로 추가했습니다.

@@ -49,6 +49,7 @@ Python worker 대신 결과 JSON을 발행하므로 실제 Agent/MCP 권한 부�
 | `approval` | `ApprovalsController` → `ApprovalService` → `ApprovalRepository`. 내 담당 요청의 KST 주간 집계 |
 | `grant` | `GrantPolicy` → `UserRepository` / `GrantRepository`. 지정 승인자·직급·직무·TF·부서·예산·좌석·계획 검증 |
 | `resource` | `InternalResourceController` → `ResourceService` → `ResourceRepository`. 내부 API에서 플랫폼별 대상 자원 이름·별칭 검색 |
+| `access` | `InternalAccessContextController` → `AccessContextService` → `AccessContextRepository` / `GrantRepository`. 직원·TF·현재 권한·좌석 예산 묶음 조회. `AccessCeilingPolicy`는 회사 권한표의 상한 조회 |
 | `messaging` | `AgentResultsListener` → `AgentResultService` → Repository. `OutboxPublisher` → `OutboxService` → `OutboxRepository` / `RabbitMessagePublisher` |
 | `config` | 세션·CSRF·인증 설정과 RabbitMQ 토폴로지·JSON 변환기 |
 | `common` | 헬스 체크, JSON 직렬화·계획 해시, 공통 오류 DTO·예외 응답 |
@@ -110,3 +111,29 @@ Spring에 명시적으로 빈 값을 설정하면 내부 호출을 거부합니�
 
 Business MCP의 DB 조회는 아직 변경하지 않았습니다. 이 API는 이후 일괄 전환을 위해 먼저 추가한 것입니다.
 자세한 계약은 [API 명세](../docs/api-spec.md#spring-내부-api--대상-자원-검색)를 참고하세요.
+
+## 내부 접근 조건 묶음 조회 API
+
+`POST /internal/access-context`는 자원 검색 후 확정된 직원·자원 ID로 분석에 필요한 사실을 조회합니다.
+동일한 내부 서비스 토큰 인증을 사용하며 입력은 camelCase입니다.
+
+```json
+{"employeeId":"<직원 UUID>","resourceId":"<자원 UUID>","platform":"GITHUB"}
+```
+
+응답은 `profile`, `resource_id`, `membership`, `current`, `maximum_role`, `budget`,
+`rule_source`, `source_hashes`입니다. 직원 정보는 명시한 필드만 반환하며 이메일·로그인·비밀번호를 포함하지 않습니다.
+조회는 읽기 전용 REPEATABLE_READ 트랜잭션으로 묶습니다. GitHub 저장소는 실제 모의 팀 멤버십,
+Jira는 역할·조회 스킴, 나머지는 모의 SaaS 권한 테이블을 읽습니다. 예산은 SEAT 자원일 때만 조회합니다.
+
+권한 상한은 `data/company-a-access-matrix.md` 3절에서 읽습니다. 파일을 코드에 복사하거나
+임의 상한으로 대체하지 않으며, 원문 해시도 함께 반환합니다. `ACCESS_MATRIX_PATH`로 경로를 지정할 수 있고,
+로컬 기본값은 루트 또는 backend 디렉터리에서 원본 data 파일을 찾습니다. Compose는 같은 data를 읽기 전용으로 마운트합니다.
+
+`maximum_role=""`는 규정상 신청 불가입니다. 규정을 읽거나 해석할 수 없는 경우는 503이며 빈 상한으로 대체하지 않습니다.
+Notion 부서 문서의 문서상 상한이 Can edit여도 기존 자동 부여 범위가 확대되는 것은 아닙니다.
+TF 비가입·다른 부서·예산 부족·승인 여부는 별도 최종 판정 항목입니다. 이 API는 권한을 부여하거나 승인하지 않습니다.
+SEAT에서 `budget=null`이면 예산 미확인, 다른 자원에서는 예산 비대상입니다. 없는 직원·자원은 404,
+요청 플랫폼과 실제 자원 플랫폼이 다르면 409를 반환합니다. 문서 검색·RAG 근거 반환은 이 API의 책임이 아닙니다.
+
+기존 Business MCP와 Agent는 그대로 유지했습니다. 이후 MCP 일괄 전환 시 이 조회 API를 연결합니다.

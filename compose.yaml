@@ -38,6 +38,9 @@ services:
       DEMO_PASSWORD: ${DEMO_PASSWORD:-demo1234}
       DEMO_ENABLED: "true"
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-replace-this-local-internal-api-token}
+      ACCESS_MATRIX_PATH: /app/data/company-a-access-matrix.md
+    volumes:
+      - ./data:/app/data:ro
     depends_on:
       postgres: {condition: service_healthy}
       rabbitmq: {condition: service_healthy}

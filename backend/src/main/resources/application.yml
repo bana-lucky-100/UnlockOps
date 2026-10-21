@@ -32,6 +32,7 @@ spring:
           initial-interval: 1000ms
           multiplier: 2
 app:
+  access-matrix-path: ${ACCESS_MATRIX_PATH:}
   internal-api-token: ${INTERNAL_API_TOKEN:replace-this-local-internal-api-token}
   demo-enabled: ${DEMO_ENABLED:false}
   demo-password: ${DEMO_PASSWORD:}
