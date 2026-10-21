@@ -2,7 +2,7 @@
 import { RouterLink } from 'vue-router'
 import type { Problem } from '../api'
 import { PLATFORMS } from '../lib/platforms'
-import { STATUS } from '../lib/status'
+import { statusOf } from '../lib/status'
 import { shortWhen } from '../lib/time'
 
 // 홈의 '최근 요청'과 '내 요청' 페이지가 같은 줄 모양을 쓰도록 목록을 하나로 둔다.
@@ -20,7 +20,7 @@ defineEmits<{ retry: [] }>()
     </div>
     <p v-else-if="!items.length" class="rl-empty">{{ empty }}</p>
     <RouterLink v-for="p in items" :key="p.id" :to="`/requests/${p.id}`" class="rl-row">
-      <span class="rl-badge" :class="STATUS[p.status].tone"><svg v-if="STATUS[p.status].tone === 'review'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -2px"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 19a5.5 5.5 0 0 1 11 0" /></svg>{{ STATUS[p.status].label }}</span>
+      <span class="rl-badge" :class="statusOf(p).tone"><svg v-if="statusOf(p).tone === 'review'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -2px"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 19a5.5 5.5 0 0 1 11 0" /></svg>{{ statusOf(p).label }}</span>
       <span class="rl-what">
         <span class="rl-row-title">{{ p.contents.split('\n')[0] }}</span>
         <span class="rl-sub"><template v-if="showRequester">{{ p.requester_name }} · </template>{{ PLATFORMS[p.platform].label }}<template v-if="p.requested_role"> · {{ p.requested_role }}</template> · <span class="rl-en">{{ p.id.slice(0, 8) }}</span></span>

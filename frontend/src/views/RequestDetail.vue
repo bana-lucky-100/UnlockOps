@@ -6,8 +6,8 @@ import AppShell from '../components/AppShell.vue'
 import StageBar from '../components/StageBar.vue'
 import { PLATFORMS } from '../lib/platforms'
 import { usePolling } from '../lib/polling'
-import { aiMessageOf, approverEventsOf, approverNoticeOf, approverSummaryOf, evidenceOf, noticeOf, proposalOf, REJECT_CHIPS, stagesOf, summaryOf } from '../lib/requestView'
-import { isTerminal, needsRefresh, STATUS } from '../lib/status'
+import { aiMessageOf, approverEventsOf, approverNoticeOf, approverSummaryOf, evidenceOf, noticeOf, proposalOf, requesterEventsOf, REJECT_CHIPS, stagesOf, summaryOf } from '../lib/requestView'
+import { isGuidanceComplete, isTerminal, needsRefresh, statusOf } from '../lib/status'
 import { shortWhen } from '../lib/time'
 import { currentUser } from '../session'
 
@@ -34,16 +34,17 @@ async function load() {
     if (status === 403 || status === 404) return false
     throw e
   }
-  return needsRefresh(item.value.status)
+  return needsRefresh(item.value)
 }
 const polling = usePolling(load)
 
 
 const p = computed(() => item.value)
+const guidanceComplete = computed(() => !!p.value && isGuidanceComplete(p.value))
 const platform = computed(() => p.value ? PLATFORMS[p.value.platform] : null)
 const stages = computed(() => p.value ? stagesOf(p.value) : [])
 const summary = computed(() => !p.value ? '' : isRequester.value ? summaryOf(p.value) : approverSummaryOf(p.value))
-// 거절 · 담당자 검토에서 진단을 숨기는 건 요청자 화면만이다. 승인자는 판단 근거와 함께 그대로 본다.
+// 안내 성공은 요청자도 진단을 본다. 실제 검토 필요 · 거절의 판단 근거는 승인자에게만 표시한다.
 const aiMessage = computed(() => !p.value ? null : isRequester.value ? aiMessageOf(p.value) : p.value.diagnosis?.trim() || null)
 // 승인자는 plan의 자원 이름(resource_key)까지 받는다. 요청자 응답에는 plan이 없다.
 const resourceName = computed(() => (!isRequester.value && p.value?.plan?.resource_key) || '')
@@ -54,13 +55,11 @@ const aprNotice = computed(() => p.value && !isRequester.value ? approverNoticeO
 const events = computed(() => {
   if (!p.value) return []
   if (!isRequester.value) return approverEventsOf(p.value)
-  return (p.value.events ?? [])
-    .map(e => ({ at: e.created_at, text: typeof e.payload?.message === 'string' ? e.payload.message : '' }))
-    .filter(e => e.text)
+  return requesterEventsOf(p.value)
 })
 const perm = computed(() => {
   const x = p.value
-  if (!x?.requested_role) return null
+  if (!x?.requested_role || isGuidanceComplete(x)) return null
   const map: Partial<Record<Problem['status'], { label: string; tone: string }>> = {
     WAITING_APPROVAL: { label: '부여 전', tone: 'todo' },
     EXECUTING: { label: '부여 중', tone: 'run' },
@@ -78,8 +77,8 @@ const record = computed(() => {
     { k: '요청 번호', v: x.id, mono: true },
     { k: '요청 시각', v: shortWhen(x.created_at) },
     { k: '마지막 변경', v: shortWhen(x.updated_at) },
-    { k: '결정 시각', v: x.decided_at ? shortWhen(x.decided_at) : '아직 없음' },
-    { k: '반영 확인', v: x.verification_ok === true ? '✓ 확인됨' : x.verification_ok === false ? '✕ 반영 안 됨' : '아직 없음' },
+    { k: '결정 시각', v: isGuidanceComplete(x) ? '해당 없음' : x.decided_at ? shortWhen(x.decided_at) : '아직 없음' },
+    { k: '반영 확인', v: isGuidanceComplete(x) ? '해당 없음' : x.verification_ok === true ? '✓ 확인됨' : x.verification_ok === false ? '✕ 반영 안 됨' : '아직 없음' },
   ]
 })
 
@@ -136,7 +135,7 @@ const approverHelp = {
 }
 const requesterHelp = {
   howto: [
-    { t: '진행 단계를 보세요', d: '접수 → AI 진단 → 승인 → 권한 부여 → 반영 확인 순서로 진행돼요. 이 화면을 닫아도 계속 진행돼요' },
+    { t: '진행 단계를 보세요', d: '권한 변경은 접수 → AI 진단 → 승인 → 권한 부여 → 반영 확인 순서로 진행돼요. 안내 요청은 진단 후 안내 제공으로 완료돼요' },
     { t: '거절 · 실패 때는 안내를 따르세요', d: '오른쪽 카드에 다음에 할 일이 나와요' },
   ],
   faqs: [
@@ -154,7 +153,7 @@ const requesterHelp = {
         <h1 v-if="p && platform">{{ platform.label }}<template v-if="resourceName"> · {{ resourceName }}</template><template v-if="p.requested_role"> · {{ p.requested_role }}</template></h1>
         <p v-if="p" class="rd-meta"><span class="rd-en">{{ p.id.slice(0, 8) }}</span> · {{ p.requester_name }}<template v-if="!isRequester"> ({{ p.employee_no }})</template> · {{ shortWhen(p.created_at) }} 요청</p>
       </div>
-      <span v-if="p" class="rd-badge" :class="STATUS[p.status].tone"><svg v-if="STATUS[p.status].tone === 'review'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -2px"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 19a5.5 5.5 0 0 1 11 0" /></svg>{{ STATUS[p.status].label }}</span>
+      <span v-if="p" class="rd-badge" :class="statusOf(p).tone"><svg v-if="statusOf(p).tone === 'review'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -2px"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 19a5.5 5.5 0 0 1 11 0" /></svg>{{ statusOf(p).label }}</span>
     </div>
 
     <p v-if="error && !p" class="rd-state" role="alert">{{ error }} <RouterLink :to="back">돌아가기</RouterLink></p>
@@ -169,7 +168,7 @@ const requesterHelp = {
           <section class="rd-card" aria-labelledby="rd-dg">
             <!-- 플랫폼 · 자원 · 권한은 대화가 아니라 요청 정보라서, 말풍선과 떨어진 제목 줄 오른쪽에 배지로 둔다. -->
             <div class="rd-card-head">
-              <h2 id="rd-dg">{{ aiMessage || proposal ? '요청 내용과 AI 진단' : '요청 내용' }}</h2>
+              <h2 id="rd-dg">{{ guidanceComplete && !isRequester ? '요청 내용과 안내' : aiMessage || proposal ? '요청 내용과 AI 진단' : '요청 내용' }}</h2>
               <div class="rd-facts" aria-label="요청 정보">
                 <span class="rd-ptag" :style="{ background: platform.soft, color: platform.color }">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="platform.icon" /></svg>{{ platform.label }}
@@ -182,9 +181,9 @@ const requesterHelp = {
               <p class="rd-msg me">{{ p.contents }}</p>
               <p v-if="aiMessage" class="rd-msg ai">{{ aiMessage }}</p>
             </div>
-            <div v-if="proposal" class="rd-proposal">
-              <p class="rd-proposal-k">AI 제안</p>
-              <p>{{ proposal }}</p>
+            <div v-if="proposal && (!isRequester || !guidanceComplete)" class="rd-proposal">
+              <p class="rd-proposal-k">{{ guidanceComplete ? '안내 내용' : 'AI 제안' }}</p>
+              <p class="rd-proposal-body">{{ proposal }}</p>
             </div>
           </section>
 
@@ -345,6 +344,7 @@ const requesterHelp = {
 .rd-msg.ai { align-self: flex-start; background: #F1F2F8; color: var(--uo-ink); border-radius: 16px 16px 16px 4px; }
 .rd-proposal { margin-top: 16px; padding: 14px 16px; border-radius: 14px; background: linear-gradient(100deg, #EEF0FF 0%, #F2EDFF 100%); border: 1px solid #C9CEF5; }
 .rd-proposal p { margin: 0; font-size: 15px; line-height: 1.65; }
+.rd-proposal-body { white-space: pre-wrap; overflow-wrap: anywhere; }
 .rd-proposal .rd-proposal-k { margin-bottom: 4px; font-size: 13px; font-weight: 700; color: var(--uo-primary-ink); }
 .rd-events { list-style: none; margin: 0; padding: 0; }
 .rd-events li { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid #F0F1F6; }

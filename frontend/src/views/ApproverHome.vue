@@ -6,10 +6,11 @@ import AppShell from '../components/AppShell.vue'
 import RequestList from '../components/RequestList.vue'
 import { PLATFORMS } from '../lib/platforms'
 import { usePolling } from '../lib/polling'
+import { isGuidanceComplete } from '../lib/status'
 import { ago } from '../lib/time'
 import { currentUser } from '../session'
 
-// GET /api/problems(승인자) = approver_id가 나인 최근 100건. 대기 · 최근 결정을 여기서 나눈다.
+// GET /api/problems(승인자) = approver_id가 나인 최근 100건. 대기 · 최근 처리를 여기서 나눈다.
 const items = ref<Problem[]>([])
 const summary = ref<ApprovalSummary | null>(null)
 const loaded = ref(false)
@@ -22,15 +23,13 @@ const pending = computed(() => items.value
 // 사람이 확인해야 하는 요청: AI가 대상을 정하지 못했거나(담당자 검토) 승인 뒤 부여에 실패한 요청.
 // 운영 담당자는 전체 요청을 받으므로 여기서 모아 보여 준다. 처리 API는 아직 없어서 확인(상세 보기)만 된다.
 const review = computed(() => items.value
-  .filter(p => p.status === 'MANUAL_REVIEW' || p.status === 'FAILED')
+  .filter(p => (p.status === 'MANUAL_REVIEW' && !isGuidanceComplete(p)) || p.status === 'FAILED')
   .sort((a, b) => b.updated_at.localeCompare(a.updated_at)))
 const DECIDED = new Set(['EXECUTING', 'DONE', 'REJECTED'])
 const recent = computed(() => items.value
-  .filter(p => DECIDED.has(p.status))
+  .filter(p => DECIDED.has(p.status) || isGuidanceComplete(p))
   .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
   .slice(0, 5))
-// 운영 담당자처럼 다른 승인자에게 배정된 요청까지 받는 계정이면, '내가 결정한' 목록이라고 부르지 않는다.
-const seesAll = computed(() => items.value.some(p => p.approver_id && p.approver_id !== currentUser.value?.id))
 
 const stats = computed(() => [
   { name: '승인', count: summary.value?.approved ?? 0, desc: '이번 주 내가 승인한 요청', bg: '#E6F4EC', fg: '#1A7340' },
@@ -276,8 +275,8 @@ const help = {
       </div>
 
       <RequestList
-        class="ah-recent" :title="seesAll ? '최근 처리된 요청' : '최근 결정'" :items="recent" :loaded="loaded" :error="loadError"
-        :empty="seesAll ? '아직 처리된 요청이 없어요.' : '아직 결정한 요청이 없어요.'" show-requester @retry="polling.restart()"
+        class="ah-recent" title="최근 처리된 요청" :items="recent" :loaded="loaded" :error="loadError"
+        empty="아직 처리된 요청이 없어요." show-requester @retry="polling.restart()"
       />
     </section>
   </AppShell>

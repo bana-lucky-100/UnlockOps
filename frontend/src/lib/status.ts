@@ -1,4 +1,4 @@
-import type { Status } from '../api'
+import type { Problem, Status } from '../api'
 
 /** 상태 8개의 화면 표기. 색: 진행 = 남보라, 확인 대기(승인 대기 · 담당자 검토) = 주황, 완료 = 초록, 거절 · 실패 = 빨강. 담당자 검토는 사람 아이콘을 붙인다. */
 export const STATUS: Record<Status, { label: string; tone: 'run'|'warn'|'review'|'ok'|'bad'; terminal: boolean }> = {
@@ -12,12 +12,25 @@ export const STATUS: Record<Status, { label: string; tone: 'run'|'warn'|'review'
   FAILED:           { label: '실패',        tone: 'bad',  terminal: true },
 }
 
+type StatusContext = Pick<Problem, 'status' | 'reason_code' | 'proposal'>
+
+/** 서버는 안내 성공도 MANUAL_REVIEW로 전달한다. 안내 본문까지 있어야 완료로 표시한다. */
+export function isGuidanceComplete(p: StatusContext): boolean {
+  return p.status === 'MANUAL_REVIEW' && p.reason_code === 'RAG_GUIDANCE' && !!p.proposal?.trim()
+}
+
+export function statusOf(p: StatusContext) {
+  return isGuidanceComplete(p) ? { label: '안내 완료', tone: 'ok' as const, terminal: true } : STATUS[p.status]
+}
+
 /**
  * 홈 · 내 요청의 묶음. 요청자 입장에서 나눈다.
- * MANUAL_REVIEW는 서버에서는 끝난 상태지만 요청자에게는 아직 사람이 확인 중이라 '확인 대기'에 넣는다(표시만, 상태값은 그대로).
+ * 안내 성공은 '끝난 요청', 나머지 MANUAL_REVIEW는 '확인 대기'에 넣는다(표시만, 상태값은 그대로).
  */
 export type StatusGroup = 'progress'|'waiting'|'finished'
-export function groupOf(status: Status): StatusGroup {
+export function groupOf(p: StatusContext): StatusGroup {
+  if (isGuidanceComplete(p)) return 'finished'
+  const { status } = p
   if (status === 'WAITING_APPROVAL' || status === 'MANUAL_REVIEW') return 'waiting'
   return STATUS[status].terminal ? 'finished' : 'progress'
 }
@@ -26,7 +39,9 @@ export function groupOf(status: Status): StatusGroup {
  * 화면이 계속 다시 불러와야 하는지. 담당자 검토는 서버에선 끝난 상태지만
  * 담당자가 처리하면 결과가 바뀌므로, 열려 있는 화면은 계속 확인한다(탭이 가려지면 쉰다).
  */
-export function needsRefresh(status: Status) {
+export function needsRefresh(p: StatusContext) {
+  if (isGuidanceComplete(p)) return false
+  const { status } = p
   return !STATUS[status].terminal || status === 'MANUAL_REVIEW'
 }
 
