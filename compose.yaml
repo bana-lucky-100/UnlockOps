@@ -37,6 +37,10 @@ services:
       RABBIT_PASSWORD: ${RABBITMQ_PASSWORD:-unlockops-local-only}
       DEMO_PASSWORD: ${DEMO_PASSWORD:-demo1234}
       DEMO_ENABLED: "true"
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-replace-this-local-internal-api-token}
+      ACCESS_MATRIX_PATH: /app/data/company-a-access-matrix.md
+    volumes:
+      - ./data:/app/data:ro
     depends_on:
       postgres: {condition: service_healthy}
       rabbitmq: {condition: service_healthy}
@@ -59,10 +63,8 @@ services:
     build: {context: ., dockerfile: infra/python.Dockerfile}
     command: [python, -m, unlockops_mcp.business]
     environment:
-      DB_HOST: postgres
-      DB_NAME: ${POSTGRES_DB:-unlockops}
-      DB_USER: ${POSTGRES_USER:-unlockops}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-unlockops-local-only}
+      BACKEND_INTERNAL_URL: http://backend:8080
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-replace-this-local-internal-api-token}
       MCP_TOKEN: ${MCP_TOKEN:-replace-this-local-mcp-token}
       EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}

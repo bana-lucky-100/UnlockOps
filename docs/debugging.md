@@ -58,7 +58,8 @@ MCP 두 서버가 준비되면 `UnlockOps: Agent worker`를 F5로 시작합니�
 
 - 의도 추출·LLM 프롬프트: `agent/unlockops/planner.py`
 - 노드·판정·승인 대기·실행·검증: `agent/unlockops/graph.py`
-- 실제 모의 권한 변경: `mcp/unlockops_mcp/repository.py`
+- MCP→Spring HTTP 호출: `mcp/unlockops_mcp/backend_client.py`
+- 실제 모의 권한 변경: `backend/src/main/java/com/unlockops/grant/service/GrantExecutionService.java`
 - 메시지 소비·승인 재개: `worker/unlockops_worker/__main__.py`
 
 승인 대기는 오류가 아니라 LangGraph interrupt입니다. 승인 후 같은 요청 ID의 체크포인트를 재개합니다.

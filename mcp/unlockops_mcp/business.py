@@ -6,9 +6,9 @@ import os
 import uvicorn
 
 from unlockops_rag.search import DocumentFormatError, DocumentIndex
-from .repository import Repository
+from .backend_client import BackendClient
 from unlockops.models import ToolFailure
-from unlockops.rules import ceiling, source_hashes
+from unlockops.rules import source_hashes
 from unlockops.settings import settings
 from .auth import TokenAuth
 from .contracts import APPROVED_WRITE, READ_ONLY, ContractMCP
@@ -18,7 +18,7 @@ PORT = int(os.getenv("MCP_PORT", "8002"))
 mcp = ContractMCP(
     "unlockops-business", host=HOST, port=PORT, stateless_http=True, json_response=True
 )
-repo = Repository()
+repo = BackendClient()
 
 
 @lru_cache(maxsize=1)
@@ -71,14 +71,18 @@ def check_budget(employee_id: str) -> dict[str, object]:
 # 회사 규정 검색 근거와 같은 원문 표에서 읽은 직무·직급별 상한을 함께 반환한다.
 @mcp.tool(annotations=READ_ONLY)
 def search_access_rules(query: str, employee_id: str, resource_id: str) -> dict[str, object]:
-    """회사 권한 문서의 근거와 직원의 직급·직무·자원 기준에 따른 허용 상한을 조회합니다."""
-    profile, resource = repo.profile(employee_id), repo.resource(resource_id)
+    """회사 규정 근거와 같은 시점의 직원·TF·현재 권한·예산·허용 상한을 함께 조회합니다."""
+    context = repo.access_rules(employee_id, resource_id)
+    hashes = source_hashes()
+    if context.get("source_hashes", {}).get("company-a-access-matrix.md") != hashes["company-a-access-matrix.md"]:
+        raise ToolFailure("POLICY_SOURCE_UNAVAILABLE", "Spring과 MCP의 회사 권한표 버전이 다릅니다.")
     # hits는 LLM이 읽을 RAG 근거, maximum_role은 같은 원문 표에서 직접 읽은 실행 상한이다.
     # source_hashes로 캐시된 검색 근거와 현재 파일이 같은 버전인지 확인할 수 있다.
     return {
         "hits": index().search(query, limit=6),
-        "maximum_role": ceiling(profile, resource),
-        "source_hashes": source_hashes(),
+        "maximum_role": context["maximum_role"],
+        "context": context,
+        "source_hashes": hashes,
         "rule_source": "A-ACCESS-03",
         "exception_source": "A-ACCESS-04",
     }

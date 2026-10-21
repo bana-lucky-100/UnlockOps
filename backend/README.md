@@ -48,6 +48,8 @@ Python worker 대신 결과 JSON을 발행하므로 실제 Agent/MCP 권한 부�
 | `problem` | `ProblemController` → `ProblemService` → `ProblemRepository` / `ProblemEventRepository`. 접수·조회·승인/반려·이력 |
 | `approval` | `ApprovalsController` → `ApprovalService` → `ApprovalRepository`. 내 담당 요청의 KST 주간 집계 |
 | `grant` | `GrantPolicy` → `UserRepository` / `GrantRepository`. 지정 승인자·직급·직무·TF·부서·예산·좌석·계획 검증 |
+| `resource` | `InternalResourceController` → `ResourceService` → `ResourceRepository`. 내부 API에서 플랫폼별 대상 자원 이름·별칭 검색 |
+| `access` | `InternalAccessContextController` / `InternalAccessVerificationController` → Service → `AccessContextRepository` / `GrantRepository`. 접근 조건 묶음 조회와 최신 권한 반영 검증. `AccessCeilingPolicy`는 회사 권한표의 상한 조회 |
 | `messaging` | `AgentResultsListener` → `AgentResultService` → Repository. `OutboxPublisher` → `OutboxService` → `OutboxRepository` / `RabbitMessagePublisher` |
 | `config` | 세션·CSRF·인증 설정과 RabbitMQ 토폴로지·JSON 변환기 |
 | `common` | 헬스 체크, JSON 직렬화·계획 해시, 공통 오류 DTO·예외 응답 |
@@ -91,3 +93,98 @@ flowchart LR
 - `GrantPlan`의 정렬된 6개 JSON 필드로 Python과 동일한 SHA-256을 계산합니다. 구 결과의 ON_HOLD / INSUFFICIENT_BUDGET은 상태 반영 때만 정규화하고 원본 감사 기록은 유지합니다.
 
 이번 작업은 구조와 검증 기준을 정리합니다. RabbitMQ의 재시도·DLQ·장애 복구 정책 개선은 후속 작업입니다.
+
+## 내부 자원 검색 API
+
+`POST /internal/resources/resolve`는 서비스 간 호출용입니다. `INTERNAL_API_TOKEN`을 설정하고
+`Authorization: Bearer <INTERNAL_API_TOKEN>`으로 호출합니다. `MCP_TOKEN`처럼 로컬 기본값은
+`replace-this-local-internal-api-token`입니다. 배포 시 별도 비밀값으로 교체합니다.
+Spring에 명시적으로 빈 값을 설정하면 내부 호출을 거부합니다. Compose는 빈 값도 로컬 기본값으로 대체합니다.
+브라우저 로그인 세션으로는 접근할 수 없으며, 내부 API 체인에만 CSRF를 적용하지 않습니다.
+기존 `/api/**`의 세션·CSRF 설정은 유지합니다. 내부 경로는 화면 프록시에 추가하지 않습니다.
+
+입력은 `{ "platform": "GITHUB", "hint": "payment-core에 push가 안 됩니다" }`이며,
+응답은 `{ "matches": [...], "ambiguous": false }`입니다. 후보는 외부 ID 순으로 반환합니다.
+이름·외부 ID·별칭의 대소문자를 구분하지 않고 완전 일치를 우선합니다. 문장 내 포함 검색은
+3글자 이상 이름에만 적용하고, 영문 자원명에는 경계를 검사합니다. 후보 0개·복수이면 ambiguous=true이며
+권한 부여 여부를 판단하거나 후보를 임의 선택하지 않습니다. 빈 hint도 후보 없음으로 반환합니다.
+
+Business MCP의 resolve_resource가 이 API를 호출하며 직접 SQL을 실행하지 않습니다.
+자세한 계약은 [API 명세](../docs/api-spec.md#spring-내부-api--대상-자원-검색)를 참고하세요.
+
+## 내부 접근 조건 묶음 조회 API
+
+`POST /internal/access-context`는 직원·자원 ID로 분석에 필요한 사실을 조회합니다.
+동일한 내부 서비스 토큰 인증을 사용하며 입력은 camelCase입니다.
+
+```json
+{"employeeId":"<직원 UUID>","resourceId":"<자원 UUID>","platform":"GITHUB"}
+```
+
+응답은 `profile`, `resource_id`, `membership`, `current`, `maximum_role`, `budget`,
+`rule_source`, `source_hashes`입니다. 직원 정보는 명시한 필드만 반환하며 이메일·로그인·비밀번호를 포함하지 않습니다.
+직원 ID만 보내면 직원 정보만 반환하고 자원 관련 값은 null입니다. 이때 includeBudget=true를 지정하면 부서 예산도 조회합니다.
+자원 ID가 있으면 DB에서 플랫폼을 확정하며 platform을 함께 보낸 경우 일치 여부를 확인합니다.
+조회는 읽기 전용 REPEATABLE_READ 트랜잭션으로 묶습니다. GitHub 저장소는 실제 모의 팀 멤버십,
+Jira는 역할·조회 스킴, 나머지는 모의 SaaS 권한 테이블을 읽습니다. 자원 조회에서 예산은 SEAT일 때만 조회합니다.
+
+권한 상한은 `data/company-a-access-matrix.md` 3절에서 읽습니다. 파일을 코드에 복사하거나
+임의 상한으로 대체하지 않으며, 원문 해시도 함께 반환합니다. `ACCESS_MATRIX_PATH`로 경로를 지정할 수 있고,
+로컬 기본값은 루트 또는 backend 디렉터리에서 원본 data 파일을 찾습니다. Compose는 같은 data를 읽기 전용으로 마운트합니다.
+
+`maximum_role=""`는 규정상 신청 불가입니다. 규정을 읽거나 해석할 수 없는 경우는 503이며 빈 상한으로 대체하지 않습니다.
+Notion 부서 문서의 문서상 상한이 Can edit여도 기존 자동 부여 범위가 확대되는 것은 아닙니다.
+TF 비가입·다른 부서·예산 부족·승인 여부는 별도 최종 판정 항목입니다. 이 API는 권한을 부여하거나 승인하지 않습니다.
+SEAT에서 `budget=null`이면 예산 미확인, 다른 자원에서는 예산 비대상입니다. 없는 직원·자원은 404,
+요청 플랫폼과 실제 자원 플랫폼이 다르면 409를 반환합니다. 문서 검색·RAG 근거 반환은 이 API의 책임이 아닙니다.
+
+Business MCP의 기존 직원·TF·현재 권한·상한·예산 도구는 이 API의 응답에서 필요한 부분을 반환합니다. Agent의 도구 입력과 노드 순서는 유지했습니다.
+
+## 내부 승인 계획 실행 API
+
+`POST /internal/problems/{id}/grant`는 동일한 내부 서비스 토큰을 사용합니다.
+입력은 `{ "idempotencyKey": "<승인 시 서버가 발급한 실행 키>" }`뿐이며,
+직원·자원·역할은 DB에 저장된 승인 계획에서만 읽습니다. 응답은 `{ "ok": true, "changed": true, "role": "Write" }`입니다.
+
+`InternalGrantController` → `GrantExecutionService` → `GrantExecutionRepository` 구조이며,
+기존 `ProblemRepository`, `GrantRepository`, `AccessContextRepository` 조회를 재사용합니다.
+`GrantExecutionPolicy`는 원문 상한·현재 소속·부서·좌석·예산·근거를 실행 직전에 검증합니다.
+`AccessCeilingPolicy.executionRules`는 같은 회사 권한표의 3절·7절과 인접한 `policy_corpus.md`의 해시를 읽습니다.
+기존 화면 승인용 `GrantPolicy`는 유지하고 Business MCP의 grant_permission을 이 실행 API에 연결했습니다.
+
+1. 요청 행을 잠그고 실행 키를 비교합니다. 기존 영수증이 있으면 상태가 DONE이어도 같은 결과를 반환합니다.
+2. 사람 승인·EXECUTING·결정 시각·결정자·승인 계획 해시와 요청자·플랫폼·대상·역할 일치를 확인합니다.
+3. Python과 같은 직원·자원 advisory lock을 잡고 현재 사실·지정 승인자의 앱 역할·직급을 재조회합니다.
+4. Jira 요청 역할의 조회 스킴, 현재 자격, 문서별 근거의 원문 버전, 좌석 중복·예산을 검증합니다. 좌석 예산 행은 FOR UPDATE로 잠급니다.
+5. 필요한 경우에만 GitHub 팀 가입·권한 upsert·예산 차감을 수행하고 실행 영수증을 저장합니다.
+
+전체는 READ_COMMITTED 트랜잭션입니다. 영수증 저장을 포함해 실패하면 모두 롤백합니다.
+같은 키의 재호출은 원래 영수증을 반환하므로 중복 변경·차감이 없습니다. 이미 필요한 비좌석 권한을 보유했으면
+`changed=false` 영수증만 저장합니다. 다른 요청의 중복 좌석은 기존 MCP와 동일하게 거절합니다.
+Jira 실패 시연은 503·재시도 가능으로 반환하고 영수증을 저장하지 않습니다.
+
+이 API 성공은 모의 권한 변경과 영수증 저장 성공입니다. 실제 반영 재조회나 DONE 전환은 하지 않으며 기존 worker 결과 처리 흐름을 유지합니다.
+상세 응답·오류는 [API 명세](../docs/api-spec.md#spring-내부-api--승인된-계획-실행)를 참고하세요.
+DB 동시성·롤백 통합 테스트는 Docker를 실행한 뒤 `mvn verify -Pregression -Dit.test=GrantExecutionIT`로 실행합니다.
+
+## 내부 최신 권한 검증 API
+
+`POST /internal/access-verifications`는 동일한 내부 서비스 토큰을 사용합니다.
+
+```json
+{"employeeId":"<직원 UUID>","resourceId":"<자원 UUID>","platform":"GITHUB","requestedRole":"Write"}
+```
+
+`InternalAccessVerificationController` → `AccessVerificationService` → 기존 `GrantRepository` / `AccessContextRepository`로 처리합니다.
+분석 State나 실행 영수증을 사용하지 않고 매 호출 독립된 읽기 전용 REPEATABLE_READ 트랜잭션(REQUIRES_NEW)에서 현재 권한을 재조회합니다.
+응답은 `{ "ok": true, "verified": true, "current": { "role": "Write", "source": "github-team-membership", "teams": ["<팀 ID>"] } }` 형식입니다.
+
+권한이 없거나 부족하면 정상 조회 응답으로 `ok=true, verified=false`를 반환합니다. Jira는 역할 외에 can_browse=true여야 합니다.
+역할 비교는 `ResourceRolePolicy`를 실행 전 기존 권한 확인과 공유합니다. GitHub Write는 Read, Jira Developer는 Viewer,
+Notion Can edit는 Can view를 충족하지만 서로 다른 서비스 역할이나 저장소 권한과 좌석은 비교하지 않습니다.
+Can edit 검증을 지원해도 기존 자동 부여 범위는 확대하지 않습니다.
+
+직원·자원이 없으면 404, 플랫폼 불일치는 409, 조회 장애는 500으로 반환하고 검증 실패(false)로 숨기지 않습니다.
+이 API는 권한·예산·영수증·작업 상태를 변경하거나 재실행·재시도를 수행하지 않습니다. 기존 worker의 검증 재시도 및 최종 결과 처리는 유지합니다.
+Business MCP verify_permission이 이 API를 호출합니다. platform은 기존 MCP 입력에 없으므로 생략 가능하며 실제 자원에서 확정합니다.
+실제 서비스는 모의 SaaS 테이블 기준이며 외부 SaaS API를 호출하지 않습니다.

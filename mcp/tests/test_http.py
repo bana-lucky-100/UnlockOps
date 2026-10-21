@@ -4,7 +4,7 @@ import asyncio
 import pytest
 from contextlib import contextmanager
 import jsonschema
-import psycopg
+import httpx
 from starlette.testclient import TestClient
 
 from unlockops.settings import settings
@@ -166,7 +166,7 @@ def test_published_schemas_and_real_policy_output_match(monkeypatch):
         ({"verified": "false"}, "INVALID_TOOL_OUTPUT", False),
         ({}, "INVALID_TOOL_OUTPUT", False),
         (
-            psycopg.OperationalError("private SQL or connection detail"),
+            httpx.ConnectError("private upstream connection detail"),
             "UPSTREAM_UNAVAILABLE",
             True,
         ),
@@ -242,6 +242,28 @@ def test_legacy_grant_error_is_normalized_without_changing_repository(monkeypatc
     assert result["structuredContent"]["error"]["retryable"] is True
     assert tools["grant_permission"]["annotations"]["readOnlyHint"] is False
     assert tools["grant_permission"]["annotations"]["idempotentHint"] is True
+
+
+def test_spring_execution_reason_survives_real_mcp_http_boundary(monkeypatch):
+    from unlockops_mcp import business
+    from unlockops_mcp.backend_client import BackendClient
+
+    def handler(request):
+        assert request.url.path.endswith("/grant")
+        return httpx.Response(409, json={"ok": False, "error": {"code": "PRECONDITION_CHANGED",
+            "message": "private upstream details", "retryable": False, "reason": "BUDGET_INSUFFICIENT"}})
+
+    monkeypatch.setattr(business, "repo", BackendClient(httpx.Client(transport=httpx.MockTransport(handler)),
+        base_url="http://backend:8080", token="test-internal-token"))
+    with rpc(business_mcp) as request:
+        result = request("tools/call", {"name": "grant_permission", "arguments": {
+            "problem_id": "40000000-0000-0000-0000-000000000001", "idempotency_key": "approved-key"}})
+    assert result["isError"] is True
+    assert result["structuredContent"]["error"]["reason"] == "BUDGET_INSUFFICIENT"
+    assert "private" not in str(result)
+    with pytest.raises(ToolFailure) as caught:
+        validate_output("grant_permission", result["structuredContent"], is_error=True)
+    assert caught.value.reason == "BUDGET_INSUFFICIENT"
 
 
 @pytest.mark.parametrize("server", [policy_mcp, business_mcp])

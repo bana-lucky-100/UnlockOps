@@ -19,7 +19,7 @@
 | --- | --- |
 | [agent](agent/README.md) | `unlockops`: 그래프, 의도 해석, MCP 클라이언트, 상태 모델, 정책 판정, 공통 설정 |
 | [rag](rag/README.md) | `unlockops_rag`: 문서 청킹, TF-IDF/선택적 임베딩 검색, 원문 조항 조회 |
-| [mcp](mcp/README.md) | `unlockops_mcp`: Policy/Business MCP, 토큰 인증, 모의 SaaS DB 저장소 |
+| [mcp](mcp/README.md) | `unlockops_mcp`: Policy/Business MCP, 토큰 인증, Spring 내부 API HTTP 어댑터 |
 | [worker](worker/README.md) | `unlockops_worker`: RabbitMQ 소비·결과 발행, 체크포인트 재개 |
 | [backend](backend/README.md) | Java 21 / Spring Boot 3.5.7 / Maven, 인증·승인·업무 DB·outbox/inbox |
 | [frontend](frontend/README.md) | Vue 3 / Vite / TypeScript, 접수·본인 조회·승인 카드·내 승인 현황 |
@@ -76,9 +76,11 @@ Python은 루트 `.env`를 로드하되 프로세스에 이미 설정된 환경�
 Spring을 직접 실행할 때는 VS Code의 `envFile` 또는 환경변수 전달이 필요합니다.
 API 키가 필요한 모드는 사용자가 명시적으로 활성화해야 하며 demo 모드는 외부 모델을 호출하지 않습니다.
 
-현재 이식 버전의 Business MCP는 backend API를 경유하지 않고 동일 PostgreSQL의 모의 SaaS 테이블을 사용합니다.
-Spring이 승인·요청 상태를 관리하고 Business MCP가 실행 직전 DB 승인·계획·자격을 재검증합니다.
-이는 초기 폴더 README에 계획했던 backend API 경유 방식과 다르며 이번 이식에서는 원본 동작을 유지했습니다.
+Business MCP는 `BACKEND_INTERNAL_URL`의 Spring `/internal/**` API를 호출하며 DB에 직접 연결하지 않습니다.
+Spring이 승인·요청 상태뿐 아니라 모의 SaaS 조회·권한 변경·예산·실행 영수증을 관리하고 실행 직전 자격을 재검증합니다.
+`MCP_TOKEN`은 Agent→MCP 인증, `INTERNAL_API_TOKEN`은 MCP→Spring 인증입니다.
+로컬 Spring과 Business MCP에 같은 INTERNAL_API_TOKEN을 전달하며 Compose는 이를 함께 설정합니다.
+회사 권한 규정 검색·원문 조회는 Business MCP에 유지하고 상한·실행 판정은 Spring API에서 받습니다.
 
 실행 결과는 [검증 안내](docs/verification.md), 공통 계약은 [계약 문서](docs/contracts/README.md)를 참고하세요.
 협업 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md)와 [Git 컨벤션](docs/git-convention.md)을 따릅니다.

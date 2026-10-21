@@ -5,7 +5,6 @@ import json
 import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
-import psycopg
 from pydantic import ValidationError
 
 from unlockops.contracts import INPUTS, OUTPUTS, error_payload, validate_input, validate_output
@@ -39,9 +38,7 @@ def classify_error(exc: Exception) -> ToolFailure:
             return cause
         if isinstance(cause, ValidationError):
             return ToolFailure("INVALID_TOOL_OUTPUT", "Tool returned an invalid response")
-        if isinstance(
-            cause, (psycopg.OperationalError, psycopg.InterfaceError, httpx.TransportError)
-        ):
+        if isinstance(cause, httpx.TransportError):
             return ToolFailure(
                 "UPSTREAM_UNAVAILABLE", "Upstream service is temporarily unavailable", True
             )

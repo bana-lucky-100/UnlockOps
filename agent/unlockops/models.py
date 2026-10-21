@@ -112,8 +112,9 @@ class Job(BaseModel):
 class ToolFailure(RuntimeError):
     """도구 실패의 코드와 재시도 가능 여부를 노드까지 전달한다."""
 
-    def __init__(self, code: str, message: str, retryable: bool = False):
+    def __init__(self, code: str, message: str, retryable: bool = False, reason: str | None = None):
         """도구 실패의 공통 코드·메시지와 재시도 가능 여부를 저장한다."""
         super().__init__(message)
         self.code = code
         self.retryable = retryable
+        self.reason = reason

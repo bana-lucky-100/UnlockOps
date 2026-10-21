@@ -1,6 +1,6 @@
 # UnlockOps 간략 API 명세서
 
-기준: 2026-10-20 현재 작업 폴더의 구현 코드. 실행 중인 서버를 호출한 결과가 아니라 코드에서 확인한 계약이다.
+기준: 2026-10-21 현재 작업 폴더의 구현 코드. 실행 중인 서버를 호출한 결과가 아니라 코드에서 확인한 계약이다.
 아래 예시의 `<요청 UUID>`, `<직원 UUID>`, `<자원 UUID>`, `<계획 해시>`는 실제 조회값으로 바꾼다.
 
 ## 1. 서버와 MCP의 역할
@@ -10,14 +10,14 @@ MCP도 서버 프로세스다. 이 문서에서 “서버 API”는 화면이 �
 
 | 구분 | 호출하는 쪽 | 담당 기능 | 데이터 접근 |
 | --- | --- | --- | --- |
-| Spring Backend | Vue 화면 | 로그인, 요청 접수·조회, 사람의 승인·반려, 최종 상태·이력 저장 | PostgreSQL의 사용자·요청·승인·이력 |
+| Spring Backend | Vue 화면 / Business MCP | 로그인, 접수·승인·상태·이력, 내부 업무 조회·권한 변경·검증 | PostgreSQL의 사용자·요청·승인·모의 SaaS·예산·영수증 |
 | LangGraph Worker | RabbitMQ 작업 큐 | 질문 분석, MCP 도구 호출, 정책 판정, 승인 대기·재개, 실행·검증 순서 제어 | SQLite 체크포인트. 업무 DB 직접 변경 없음 |
 | Policy MCP | LangGraph Worker | 공통·플랫폼 규정 검색 및 원문 조회 | `data/policy_corpus.md` |
-| Business MCP | LangGraph Worker | 직원·권한·예산 조회, 회사 규정 검색, 승인된 권한 변경·검증 | PostgreSQL의 모의 SaaS 테이블 및 `data/company-a-access-matrix.md` |
+| Business MCP | LangGraph Worker | 직원·권한·예산 조회, 회사 규정 검색, 승인된 권한 변경·검증 | Spring 내부 API 및 `data/company-a-access-matrix.md`. DB 직접 접근 없음 |
 
-**현재 Business MCP는 Spring REST API를 거치지 않고 같은 PostgreSQL에 직접 접근한다.**
+**Business MCP의 업무 조회·변경은 Spring `/internal/**` API를 경유한다.**
 실제 GitHub/Jira/Slack/Notion 외부 API 연동은 모의 SaaS DB로 구현되어 있다.
-Spring이 사람의 승인과 요청 상태를 기록하고, Business MCP가 실행 직전 승인 기록과 조건을 다시 확인한다.
+Spring이 사람의 승인·요청 상태와 모의 권한·예산·실행 영수증을 관리하고, 실행 직전 승인 기록과 조건을 다시 확인한다.
 
 ```mermaid
 flowchart TD
@@ -27,7 +27,7 @@ flowchart TD
   A -->|"MCP: 업무 조회·권한 변경"| B["Business MCP"]
   A -->|"RabbitMQ: 진행·결과"| S
   S <-->|"요청·승인·상태"| DB[("PostgreSQL")]
-  B <-->|"승인 재확인·모의 SaaS 조회/변경"| DB
+  B <-->|"내부 API: 조회·실행·검증"| S
 ```
 
 ## 2. Spring REST API — 화면용
@@ -96,6 +96,207 @@ flowchart TD
 **공통 오류:** `{"message":"오류 안내"}`. 대표 HTTP 코드는 `400` 입력 오류, `401` 로그인 필요/실패,
 `403` 권한 또는 CSRF 오류, `404` 요청 없음, `409` 승인 상태·계획·조건 변경, `500` 서버 오류다.
 
+### Spring 내부 API — 대상 자원 검색
+
+Business MCP의 resolve_resource가 이 API를 사용한다.
+
+| 항목 | 계약 |
+| --- | --- |
+| Method / Path | `POST /internal/resources/resolve` |
+| 인증 | `Authorization: Bearer <INTERNAL_API_TOKEN>`. 로컬 기본값은 `replace-this-local-internal-api-token`. 헤더 누락·오류 토큰은 401. 브라우저 세션은 인증 수단이 아님 |
+| Request | `platform`: 필수 enum, `hint`: 필수 문자열·최대 5,000자. 빈 문자열·공백은 검색 결과 없음 |
+| Response | `200 {matches: Resource[], ambiguous: boolean}`. 후보 없음도 200 |
+| 오류 | `400` 잘못된 입력, `401` 서비스 인증 실패, `500` 서버 오류. 기존 `{message}` 형식 |
+
+호출 예시:
+
+```http
+POST /internal/resources/resolve
+Authorization: Bearer <INTERNAL_API_TOKEN>
+Content-Type: application/json
+
+{"platform":"GITHUB","hint":"payment-core에 push가 안 됩니다"}
+```
+
+응답 예시(식별자는 설명용):
+
+```json
+{
+  "matches": [{
+    "id": "<자원 UUID>",
+    "platform": "GITHUB",
+    "external_id": "payment-core",
+    "name": "결제 저장소",
+    "aliases": ["결제코어"],
+    "access_scope": "TF",
+    "owner_department_id": null,
+    "tf_id": "<TF UUID>",
+    "security_grade": "INTERNAL",
+    "designated_department_id": null
+  }],
+  "ambiguous": false
+}
+```
+
+- 선택한 플랫폼의 자원만 외부 ID 순으로 검색한다. 권한 부여 자격을 판정하는 API는 아니다.
+- 외부 ID·이름·별칭의 완전 일치 후보를 우선한다. 완전 일치가 없으면 문장 내 포함 후보를 반환한다.
+- 포함 검색은 3글자 이상 이름만 사용하며, `[a-z0-9_-]` 이름은 앞뒤 같은 문자군과 이어진 경우 일치시키지 않는다.
+- 후보가 정확히 1개일 때만 `ambiguous=false`. 0개·복수는 true이며 자동으로 하나를 선택하지 않는다.
+- 내부 API는 별도 stateless 보안 체인을 사용한다. 기존 화면 API의 세션·CSRF 설정은 유지한다.
+- `MCP_TOKEN`과 같은 방식으로 로컬 기본 토큰을 사용하며 배포 시 교체한다. Spring에 명시적으로 빈 토큰을 설정하면 호출을 차단한다.
+- Compose는 Backend에 `INTERNAL_API_TOKEN`을 전달하지만 내부 경로를 화면 프록시에 공개하지 않는다.
+
+### Spring 내부 API — 접근 조건 묶음 조회
+
+| 항목 | 계약 |
+| --- | --- |
+| Method / Path | `POST /internal/access-context` |
+| 인증 | 자원 검색과 동일한 `Authorization: Bearer <INTERNAL_API_TOKEN>`. 세션 로그인만으로 호출 불가 |
+| Request | `employeeId`: 필수 UUID. `resourceId`: 선택 UUID. `platform`: 선택 플랫폼 enum. `includeBudget`: 선택 boolean(기본 false) |
+| Response | `200 {profile,resource_id,membership,current,maximum_role,budget,rule_source,source_hashes}` |
+| 오류 | `400` 입력 오류, `401` 서비스 인증 실패, `404` 직원·자원 없음, `409` 자원 플랫폼 불일치, `503` 권한표 읽기·해석 실패, `500` 기타 서버 오류. 기존 `{message}` 형식 |
+
+요청:
+
+```json
+{"employeeId":"<직원 UUID>","resourceId":"<자원 UUID>","platform":"GITHUB"}
+```
+
+응답 예시(설명용 식별자):
+
+```json
+{
+  "profile": {
+    "id": "<직원 UUID>",
+    "employee_no": "E-001",
+    "name": "김개발",
+    "department_id": "<부서 UUID>",
+    "department_name": "개발팀",
+    "job_grade": "사원",
+    "job_family": "DEV",
+    "head_id": "<부서장 UUID>"
+  },
+  "resource_id": "<자원 UUID>",
+  "membership": {"tf_id":"<TF UUID>","member":true,"leader_id":"<리더 UUID>"},
+  "current": {"role":null,"source":"github-team-membership","teams":[]},
+  "maximum_role": "Write",
+  "budget": null,
+  "rule_source": "A-ACCESS-03",
+  "source_hashes": {"company-a-access-matrix.md":"<해당 원문의 SHA-256>"}
+}
+```
+
+- `current`는 GitHub 저장소에서 `teams`, Jira에서 `can_browse`를 포함한다. 나머지 경우 해당 선택 필드는 생략한다.
+- GitHub 좌석은 팀 멤버십 대신 permissions를 조회한다. GitHub 팀에서 Read·Write를 함께 보유하면 Write를 반환한다.
+- Jira 역할이 있어도 조회 스킴이 없거나 조회 불가이면 `can_browse=false`이며, 역할이 없어도 false이다.
+- 비TF 자원의 membership은 `{tf_id:null,member:false,leader_id:null}`이다.
+- 자원이 있으면 SEAT일 때만 예산을 조회한다. 직원 단독 조회에서 includeBudget=true이면 부서 예산을 조회한다. 예산이 있으면 `{department_id,remaining_monthly_amount,unit_monthly_price,currency,updated_at}`를 반환한다.
+  금액은 소수점 문자열이다. 예산 행이 없으면 null이며 0이나 충분함으로 추측하지 않는다. 비SEAT도 budget은 null이다.
+- `maximum_role`은 원문 3절의 직무·직급·자원별 상한이며 빈 문자열은 신청 불가이다. TF 구성원 자격·부서·예산·사람 승인을 대신하지 않는다.
+- 문서의 Can edit 상한과 기존 자동 부여 범위는 다르다. 이 API는 최종 승인 가능 여부를 반환하지 않는다.
+- 원문 누락·잘못된 표·중복 적용 기준·미지원 역할은 503이다. 읽은 원문과 source_hashes는 같은 파일 내용에 대응한다.
+- `ACCESS_MATRIX_PATH`로 원문 경로를 지정할 수 있다. Compose에서는 기존 Python과 동일한 data를 읽기 전용으로 사용한다.
+- DB 사실은 읽기 전용 REPEATABLE_READ 트랜잭션으로 수집한다. 권한 변경·예산 차감·이력·큐 작업 생성은 하지 않는다.
+- 직원 ID만 보내면 profile을 반환하고 자원 관련 필드·상한은 null, source_hashes는 빈 객체이다. 이 모드에서는 규정을 읽지 않으며 includeBudget=true일 때만 예산을 조회한다.
+- resourceId가 있으면 DB의 자원에서 플랫폼을 확정한다. platform을 함께 보냈다면 일치 여부를 검사한다. 자원 없는 platform 지정은 400이다.
+- 원문 오류 응답에는 `{message,code:"POLICY_SOURCE_UNAVAILABLE",retryable:false}`를 포함해 일반 통신·DB 장애와 구분한다.
+- 문서 청크·검색 결과는 별도의 RAG 도구 책임이다. 기존 MCP 도구가 이 API를 호출하고 응답에서 필요한 항목을 반환한다.
+
+### Spring 내부 API — 승인된 계획 실행
+
+| 항목 | 계약 |
+| --- | --- |
+| Method / Path | `POST /internal/problems/{id}/grant` |
+| 인증 | 동일한 `Authorization: Bearer <INTERNAL_API_TOKEN>` 서비스 인증 |
+| Request | path `id`: 요청 UUID. body `idempotencyKey`: 필수·공백 불가·최대 150자. 승인 시 발급된 저장 값과 일치해야 함 |
+| Response | `200 {"ok":true,"changed":boolean,"role":"Write"}`. role은 승인 계획의 역할 |
+| 대상 결정 | 호출자가 직원·자원·역할을 새로 지정하지 않음. DB의 승인 계획을 사용 |
+
+```http
+POST /internal/problems/<요청 UUID>/grant
+Authorization: Bearer <INTERNAL_API_TOKEN>
+Content-Type: application/json
+
+{"idempotencyKey":"<승인 시 발급된 실행 키>"}
+```
+
+- 사람 승인 상태(EXECUTING/HUMAN)·승인 시각·승인 계획 해시·현재 지정 승인자를 재확인한다.
+- DB 요청의 요청자·자원·플랫폼·역할과 계획의 동일성, 현재 TF·부서·권한 상한·Jira 스킴·예산을 검증한다.
+- 회사 권한표와 플랫폼 규정의 필수 문서별 근거가 최신 원문 해시와 맞아야 한다. 규정 누락·미확인 조건은 실행하지 않는다.
+- 요청 행 잠금, 직원·자원 advisory lock, 좌석 예산 행 잠금을 사용한다. Python의 기존 advisory lock 키와 동일하다.
+- 권한 변경·예산 차감·영수증 저장은 같은 트랜잭션이다. 오류는 예외로 전파해 전체 롤백한다.
+- 같은 요청·실행 키로 이미 성공한 경우 원래 영수증을 반환한다. 이때 `changed`는 첫 실행 결과를 그대로 유지한다.
+- 비좌석 자원의 권한을 이미 보유한 경우 `changed=false`이며 영수증만 저장한다. 다른 요청으로 이미 보유한 좌석은 DUPLICATE_SEAT로 차단한다.
+- 성공 응답은 실제 반영 검증·DONE 전환을 대신하지 않는다. Business MCP grant_permission이 이 API를 호출한다.
+
+업무·실행 오류는 HTTP 오류 코드와 다음 기계 판독 응답을 함께 반환한다.
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "PRECONDITION_CHANGED",
+    "message": "현재 부여 조건을 충족하지 않습니다.",
+    "retryable": false,
+    "reason": "BUDGET_INSUFFICIENT"
+  }
+}
+```
+
+| HTTP | code | 의미 |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | 대상 요청 없음 |
+| 409 | `INVALID_EXECUTION_KEY` | 저장된 실행 키와 불일치 |
+| 409 | `APPROVAL_REQUIRED` | 유효한 사람 승인 상태 아님 |
+| 409 | `PLAN_CHANGED` / `PLAN_IDENTITY_MISMATCH` | 승인 계획·해시·요청자·대상이 일치하지 않음 |
+| 409 | `APPROVER_CHANGED` / `RESOURCE_CHANGED` | 현재 승인자 자격·지정 또는 자원 정보가 변경됨 |
+| 409 | `PRECONDITION_CHANGED` | reason에 TF·부서·상한·근거·좌석·예산·Jira 조건 실패 코드 포함 |
+| 503 | `POLICY_SOURCE_UNAVAILABLE` | 최신 규정 원문 또는 적용 기준 확인 불가. retryable=false |
+| 503 | `MOCK_JIRA_UNAVAILABLE` | 모의 Jira 일시 장애. retryable=true |
+| 503 | `UPSTREAM_UNAVAILABLE` | 일시 DB 오류·연결 실패. retryable=true |
+
+인증 실패(401), 입력 오류(400), 그 외 예상하지 못한 서버 오류(500)는 기존 `{message}` 형식을 유지한다.
+사유 없는 error.reason은 생략한다. 실패 시 승인 기록을 취소하거나 요청 상태를 직접 FAILED/DONE으로 바꾸지 않는다.
+문서 파일은 `ACCESS_MATRIX_PATH`의 회사 권한표와 같은 디렉터리에 있는 `policy_corpus.md`를 사용한다.
+
+### Spring 내부 API — 최신 권한 반영 검증
+
+| 항목 | 계약 |
+| --- | --- |
+| Method / Path | `POST /internal/access-verifications` |
+| 인증 | 동일한 `Authorization: Bearer <INTERNAL_API_TOKEN>`. 브라우저 세션만으로 호출 불가 |
+| Request | `employeeId`, `resourceId`: 필수 UUID. `platform`: 선택 플랫폼 enum(지정 시 자원 플랫폼과 비교). `requestedRole`: 필수 지원 역할 이름 |
+| 지원 역할 | `Read / Write / Viewer / Developer / Can view / Can edit / Member / Seat`. Admin·Owner·빈 문자열은 400 |
+| Response | `200 {ok:true,verified:boolean,current:{role,source,…}}` |
+| 오류 | `400` 입력 오류, `401` 서비스 인증 실패, `404` 직원·자원 없음, `409` 플랫폼 불일치, `500` 조회 장애 등. 기존 `{message}` 형식 |
+
+요청:
+
+```json
+{"employeeId":"<직원 UUID>","resourceId":"<자원 UUID>","platform":"GITHUB","requestedRole":"Write"}
+```
+
+응답 예시:
+
+```json
+{
+  "ok": true,
+  "verified": true,
+  "current": {"role":"Write","source":"github-team-membership","teams":["<팀 ID>"]}
+}
+```
+
+- 기존 State·계획의 부여 예정 권한·성공 영수증이 아닌 실제 모의 SaaS 테이블을 다시 조회한다.
+- 매 호출 별도 읽기 전용 REQUIRES_NEW / REPEATABLE_READ 트랜잭션을 시작해 이전 분석 트랜잭션의 스냅샷을 재사용하지 않는다.
+- `ok=true`는 조회 성공이다. 권한 부재·부족·타 역할군은 `verified=false`인 정상 200 응답이다.
+- 같은 역할군 안의 상위 권한도 충족으로 처리한다: Write→Read, Developer→Viewer, Can edit→Can view.
+- 좌석은 Seat만 비교하고 저장소 Read/Write와 비교하지 않는다. 서비스가 다른 역할은 순위 숫자가 같아도 충족하지 않는다.
+- Jira는 역할 충족과 `current.can_browse=true`가 모두 필요하다. 조회 스킴 누락·조회 불가는 false이다.
+- `current`는 기존 조회 형식을 재사용한다. GitHub 저장소는 teams, Jira는 can_browse를 포함하고 다른 선택 필드는 생략한다.
+- Can edit는 기존 보유 권한의 검증을 위한 지원이며 자동 부여 가능 여부나 승인 자격을 의미하지 않는다.
+- API 호출은 권한·예산·영수증·요청 상태를 변경하지 않는다. 성공만으로 DONE을 기록하지 않으며 재시도·최종 상태는 worker의 책임이다.
+- DB 오류를 `verified=false`로 바꾸지 않는다. Business MCP verify_permission이 이 API를 호출한다. platform을 생략하면 DB 자원의 플랫폼을 사용한다.
+
 ## 3. MCP 도구 API — 에이전트용
 
 독립 로컬 실행: Policy `http://localhost:8001/mcp`, Business `http://localhost:8002/mcp`.
@@ -117,7 +318,7 @@ Compose 내부: `http://policy-mcp:8000/mcp`, `http://business-mcp:8000/mcp`.
 | Business MCP | `get_tf_membership` | `employee_id`, `resource_id` | `{tf_id,member:boolean,leader_id}` | TF 소속·리더 조회 |
 | Business MCP | `get_current_permissions` | `employee_id`, `resource_id` | `{role:string 또는 null,source,…}`. Jira는 `can_browse`, GitHub 저장소는 `teams` 추가 | 실제 현재 권한 조회 |
 | Business MCP | `check_budget` | `employee_id` | `{budget:{department_id,remaining_monthly_amount,unit_monthly_price,currency,updated_at} 또는 null}` | 부서 예산·좌석 가격 조회 |
-| Business MCP | `search_access_rules` | `query`, `employee_id`, `resource_id` | `{hits:[Evidence],maximum_role,rule_source,exception_source}` | 회사 규정 검색·권한 상한 계산 |
+| Business MCP | `search_access_rules` | `query`, `employee_id`, `resource_id` | `{hits:[Evidence],maximum_role,context,rule_source,exception_source}` | 회사 규정 검색·같은 시점의 접근 조건 묶음 조회 |
 | Business MCP | `read_access_rule` | `doc_id` | `{chunks:[Evidence]}` | 회사 규정 절 원문 조회 |
 | Business MCP | `grant_permission` | `problem_id`, `idempotency_key` | `{ok:true,changed:boolean,role}` | **유일한 변경 도구**, 승인된 계획 실행 |
 | Business MCP | `verify_permission` | `employee_id`, `resource_id`, `requested_role` | `{ok:true,verified:boolean,current:{role,source,…}}` | 실행 후 실제 권한 재조회 |

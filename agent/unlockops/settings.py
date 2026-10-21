@@ -29,7 +29,8 @@ class Settings:
     policy_url: str = os.getenv("POLICY_MCP_URL", "http://localhost:8001/mcp")
     business_url: str = os.getenv("BUSINESS_MCP_URL", "http://localhost:8002/mcp")
     mcp_token: str = os.getenv("MCP_TOKEN", "replace-this-local-mcp-token")
-    database_url: str = os.getenv("DATABASE_URL", "")
+    backend_url: str = os.getenv("BACKEND_INTERNAL_URL", "http://localhost:8080")
+    internal_api_token: str = os.getenv("INTERNAL_API_TOKEN", "replace-this-local-internal-api-token")
     rabbit_url: str = os.getenv("RABBIT_URL") or os.getenv("RABBITMQ_URL", "")
     tool_timeout: float = 15
     max_tools: int = 30

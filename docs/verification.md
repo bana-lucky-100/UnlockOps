@@ -1,5 +1,77 @@
 # 검증 기록과 재현 절차
 
+## Business MCP → Spring 내부 API 전환 (2026-10-21)
+
+- Business MCP의 SQL Repository와 DB 드라이버 의존성·Compose DB 접속 정보를 제거했습니다.
+  `BackendClient`가 자원 검색·접근 조건·실행·검증의 네 Spring API를 호출합니다. 규정 검색·원문 조회는 기존 문서 인덱스를 유지합니다.
+- 기존 MCP 도구 입력·성공 응답과 Graph 노드 순서를 유지했습니다. 기존 직원·예산 도구를 위해 접근 조건 API에 직원 단독 조회 및 includeBudget 옵션을 추가했습니다.
+  자원·검증 API의 platform은 생략 시 실제 자원에서 확정하고 명시되면 일치 여부를 검사합니다. 자원 없는 platform 단독 조회는 허용하지 않습니다.
+- 서비스 토큰 인증, 10초 제한, 리다이렉트 차단, 직원·자원 범위 검사, 엄격한 응답 검증을 적용했습니다.
+  HTTP 어댑터는 자동 재시도·전역 조회 캐시·DB fallback을 사용하지 않으며 실행은 기존 키, 검증은 최신 조회를 사용합니다.
+- Spring의 code/retryable/reason을 MCP·Agent 오류까지 보존하고 실행/검증 이벤트에도 선택 reason을 기록합니다.
+  원문 오류는 POLICY_SOURCE_UNAVAILABLE로 구분하며, 일반 연결·시간 초과·5xx와 혼동하지 않습니다. 내부 응답 원문·URL·토큰은 오류에 노출하지 않습니다.
+- `.venv/bin/python -m pytest -q`: **310 passed, 1 skipped**. 실행 중인 전체 스택 테스트 1개만 미실행입니다.
+  Spring MockTransport, 실제 MCP ASGI HTTP 및 실제 Graph를 연결해 승인 전 변경 차단 → 승인 후 실행 API → 재조회 → DONE까지 확인했습니다.
+  Spring 대신 HTTP 응답을 대체한 경계 검증이며 실제 DB·큐·Spring 네트워크 통합을 대신하지 않습니다.
+- Java 운영·테스트 코드 컴파일 통과. 기존과 동일한 임시 JUnit 6.0.3/Mockito javaagent 실행기로 **114개 통과**를 확인했습니다.
+  프로젝트 기본 Maven/JUnit 5 실행은 Surefire 캐시 제약이 있어 별도 환경 재확인이 필요합니다.
+- `uv --cache-dir .cache/uv lock --offline` 및 `lock --check --offline` 통과. psycopg·psycopg-binary 및 불필요한 tzdata 제거 외 기존 버전 변경은 없습니다.
+- 기본/디버그 Compose 설정 검사 및 `git diff --check` 통과. 실제 PostgreSQL·RabbitMQ 전체 스택은 미실행입니다.
+- 적용 시 Backend·Business MCP·worker를 함께 재시작합니다. 기존 승인 체크포인트는 같은 도구 이름·입력으로 재개할 수 있으며 실행 영수증·잠금은 Spring에서 확인합니다.
+
+## 내부 최신 권한 반영 검증 API (2026-10-21)
+
+- `POST /internal/access-verifications`를 기존 Controller → Service → Repository 구조 및 내부 토큰 인증 방식으로 추가했습니다.
+- 기존 현재 권한 조회를 재사용하며 매 호출 독립된 읽기 전용 트랜잭션에서 확인합니다. State·영수증을 재사용하지 않고 권한·예산·상태를 변경하지 않습니다.
+- 역할군 비교는 실행 전 이미 보유한 권한 확인과 공통 `ResourceRolePolicy`를 사용합니다. 기존 실행 정책의 동작도 함께 회귀 검증했습니다.
+- 신규 Service 22개·HTTP 5개와 기존 테스트를 대체 실행기로 실행해 **109개 통과, 실패·건너뜀 0개**를 확인했습니다.
+- 검증 범위: 같은 서비스의 상위·하위 역할, 권한 없음, 다른 역할군·좌석 구분, Notion 편집 보유 권한, Jira 조회 스킴,
+  반복 조회 중 부여·철회 반영, 없는 직원·자원, 플랫폼 불일치, 입력·인증 오류, 조회 오류와 미반영(false) 구분입니다.
+- 이전과 같은 캐시된 JUnit Platform/Jupiter 6.0.3 및 Mockito javaagent 임시 실행기를 사용했습니다.
+  표준 Maven/JUnit 5 실행은 Surefire 의존성 제약으로 미완료이며 의존성 확보 후 `cd backend && mvn test` 확인이 필요합니다.
+- `GrantExecutionIT`에 실제 부여 후 조회 및 영수증이 남아 있어도 철회가 반영되는 테스트 1개를 추가했습니다(통합 테스트 총 5개).
+  Docker 환경이 없어 실제 PostgreSQL 통합 실행은 미완료입니다. `mvn verify -Pregression -Dit.test=GrantExecutionIT`로 실행합니다.
+- 운영/테스트 코드 컴파일, `docker compose config -q`, `git diff --check` 통과. Business MCP·Agent 연결은 변경하지 않았습니다.
+
+## 내부 승인 계획 실행 API (2026-10-21)
+
+- `POST /internal/problems/{id}/grant`를 추가했습니다. Business MCP와 Agent 호출은 변경하지 않았습니다.
+- 승인·계획 해시·최신 승인자·규정 근거·현재 자격을 재검증하며, 요청 행·직원과 자원 advisory lock·좌석 예산 행을 잠급니다.
+- 권한 변경·예산 차감·영수증 저장은 하나의 트랜잭션으로 처리합니다. 성공 영수증 재사용·이미 보유한 비좌석 권한·좌석 중복을 구분합니다.
+- 신규 실행 Service 10개·Policy 4개·HTTP 5개와 기존 백엔드 단위/HTTP 테스트를 대체 실행기로 실행해 **82개 통과, 실패·건너뜀 0개**를 확인했습니다.
+- 이전과 동일한 캐시 JUnit Platform/Jupiter 6.0.3 및 Mockito javaagent 임시 실행기를 사용했습니다.
+  표준 Maven/JUnit 5 실행은 Surefire 의존성 누락으로 미완료이며, 의존성을 확보한 환경에서 `cd backend && mvn test` 재확인이 필요합니다.
+- PostgreSQL 통합 테스트 `GrantExecutionIT` 4개를 추가했습니다. 동일 요청 재전달, 동일 직원의 중복 요청, 공유 예산 경쟁,
+  영수증 장애 시 권한·예산 롤백과 재시도를 실제 트랜잭션으로 검증하도록 구성했습니다.
+- Docker 엔진이 꺼져 있고 로컬 임시 PostgreSQL 초기화도 공유 메모리 생성 제한으로 실패하여 통합 테스트는 실행하지 못했습니다.
+  Docker 환경에서 `cd backend && mvn verify -Pregression -Dit.test=GrantExecutionIT`를 실행해야 합니다.
+- 운영/테스트 코드 컴파일, `docker compose config -q`, `git diff --check` 통과. 기존 업무 DB 변경·서비스 배포는 하지 않았습니다.
+
+## 내부 접근 조건 묶음 조회 API (2026-10-21)
+
+- `POST /internal/access-context`를 기존 Controller → Service → Repository 및 내부 토큰 인증 방식으로 추가했습니다.
+- 직원·TF·현재 권한·문서상 상한과 SEAT 대상 예산을 조회합니다. 기존 Business MCP·Agent·승인 정책은 변경하지 않았습니다.
+- 회사 권한표의 동일 원문을 읽어 상한과 SHA-256을 반환합니다. Compose에서 원문 data를 Backend에도 읽기 전용으로 마운트합니다.
+- 신규 테스트 33개(권한표 21, Service 4, Repository 경계 4, HTTP 4)와 기존 내부 자원 검색 HTTP 5개를 실행해 **38개 통과, 실패·건너뜀 0개**를 확인했습니다.
+- 기본 Maven Surefire 3.5.4의 의존성이 로컬 캐시에 없어 표준 `mvn test`는 실행하지 못했습니다.
+  임시 실행기에서 캐시된 JUnit Platform/Jupiter 6.0.3과 Mockito javaagent를 사용해 위 테스트를 실행했습니다.
+  프로젝트의 기본 JUnit 5.12.2/Maven 실행을 대체한 것으로 주장하지 않으며, 의존성을 확보한 환경에서 `cd backend && mvn test` 재확인이 필요합니다.
+- `mvn -o -Dmaven.repo.local=/tmp/unlockops-maven-repository -f backend/pom.xml test-compile -q`,
+  `docker compose config -q`, `git diff --check` 통과.
+- Repository 테스트는 JdbcTemplate/ResultSet 경계 대체를 사용했습니다. Docker가 꺼져 있어 실제 PostgreSQL의 SQL 실행·트랜잭션 통합 검증은 미실행입니다.
+
+## 내부 대상 자원 검색 API (2026-10-21)
+
+- `POST /internal/resources/resolve`를 Controller → Service → Repository 구조로 추가했습니다.
+- 검색·모호성·영문 경계·별칭, 입력 검증, 서비스 토큰 인증·브라우저 세션 차단·명시적 빈 토큰 차단을 위한 테스트 11개를 추가했습니다.
+- 내부 API 토큰은 `MCP_TOKEN`과 같은 로컬 기본값 방식입니다. `.env.example`, Compose, Spring 기본값을 맞췄으며 Business MCP 연동은 아직 하지 않았습니다.
+- `mvn -o -Dmaven.repo.local=/tmp/unlockops-maven-repository test-compile -q`로 운영 코드·테스트 코드 컴파일을 확인했습니다.
+- `docker compose config -q`, `git diff --check` 통과.
+- `mvn test`는 기본 로컬 저장소 쓰기 제한 및 Surefire 3.5.4 의존성 누락으로 실행하지 못했습니다.
+  쓰기 가능한 임시 저장소와 캐시된 Surefire 3.5.6으로도 테스트 제공자 의존성이 부족했고 외부 저장소 DNS 연결이 실패했습니다.
+  테스트 통과를 확인한 상태는 아닙니다. 의존성 접근이 가능한 환경에서 `cd backend` 후 `mvn test`를 실행해야 합니다.
+- Docker 엔진이 꺼져 있어 실제 PostgreSQL 통합 실행은 미검증입니다. Business MCP는 변경하지 않았습니다.
+
 ## 요청 접수 composable 분리 (이슈 #13)
 
 - 분리 전 기존 키 수명·요청자 홈 회귀 테스트 15개 통과를 확인했습니다.
