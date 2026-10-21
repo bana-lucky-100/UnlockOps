@@ -5,6 +5,7 @@ import com.unlockops.common.json.Jsons;
 import com.unlockops.messaging.dto.AgentEvent;
 import com.unlockops.messaging.model.QueueRoute;
 import com.unlockops.messaging.service.AgentResultService;
+import com.unlockops.messaging.service.InvalidAgentMessageException;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,11 @@ public class AgentResultsListener {
     @RabbitListener(queues = QueueRoute.RESULTS_QUEUE)
     public void consume(JsonNode rawEnvelope) {
         // Keep the full Python envelope for audit, including producer-specific progress/evidence fields.
-        service.apply(json.read(rawEnvelope, AgentEvent.class), rawEnvelope);
+        AgentEvent event;
+        try { event = json.read(rawEnvelope, AgentEvent.class); }
+        catch (IllegalArgumentException e) {
+            throw new InvalidAgentMessageException(InvalidAgentMessageException.Reason.INVALID_ENVELOPE, e);
+        }
+        service.apply(event, rawEnvelope);
     }
 }

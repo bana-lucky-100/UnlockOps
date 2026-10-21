@@ -99,6 +99,14 @@ durable direct exchange `unlockops`, routing key/queue:
 - `results` → `unlockops.results`: 에이전트 결과·진행 이벤트
 - `dead` → `unlockops.dead`: 형식 오류·소비 처리 한도 초과 메시지
 
+Backend results 소비는 확인된 일시 DB 예외만 재시도합니다(기본 최초 포함 3회, 실패 후 1초·2초 대기).
+메시지 형식·결과 상태·완료 검증 위반, 명확한 비일시 DB 오류와 미분류 오류는 추가 시도 없이 dead로 보냅니다.
+일시 오류도 시도 소진 후 dead로 보냅니다. DLQ 전체를 자동 재발행하지 않으며, 원인 수정 후 담당자가 재처리 여부를 판단합니다.
+DLQ 이동은 업무 FAILED 전환과 별개이고, ACK 전 프로세스 종료의 원래 큐 재전달과도 구분합니다.
+메시지 body/event_id와 inbox·감사·상태 변경의 트랜잭션, 완료 시 verification/실행 영수증 조건은 유지합니다.
+계획/정책 검증 실패는 기존 MANUAL_REVIEW이지만, 그 과정의 DB 장애를 이 상태로 오인 처리하지 않습니다.
+구체적인 분류와 검증·캡처 범위는 [재시도 안내](../messaging-retry.md)를 참고하세요.
+
 작업 형식:
 
 ```json

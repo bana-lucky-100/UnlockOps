@@ -13,8 +13,12 @@ import com.unlockops.problem.repository.*;
 import com.unlockops.problem.repository.ProblemRepository.*;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import static com.unlockops.messaging.service.InvalidAgentMessageException.Reason.*;
 
 @Service
 public class AgentResultService {
@@ -59,13 +63,16 @@ public class AgentResultService {
             return;
         }
         if (event.kind() != EventKind.ANALYZED && event.kind() != EventKind.EXECUTED)
-            throw new IllegalArgumentException("Unknown result event");
-        AgentResult result = AgentResult.parse(event.result(), json);
+            throw new InvalidAgentMessageException(UNKNOWN_RESULT_KIND);
+        AgentResult result;
+        try { result = AgentResult.parse(event.result(), json); }
+        catch (IllegalArgumentException e) { throw new InvalidAgentMessageException(INVALID_RESULT, e); }
         if (!(execution ? EXECUTION_RESULTS : ANALYSIS_RESULTS).contains(result.status()))
-            throw new IllegalArgumentException("Illegal result transition");
+            throw new InvalidAgentMessageException(ILLEGAL_RESULT_STATE);
         if (result.status() == ProblemStatus.DONE) {
-            GrantPolicy.check(Boolean.TRUE.equals(result.verificationOk()), "반영 확인 없는 완료 결과입니다.");
-            if (execution) GrantPolicy.check(grants.hasReceipt(problem.id(), problem.idempotencyKey()), "실행 영수증 없는 완료 결과입니다.");
+            if (!Boolean.TRUE.equals(result.verificationOk())) throw new InvalidAgentMessageException(UNVERIFIED_COMPLETION);
+            if (execution && !grants.hasReceipt(problem.id(), problem.idempotencyKey()))
+                throw new InvalidAgentMessageException(MISSING_RECEIPT);
         }
         if (execution) {
             // Execution never replaces the approved plan, designated approver, or human decision.
@@ -90,8 +97,9 @@ public class AgentResultService {
             GrantPolicy.check(result.evidence() != null && result.evidence().isArray() && !result.evidence().isEmpty(), "근거가 없는 계획입니다.");
             return new AnalysisUpdate(executionUpdate(result), approver, plan.resourceId(), plan.requestedRole(),
                 result.evidence(), plan, json.planHash(plan));
-        } catch (RuntimeException e) {
-            // Preserve the original fallback, including an already validated approver on missing evidence.
+        } catch (IllegalArgumentException | ResponseStatusException | EmptyResultDataAccessException e) {
+            if (e instanceof ResponseStatusException response && !response.getStatusCode().is4xxClientError()) throw response;
+            // DB failures/defects must escape for rollback. Invalid plans retain an already validated approver.
             ExecutionUpdate fallback = new ExecutionUpdate(ProblemStatus.MANUAL_REVIEW, result.diagnosis(),
                 "실행 계획이 서버 검증을 통과하지 못했습니다. 담당자 검토가 필요합니다.",
                 ServerReason.SERVER_PLAN_VALIDATION.name(), result.verificationOk(), result.agentMode());

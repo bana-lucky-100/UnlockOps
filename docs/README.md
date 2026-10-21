@@ -5,6 +5,7 @@
 - [API·MCP·이벤트 계약](contracts/README.md): 공통 상태·HTTP·큐 메시지
 - [로컬 디버깅](debugging.md): 설치·시작 순서·F5 구성
 - [검증](verification.md): 수행 결과와 전체 스택 시연 절차
+- [메시지 재시도](messaging-retry.md): 일시·영구 오류 분류, DLQ와 자동 캡처
 - [DB 스키마](schema.md), [정책 해석](policy-decisions.md), [평가 항목 대응](rubric.md)
 - [이식 전 원본 README](imported-project-v2.md): 원본의 과거 실행 상태·경로 기록
 - [Git 컨벤션](git-convention.md), [GitHub CI](github-ci.md), [협업 안내](../CONTRIBUTING.md)

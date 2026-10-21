@@ -1,5 +1,22 @@
 # 검증 기록과 재현 절차
 
+## 결과 메시지 오류 분류·재시도 (#24, 2026-10-21)
+
+- 기준 main: `3251829`. 변경 전 `mvn verify -Pregression -Dapi.version=1.44`는 단위 114개·DB/브로커 회귀 71개 통과, 실패·오류·건너뜀 0건.
+- 원본에서 신규 테스트를 실행해 영구 DB 오류·미분류 오류·잘못된 완료 결과가 3회 처리되는 실패 3건,
+  계획 검증의 DB/예상하지 못한 오류가 MANUAL_REVIEW로 변환되는 실패 2건을 먼저 확인했습니다.
+- 변경 후 같은 전체 명령은 단위 129개·DB/브로커 회귀 77개 통과, 실패·오류·건너뜀 0건.
+  기존 회귀의 완료 검증·영수증·중복·지연 이벤트·공개 응답 기대값은 유지했습니다.
+- `MessageFailureClassifierTest`는 래핑된 연결/잠금/타임아웃, 인증 오류 우선, 무결성·문법, 입력 거절, 미분류·순환 원인 체인을 검증합니다.
+- `AgentResultRecoveryTest`는 DB/서버 결함을 수동 검토로 삼키지 않는 전파와 기존 계획·정책·근거·사라진 자원의 수동 검토를 검증합니다.
+- `MessageRetryIT`는 일회용 PostgreSQL의 SQLSTATE 오류 주입과 실제 RabbitMQ 소비로 복구 시도 2회·중복 반영 방지,
+  일시 오류 소진 3회, 영구/미분류/완료 거절 1회, 잘못된 envelope의 DB 쓰기 없음과 DLQ 원본 보존을 검증합니다.
+- 선택 캡처 실행으로 실제 RabbitMQ Management UI와 같은 실행의 DB 측정 보고서를 세 시나리오에서 자동 촬영했습니다.
+  산출물은 `backend/target/retry-evidence/`이며 커밋하지 않습니다. [재현 명령과 해석](messaging-retry.md)을 참고하세요.
+- `node --check tests/capture-message-retry.mjs`와 `git diff --check` 통과.
+- 범위는 Spring·DB·브로커 통합입니다. Agent 결과와 실행 영수증은 fixture이며 Python Agent/MCP 권한 부여,
+  실제 네트워크 단절·프로세스 강제 종료·호스트/볼륨 유실 복구는 이번 검증에 포함하지 않습니다.
+
 ## Business MCP → Spring 내부 API 전환 (2026-10-21)
 
 - Business MCP의 SQL Repository와 DB 드라이버 의존성·Compose DB 접속 정보를 제거했습니다.
