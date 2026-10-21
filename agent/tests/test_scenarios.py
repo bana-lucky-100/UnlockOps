@@ -31,6 +31,17 @@ async def test_independent_requests_pause_before_any_mutation(platform,contents,
     assert tools.writes==0
 
 
+async def test_request_type_survives_checkpoint_and_is_in_interpret_event():
+    """오류 해결 의도는 조회 후 승인 필요 여부와 구분되어 저장된다."""
+    graph = build_graph(FakeTools(), InMemorySaver())
+    config = {"configurable": {"thread_id": "request-type"}}
+    await graph.ainvoke({"job": job("GITHUB", "payment-core push가 안 돼요")}, config)
+    saved = await graph.aget_state(config)
+    assert saved.values["intent"]["request_type"] == "TROUBLESHOOT"
+    assert saved.values["events"][0]["request_type"] == "TROUBLESHOOT"
+    assert saved.values["result"]["status"] == "WAITING_APPROVAL"
+
+
 @pytest.mark.parametrize("current_role", [None, "Read"])
 async def test_readme_push_creates_write_approval_even_with_existing_read(current_role):
     """README push 요청은 기존 Read 보유 여부와 관계없이 Write 승인을 대기한다."""
@@ -189,6 +200,15 @@ async def test_verification_retry_policy_never_reexecutes_grant(
     assert (result["result"]["status"], result["result"]["reasonCode"]) == (expected_status, expected_code)
     assert tools.verify_calls == expected_calls
     assert tools.writes == 1
+    if expected_status == "FAILED" and expected_code != "VERIFICATION_FAILED":
+        assert result["result"]["proposal"] == "승인된 권한 변경 요청을 정상적으로 전달했습니다."
+        assert result["result"]["verification_ok"] is None
+        assert result["verify_error"]["code"] == expected_code
+        assert "실제 반영을 확인하지 못했습니다" in result["result"]["diagnosis"]
+    elif expected_status == "DONE":
+        assert result["result"]["proposal"] == "payment-core의 권한을 Write 권한으로 변경했습니다."
+    else:
+        assert result["result"]["proposal"] == result["result"]["diagnosis"]
 
 
 @pytest.mark.parametrize("tool_name,payload,contents", [

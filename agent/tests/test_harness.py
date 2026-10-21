@@ -96,7 +96,8 @@ async def test_large_model_tool_batch_cannot_starve_mandatory_evidence(monkeypat
     assert result["evidence_complete"] is True
     assert result["optional_tool_calls"] == settings.max_optional_tools
     assert result["tool_calls"] <= settings.max_tools
-    assert result["events"][-2]["investigation"] == "tool_budget_exhausted"
+    collected = next(e for e in result["events"] if e["node"] == "collect_evidence")
+    assert collected["investigation"] == "tool_budget_exhausted"
     names = [name for name, _ in tools.calls]
     assert names.index("get_current_permissions") < names.index("read_access_rule")
     assert names[-settings.max_optional_tools:] == ["search_policy"] * settings.max_optional_tools

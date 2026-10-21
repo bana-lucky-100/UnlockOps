@@ -5,8 +5,56 @@ from dataclasses import replace
 import pytest
 
 from unlockops import planner
+from pydantic import ValidationError
+
 from unlockops.models import Intent
 from unlockops.planner import model, raw_intent
+
+
+@pytest.mark.parametrize("contents,expected", [
+    ("payment-core에서 git remote 설정은 어떻게 확인하나요?", "GUIDE"),
+    ("payment-core push 방법 알려주세요", "GUIDE"),
+    ("Write 권한 신청 절차를 설명해주세요", "GUIDE"),
+    ("How do I request access to payment-core?", "GUIDE"),
+    ("payment-core에 push가 안 돼요", "TROUBLESHOOT"),
+    ("Write 권한은 있는데 push할 때 403이 나요. 어떻게 해결해요?", "TROUBLESHOOT"),
+    ("Copilot 좌석 신청했는데 오류가 나요", "TROUBLESHOOT"),
+    ("PAY 권한 부여가 실패했어요", "TROUBLESHOOT"),
+    ("payment-core Write 권한 주세요", "ACCESS_REQUEST"),
+    ("Copilot 좌석 신청합니다", "ACCESS_REQUEST"),
+    ("#proj-payment 채널에 초대해 주세요", "ACCESS_REQUEST"),
+    ("403이 나요. payment-core 권한을 부여해 주세요", "ACCESS_REQUEST"),
+    ("Please grant me Write access to payment-core", "ACCESS_REQUEST"),
+])
+def test_request_type_distinguishes_help_errors_and_explicit_access_requests(contents, expected):
+    """권한 언급이나 '어떻게'만으로 신청·오류·사용법을 혼동하지 않는다."""
+    assert raw_intent(contents).request_type == expected
+
+
+def test_intent_reads_old_data_without_assuming_an_access_request():
+    """분류 필드가 없는 이전 데이터는 권한 신청으로 단정하지 않는다."""
+    assert Intent.model_validate({"symptom": "push 실패"}).request_type == "TROUBLESHOOT"
+    with pytest.raises(ValidationError):
+        Intent(request_type="PERMISSION_MISSING")
+
+
+async def test_llm_request_type_is_not_overwritten_by_demo_role_heuristics(monkeypatch):
+    """push나 권한 이름이 있어도 모델이 분류한 사용법 문의를 유지한다."""
+    class FakeModel:
+        def with_structured_output(self, schema):
+            """실제 모델에 제공되는 구조화된 분류 스키마를 확인한다."""
+            assert schema is Intent
+            return self
+
+        async def ainvoke(self, messages):
+            """데모 규칙과 다른 문맥 해석을 모의 응답한다."""
+            return Intent(request_type="GUIDE", resource_hint="payment-core")
+
+    monkeypatch.setattr(planner, "settings", replace(planner.settings, mode="llm"))
+    monkeypatch.setattr(planner, "model", FakeModel)
+    intent = await planner.interpret("payment-core push 문의", "GITHUB")
+    assert raw_intent("payment-core push 문의").request_type == "TROUBLESHOOT"
+    assert intent.request_type == "GUIDE"
 
 
 @pytest.mark.parametrize("word", ["README", "already", "thread", "spreadsheet", "rewrite"])

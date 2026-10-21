@@ -79,7 +79,10 @@ async def test_llm_receives_actual_facts_and_rag_evidence_and_proposes_no_writes
     assert "employee_no" not in payload["employee"]
     assert all(chunk["source_hash"] for chunk in payload["evidence"])
     assert any("payment-core" in chunk["text"] for chunk in payload["evidence"])
-    assert result["events"][-1]["source_hashes"]
+    judge_event = next(event for event in result["events"] if event["node"] == "judge")
+    assert judge_event["source_hashes"]
+    assert judge_event["permission_proposal"] == result["permission_proposal"]
+    assert judge_event["handling"] == "APPROVAL"
     assert tools.writes == 0
 
 
@@ -172,3 +175,60 @@ async def test_existing_rag_document_controls_model_input_and_grant_ceiling(tmp_
     assert result["result"]["reasonCode"] == "ABOVE_ACCESS_CEILING"
     assert result["plan"] is None
     assert tools.writes == 0
+
+
+@pytest.mark.parametrize("case,expected_handling,expected_status", [
+    ("approval", "APPROVAL", "WAITING_APPROVAL"),
+    ("not_member", "REJECT", "REJECTED"),
+    ("already_has_access", "ANSWER", "MANUAL_REVIEW"),
+    ("guide", "ANSWER", "MANUAL_REVIEW"),
+])
+async def test_permission_assessment_and_common_response_work_together(
+    monkeypatch, case, expected_handling, expected_status,
+):
+    """권한 제안과 사용자 설명을 별도로 호출하고, 검증된 판정·근거 이력을 함께 보존한다."""
+    from unlockops import answering
+    from unlockops.answering import AnswerDraft, AnswerReview, AnswerStep, Citation
+
+    contexts = []
+
+    class ResponseModel:
+        def with_structured_output(self, schema):
+            self.schema = schema
+            return self
+
+        async def ainvoke(self, messages):
+            payload = json.loads(messages[-1][1])
+            if self.schema is AnswerReview:
+                assert payload["context"] == contexts[-1]
+                return AnswerReview(supported=True)
+            contexts.append(payload)
+            source = payload["sources"][0]
+            return AnswerDraft(answerable=True, steps=[AnswerStep(
+                text="확정된 결과에 대한 사용자 안내입니다.",
+                citations=[Citation(chunk_id=source["chunk_id"], quote=source["text"][:100])],
+            )])
+
+    monkeypatch.setattr(answering, "settings", replace(answering.settings, mode="llm"))
+    monkeypatch.setattr(answering, "model", ResponseModel)
+    tools = FakeTools("E-007" if case == "not_member" else "E-001")
+    if case == "already_has_access":
+        tools.current["repo-uuid"] = "Write"
+    contents = "payment-core Write 권한 신청 절차를 설명해주세요" if case == "guide" else "payment-core push가 안 돼요"
+    state, tools, permission_model = await analyze(monkeypatch, proposal(), tools=tools, contents=contents)
+    assert state["handling"] == expected_handling
+    assert state["result"]["status"] == expected_status
+    assert len(contexts) == 1 and contexts[0]["decision"]["handling"] == expected_handling
+    assert "확정된 결과에 대한 사용자 안내" in state["result"]["proposal"]
+    assert tools.writes == 0
+    judge = next(event for event in state["events"] if event["node"] == "judge")
+    if case == "guide":
+        assert permission_model.messages == [] and state["permission_proposal"] is None
+    else:
+        assert permission_model.messages and state["permission_proposal"]
+        assert judge["source_hashes"] and judge["evidence_ids"]
+        assert judge["permission_proposal"] == state["permission_proposal"]
+    if case == "approval":
+        assert state["plan"]["requested_role"] == "Write"
+    else:
+        assert state["plan"] is None and state["result"]["verification_ok"] is None
