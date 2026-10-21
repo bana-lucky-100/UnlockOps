@@ -1,5 +1,17 @@
 # 검증 기록과 재현 절차
 
+## 내부 대상 자원 검색 API (2026-10-21)
+
+- `POST /internal/resources/resolve`를 Controller → Service → Repository 구조로 추가했습니다.
+- 검색·모호성·영문 경계·별칭, 입력 검증, 서비스 토큰 인증·브라우저 세션 차단·명시적 빈 토큰 차단을 위한 테스트 11개를 추가했습니다.
+- 내부 API 토큰은 `MCP_TOKEN`과 같은 로컬 기본값 방식입니다. `.env.example`, Compose, Spring 기본값을 맞췄으며 Business MCP 연동은 아직 하지 않았습니다.
+- `mvn -o -Dmaven.repo.local=/tmp/unlockops-maven-repository test-compile -q`로 운영 코드·테스트 코드 컴파일을 확인했습니다.
+- `docker compose config -q`, `git diff --check` 통과.
+- `mvn test`는 기본 로컬 저장소 쓰기 제한 및 Surefire 3.5.4 의존성 누락으로 실행하지 못했습니다.
+  쓰기 가능한 임시 저장소와 캐시된 Surefire 3.5.6으로도 테스트 제공자 의존성이 부족했고 외부 저장소 DNS 연결이 실패했습니다.
+  테스트 통과를 확인한 상태는 아닙니다. 의존성 접근이 가능한 환경에서 `cd backend` 후 `mvn test`를 실행해야 합니다.
+- Docker 엔진이 꺼져 있어 실제 PostgreSQL 통합 실행은 미검증입니다. Business MCP는 변경하지 않았습니다.
+
 ## 요청 접수 composable 분리 (이슈 #13)
 
 - 분리 전 기존 키 수명·요청자 홈 회귀 테스트 15개 통과를 확인했습니다.

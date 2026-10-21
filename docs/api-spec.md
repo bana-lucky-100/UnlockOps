@@ -96,6 +96,56 @@ flowchart TD
 **공통 오류:** `{"message":"오류 안내"}`. 대표 HTTP 코드는 `400` 입력 오류, `401` 로그인 필요/실패,
 `403` 권한 또는 CSRF 오류, `404` 요청 없음, `409` 승인 상태·계획·조건 변경, `500` 서버 오류다.
 
+### Spring 내부 API — 대상 자원 검색
+
+이 API만 먼저 구현했으며 Business MCP는 아직 기존 DB 조회를 사용한다.
+
+| 항목 | 계약 |
+| --- | --- |
+| Method / Path | `POST /internal/resources/resolve` |
+| 인증 | `Authorization: Bearer <INTERNAL_API_TOKEN>`. 로컬 기본값은 `replace-this-local-internal-api-token`. 헤더 누락·오류 토큰은 401. 브라우저 세션은 인증 수단이 아님 |
+| Request | `platform`: 필수 enum, `hint`: 필수 문자열·최대 5,000자. 빈 문자열·공백은 검색 결과 없음 |
+| Response | `200 {matches: Resource[], ambiguous: boolean}`. 후보 없음도 200 |
+| 오류 | `400` 잘못된 입력, `401` 서비스 인증 실패, `500` 서버 오류. 기존 `{message}` 형식 |
+
+호출 예시:
+
+```http
+POST /internal/resources/resolve
+Authorization: Bearer <INTERNAL_API_TOKEN>
+Content-Type: application/json
+
+{"platform":"GITHUB","hint":"payment-core에 push가 안 됩니다"}
+```
+
+응답 예시(식별자는 설명용):
+
+```json
+{
+  "matches": [{
+    "id": "<자원 UUID>",
+    "platform": "GITHUB",
+    "external_id": "payment-core",
+    "name": "결제 저장소",
+    "aliases": ["결제코어"],
+    "access_scope": "TF",
+    "owner_department_id": null,
+    "tf_id": "<TF UUID>",
+    "security_grade": "INTERNAL",
+    "designated_department_id": null
+  }],
+  "ambiguous": false
+}
+```
+
+- 선택한 플랫폼의 자원만 외부 ID 순으로 검색한다. 권한 부여 자격을 판정하는 API는 아니다.
+- 외부 ID·이름·별칭의 완전 일치 후보를 우선한다. 완전 일치가 없으면 문장 내 포함 후보를 반환한다.
+- 포함 검색은 3글자 이상 이름만 사용하며, `[a-z0-9_-]` 이름은 앞뒤 같은 문자군과 이어진 경우 일치시키지 않는다.
+- 후보가 정확히 1개일 때만 `ambiguous=false`. 0개·복수는 true이며 자동으로 하나를 선택하지 않는다.
+- 내부 API는 별도 stateless 보안 체인을 사용한다. 기존 화면 API의 세션·CSRF 설정은 유지한다.
+- `MCP_TOKEN`과 같은 방식으로 로컬 기본 토큰을 사용하며 배포 시 교체한다. Spring에 명시적으로 빈 토큰을 설정하면 호출을 차단한다.
+- Compose는 Backend에 `INTERNAL_API_TOKEN`을 전달하지만 내부 경로를 화면 프록시에 공개하지 않는다.
+
 ## 3. MCP 도구 API — 에이전트용
 
 독립 로컬 실행: Policy `http://localhost:8001/mcp`, Business `http://localhost:8002/mcp`.

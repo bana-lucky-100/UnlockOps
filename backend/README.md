@@ -48,6 +48,7 @@ Python worker 대신 결과 JSON을 발행하므로 실제 Agent/MCP 권한 부�
 | `problem` | `ProblemController` → `ProblemService` → `ProblemRepository` / `ProblemEventRepository`. 접수·조회·승인/반려·이력 |
 | `approval` | `ApprovalsController` → `ApprovalService` → `ApprovalRepository`. 내 담당 요청의 KST 주간 집계 |
 | `grant` | `GrantPolicy` → `UserRepository` / `GrantRepository`. 지정 승인자·직급·직무·TF·부서·예산·좌석·계획 검증 |
+| `resource` | `InternalResourceController` → `ResourceService` → `ResourceRepository`. 내부 API에서 플랫폼별 대상 자원 이름·별칭 검색 |
 | `messaging` | `AgentResultsListener` → `AgentResultService` → Repository. `OutboxPublisher` → `OutboxService` → `OutboxRepository` / `RabbitMessagePublisher` |
 | `config` | 세션·CSRF·인증 설정과 RabbitMQ 토폴로지·JSON 변환기 |
 | `common` | 헬스 체크, JSON 직렬화·계획 해시, 공통 오류 DTO·예외 응답 |
@@ -91,3 +92,21 @@ flowchart LR
 - `GrantPlan`의 정렬된 6개 JSON 필드로 Python과 동일한 SHA-256을 계산합니다. 구 결과의 ON_HOLD / INSUFFICIENT_BUDGET은 상태 반영 때만 정규화하고 원본 감사 기록은 유지합니다.
 
 이번 작업은 구조와 검증 기준을 정리합니다. RabbitMQ의 재시도·DLQ·장애 복구 정책 개선은 후속 작업입니다.
+
+## 내부 자원 검색 API
+
+`POST /internal/resources/resolve`는 서비스 간 호출용입니다. `INTERNAL_API_TOKEN`을 설정하고
+`Authorization: Bearer <INTERNAL_API_TOKEN>`으로 호출합니다. `MCP_TOKEN`처럼 로컬 기본값은
+`replace-this-local-internal-api-token`입니다. 배포 시 별도 비밀값으로 교체합니다.
+Spring에 명시적으로 빈 값을 설정하면 내부 호출을 거부합니다. Compose는 빈 값도 로컬 기본값으로 대체합니다.
+브라우저 로그인 세션으로는 접근할 수 없으며, 내부 API 체인에만 CSRF를 적용하지 않습니다.
+기존 `/api/**`의 세션·CSRF 설정은 유지합니다. 내부 경로는 화면 프록시에 추가하지 않습니다.
+
+입력은 `{ "platform": "GITHUB", "hint": "payment-core에 push가 안 됩니다" }`이며,
+응답은 `{ "matches": [...], "ambiguous": false }`입니다. 후보는 외부 ID 순으로 반환합니다.
+이름·외부 ID·별칭의 대소문자를 구분하지 않고 완전 일치를 우선합니다. 문장 내 포함 검색은
+3글자 이상 이름에만 적용하고, 영문 자원명에는 경계를 검사합니다. 후보 0개·복수이면 ambiguous=true이며
+권한 부여 여부를 판단하거나 후보를 임의 선택하지 않습니다. 빈 hint도 후보 없음으로 반환합니다.
+
+Business MCP의 DB 조회는 아직 변경하지 않았습니다. 이 API는 이후 일괄 전환을 위해 먼저 추가한 것입니다.
+자세한 계약은 [API 명세](../docs/api-spec.md#spring-내부-api--대상-자원-검색)를 참고하세요.
