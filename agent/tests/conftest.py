@@ -57,7 +57,15 @@ class FakeTools:
             filename = "policy_corpus.md" if name == "read_policy" else "company-a-access-matrix.md"
             kind = "policy" if name == "read_policy" else "business"
             return {"chunks": DocumentIndex(ROOT / "data" / filename, kind).read(args["doc_id"])}
-        if name=="search_access_rules": return {"hits":[],"maximum_role":"Write"}
+        if name=="search_access_rules":
+            role="Seat" if args["resource_id"]=="seat-uuid" and self.employee=="E-004" else self.current.get(args["resource_id"])
+            budget = {"remaining_monthly_amount":"10" if self.employee=="E-005" else "150","unit_monthly_price":"19"}
+            return {"hits":[],"maximum_role":"Write", "context": {
+                "profile": deepcopy(self.profile), "resource_id": args["resource_id"],
+                "membership": {"member":self.member,"leader_id":"leader-uuid"},
+                "current": {"role":role}, "budget": budget if args["resource_id"]=="seat-uuid" else None,
+                "maximum_role":"Write",
+            }}
         if name=="get_tf_membership": return {"member":self.member,"leader_id":"leader-uuid"}
         if name=="get_current_permissions":
             role="Seat" if args["resource_id"]=="seat-uuid" and self.employee=="E-004" else self.current.get(args["resource_id"])

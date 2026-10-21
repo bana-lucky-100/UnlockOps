@@ -149,7 +149,8 @@ async def context_node(state: AgentState, *, tools) -> dict:
 async def gather_node(state: AgentState, *, tools) -> dict:
     """필수 사실·규정을 먼저 모은 후 LLM의 선택 조회를 수행한다."""
     job, resource = state["job"], state["resource"]
-    scoped = ScopedTools(tools, job["requester_id"], job["platform"], resource.get("id"))
+    scoped = ScopedTools(tools, job["requester_id"], job["platform"], resource.get("id"),
+                         access_scope=resource.get("access_scope"))
     scoped.calls = state.get("tool_calls", 0)
     try:
         return await collect_evidence(state, scoped=scoped)
@@ -202,19 +203,18 @@ async def collect_evidence(state: AgentState, *, scoped: ScopedTools) -> dict:
         if not any(c.get("doc_id") == doc_id and c.get("text") for c in document.get("chunks", [])):
             evidence_complete = False
         evidence.extend(document["chunks"])
+    profile = state["profile"]
     membership, current, budget = {}, {}, None
     maximum_role = None
     investigation = "skipped"
     if resource:
         # 실제 소속·현재 권한은 RAG에서 추측하지 않고 정확한 ID로 조회한다.
         args = {"employee_id": job["requester_id"], "resource_id": resource["id"]}
-        membership = await scoped.read("get_tf_membership", args)
-        current = await scoped.read("get_current_permissions", args)
-        if resource["access_scope"] == "SEAT":
-            budget = (await scoped.read("check_budget", {"employee_id": job["requester_id"]}))[
-                "budget"
-            ]
         rules = await scoped.read("search_access_rules", {**args, "query": job["contents"]})
+        context = rules["context"]
+        profile, membership, current, budget = (
+            context["profile"], context["membership"], context["current"], context["budget"]
+        )
         maximum_role = rules.get("maximum_role")
         evidence.extend(rules.get("hits", []))
         # 검색 유사도가 낮더라도 필수 규정 원문은 확보한다.
@@ -226,9 +226,9 @@ async def collect_evidence(state: AgentState, *, scoped: ScopedTools) -> dict:
         evidence.append(
             {
                 "kind": "employee_facts",
-                "department": state["profile"]["department_name"],
-                "grade": state["profile"]["job_grade"],
-                "job_family": state["profile"]["job_family"],
+                "department": profile["department_name"],
+                "grade": profile["job_grade"],
+                "job_family": profile["job_family"],
                 "tf_member": membership.get("member", False),
                 "current_role": current.get("role"),
                 "maximum_role": rules.get("maximum_role"),
@@ -236,7 +236,7 @@ async def collect_evidence(state: AgentState, *, scoped: ScopedTools) -> dict:
             }
         )
         # 필수 조회가 끝난 뒤에만 LLM 선택 조회 예산을 사용한다.
-        investigation = await investigate(scoped, state["profile"], resource, job["contents"])
+        investigation = await investigate(scoped, profile, resource, job["contents"])
     answer_sources = [*search.get("hits", []), *scoped.optional_evidence]
     # 추가 조사에서 찾은 문서도 최종 근거와 답변에 반영한다.
     for (name, _), value in scoped.cache.items():
@@ -245,6 +245,7 @@ async def collect_evidence(state: AgentState, *, scoped: ScopedTools) -> dict:
             evidence.extend(chunks)
     unique = {x.get("chunk_id", str(i)): x for i, x in enumerate(evidence)}
     return {
+        "profile": profile,
         "membership": membership,
         "current": current,
         "budget": budget,

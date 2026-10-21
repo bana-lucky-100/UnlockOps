@@ -59,6 +59,84 @@ async def test_optional_cache_is_bounded_and_not_shared_between_analyses():
     assert len(tools.calls) == 2
 
 
+@pytest.mark.parametrize("resource_id", ["repo-uuid", "seat-uuid"])
+async def test_optional_fact_reads_reuse_one_context_and_next_analysis_reads_again(resource_id):
+    tools = FakeTools()
+    args = {"employee_id": "requester-uuid", "resource_id": resource_id}
+    scoped = ScopedTools(tools, "requester-uuid", "GITHUB", resource_id)
+    bundle = await scoped.read("search_access_rules", {**args, "query": "권한 확인"})
+    tools.member = False
+    tools.current[resource_id] = "Write"
+    for name, arguments, expected in [
+        ("get_employee_profile", {"employee_id": "requester-uuid"}, bundle["context"]["profile"]),
+        ("get_tf_membership", args, bundle["context"]["membership"]),
+        ("get_current_permissions", args, bundle["context"]["current"]),
+        *([("check_budget", {"employee_id": "requester-uuid"}, {"budget": bundle["context"]["budget"]})]
+          if resource_id == "seat-uuid" else []),
+    ]:
+        result = await scoped.read(name, arguments, optional=True)
+        assert result == expected
+        result.clear()  # 호출자가 수정해도 저장된 스냅샷은 유지한다.
+        assert await scoped.read(name, arguments, optional=True) == expected
+    assert scoped.calls == 1
+    assert len(tools.calls) == 1
+    fresh = await ScopedTools(tools, "requester-uuid", "GITHUB", resource_id).read(
+        "search_access_rules", {**args, "query": "권한 확인"})
+    assert fresh["context"]["membership"]["member"] is False
+    assert fresh["context"]["current"]["role"] == "Write"
+    assert len(tools.calls) == 2
+
+
+@pytest.mark.parametrize("field,value,code", [
+    ("profile", {"id": "other"}, "EMPLOYEE_SCOPE"),
+    ("resource_id", "other-resource", "RESOURCE_SCOPE"),
+])
+async def test_access_context_cannot_change_analysis_identity(field, value, code):
+    class WrongContext(FakeTools):
+        async def call(self, name, args):
+            result = await super().call(name, args)
+            if field == "profile":
+                result["context"]["profile"].update(value)
+            else:
+                result["context"][field] = value
+            return result
+
+    scoped = ScopedTools(WrongContext(), "requester-uuid", "GITHUB", "repo-uuid")
+    with pytest.raises(ToolFailure) as caught:
+        await scoped.read("search_access_rules", {"employee_id": "requester-uuid", "resource_id": "repo-uuid", "query": "권한"})
+    assert caught.value.code == code
+    assert scoped.cache == {}
+
+
+async def test_missing_seat_budget_is_reused_as_a_known_lookup_result():
+    class MissingBudget(FakeTools):
+        async def call(self, name, args):
+            result = await super().call(name, args)
+            result["context"]["budget"] = None
+            return result
+
+    tools = MissingBudget()
+    scoped = ScopedTools(tools, "requester-uuid", "GITHUB", "seat-uuid", access_scope="SEAT")
+    await scoped.read("search_access_rules", {"employee_id": "requester-uuid", "resource_id": "seat-uuid", "query": "좌석"})
+    assert await scoped.read("check_budget", {"employee_id": "requester-uuid"}, optional=True) == {"budget": None}
+    assert len(tools.calls) == 1
+
+
+@pytest.mark.parametrize("patch", [{"context": None}, {"maximum_role": "Read"}])
+async def test_missing_context_or_conflicting_ceiling_cannot_populate_fact_cache(patch):
+    class InvalidContext(FakeTools):
+        async def call(self, name, args):
+            result = await super().call(name, args)
+            result.update(patch)
+            return result
+
+    scoped = ScopedTools(InvalidContext(), "requester-uuid", "GITHUB", "repo-uuid")
+    with pytest.raises(ToolFailure) as caught:
+        await scoped.read("search_access_rules", {"employee_id": "requester-uuid", "resource_id": "repo-uuid", "query": "권한"})
+    assert caught.value.code == "INVALID_TOOL_OUTPUT"
+    assert scoped.cache == {}
+
+
 async def test_large_model_tool_batch_cannot_starve_mandatory_evidence(monkeypatch):
     """모델이 많은 도구를 요청해도 필수 근거를 먼저 확보하고 호출 한도를 지킨다."""
     from dataclasses import replace
@@ -99,7 +177,7 @@ async def test_large_model_tool_batch_cannot_starve_mandatory_evidence(monkeypat
     collected = next(e for e in result["events"] if e["node"] == "collect_evidence")
     assert collected["investigation"] == "tool_budget_exhausted"
     names = [name for name, _ in tools.calls]
-    assert names.index("get_current_permissions") < names.index("read_access_rule")
+    assert names.index("search_access_rules") < names.index("read_access_rule")
     assert names[-settings.max_optional_tools:] == ["search_policy"] * settings.max_optional_tools
     assert tools.writes == 0
 
@@ -113,7 +191,7 @@ async def test_mandatory_tool_failure_never_produces_approval():
     class MissingFacts(FakeTools):
         async def call(self, name, args):
             """현재 권한 조회에만 일시 오류를 발생시킨다."""
-            if name == "get_current_permissions":
+            if name == "search_access_rules":
                 raise ToolFailure("UPSTREAM_UNAVAILABLE", "facts unavailable", True)
             return await super().call(name, args)
 

@@ -19,7 +19,7 @@ read_policy는 POL-xx 또는 GH/JR/SL/NT-OFF-xx 형식, read_access_rule은 A-AC
 | get_tf_membership | employee_id, resource_id | member: boolean, leader_id |
 | get_current_permissions | employee_id, resource_id | role: string/null, can_browse: boolean(있는 경우) |
 | check_budget | employee_id | budget: 예산/null |
-| search_access_rules | query, employee_id, resource_id | hits: 근거 목록, maximum_role |
+| search_access_rules | query, employee_id, resource_id | hits: 근거 목록, maximum_role, context: 접근 조건 묶음 |
 | read_access_rule | doc_id | chunks: 근거 목록 |
 | search_policy | query, platform | hits: 근거 목록 |
 | read_policy | doc_id | chunks: 근거 목록. article은 선택 입력 |
@@ -31,6 +31,9 @@ requested_role은 자동 처리 역할 Read/Write/Viewer/Developer/Can view/Can 
 자원은 id/external_id/name/platform/access_scope가 필요하고, 부서·기밀 자원은 해당 부서 정보도 필요합니다.
 matches 수와 ambiguous 값이 불일치하면 응답 형식 오류입니다.
 예산 금액은 음수가 아닌 소수점 최대 두 자리 문자열이며 좌석 가격은 0보다 커야 합니다.
+`search_access_rules.context`에는 같은 Spring 조회에서 받은 profile/resource_id/membership/current/budget/maximum_role이
+필수로 포함됩니다. budget은 null일 수 있고, 최상위 maximum_role과 context.maximum_role은 같아야 합니다.
+Agent는 이 묶음의 직원 ID·자원 ID를 확인하고 profile을 포함한 분석 사실을 한 번에 갱신합니다.
 근거에는 chunk_id/doc_id/text/source/version이 필요합니다. 빈 chunks는 유효한 응답이지만,
 필수 규정이 비어 있으면 Agent가 MISSING_SOURCE_EVIDENCE로 수동 검토 처리합니다.
 정의된 핵심 필드를 엄격히 검사하고 source_hash/score/retrieval_mode 등 추가 메타데이터는 보존합니다.
@@ -71,6 +74,9 @@ code/retryable/reason을 보존하고, 문서 오류는 POLICY_SOURCE_UNAVAILABL
 `Settings` 기본값: 실제 읽기 최대 30회, LLM 선택 조회 시도 최대 10회, 모델 반복 최대 4회,
 권한 부여 최대 3회(최초 1회 + 재시도 2회), 실행 후 검증 최대 3회입니다.
 필수 조회가 선택 조회보다 먼저 실행되고, 같은 gather 안의 성공 읽기만 선택 조회에서 재사용합니다.
+필수 접근 조건 조회는 search_access_rules 한 번으로 모읍니다. 묶음에 포함된 직원·TF·현재 권한과
+좌석 예산은 같은 분석의 개별 선택 조회에서도 재사용합니다. 직원 단독 사전 조회는 별도로 수행합니다.
+새 분석은 새 묶음을 읽으며, 승인 후 실행과 권한 검증은 이 분석 캐시를 사용하지 않습니다.
 선택 조회는 잘못된 범위 요청·캐시 적중도 10회 한도에 포함합니다.
 이 카운터는 현재 분석 실행의 조회 한도이며 승인 대기를 포함한 전체 작업 시간 제한은 아닙니다.
 

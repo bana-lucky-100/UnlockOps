@@ -214,10 +214,10 @@ async def test_verification_retry_policy_never_reexecutes_grant(
 @pytest.mark.parametrize("tool_name,payload,contents", [
     ("get_employee_profile", {}, "payment-core push가 안 돼요"),
     ("resolve_resource", {"matches": [], "ambiguous": False}, "payment-core push가 안 돼요"),
-    ("get_tf_membership", {"member": "true", "leader_id": "leader"}, "payment-core push가 안 돼요"),
-    ("get_current_permissions", {}, "payment-core push가 안 돼요"),
+    ("search_access_rules", {"context": {"membership": {"member": "true"}}}, "payment-core push가 안 돼요"),
+    ("search_access_rules", {"context": {"current": {}}}, "payment-core push가 안 돼요"),
     ("read_policy", {}, "payment-core push가 안 돼요"),
-    ("check_budget", {"budget": {"remaining_monthly_amount": "NaN", "unit_monthly_price": "19"}}, "Copilot 좌석 신청합니다"),
+    ("search_access_rules", {"context": {"budget": {"remaining_monthly_amount": "NaN", "unit_monthly_price": "19"}}}, "Copilot 좌석 신청합니다"),
 ])
 async def test_malformed_mandatory_read_blocks_approval(tool_name, payload, contents):
     """필수 조회 응답의 계약 위반은 승인 계획 생성과 쓰기를 차단한다."""
@@ -226,7 +226,12 @@ async def test_malformed_mandatory_read_blocks_approval(tool_name, payload, cont
     class InvalidReadTools(FakeTools):
         async def call(self, name, args):
             """지정한 필수 조회 도구에만 잘못된 응답을 주입한다."""
-            if name == tool_name: return payload
+            if name == tool_name:
+                if name == "search_access_rules":
+                    result = await super().call(name, args)
+                    result["context"].update(payload["context"])
+                    return result
+                return payload
             return await super().call(name, args)
 
     tools = InvalidReadTools()

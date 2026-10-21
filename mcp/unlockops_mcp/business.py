@@ -71,7 +71,7 @@ def check_budget(employee_id: str) -> dict[str, object]:
 # 회사 규정 검색 근거와 같은 원문 표에서 읽은 직무·직급별 상한을 함께 반환한다.
 @mcp.tool(annotations=READ_ONLY)
 def search_access_rules(query: str, employee_id: str, resource_id: str) -> dict[str, object]:
-    """회사 권한 문서의 근거와 직원의 직급·직무·자원 기준에 따른 허용 상한을 조회합니다."""
+    """회사 규정 근거와 같은 시점의 직원·TF·현재 권한·예산·허용 상한을 함께 조회합니다."""
     context = repo.access_rules(employee_id, resource_id)
     hashes = source_hashes()
     if context.get("source_hashes", {}).get("company-a-access-matrix.md") != hashes["company-a-access-matrix.md"]:
@@ -81,6 +81,7 @@ def search_access_rules(query: str, employee_id: str, resource_id: str) -> dict[
     return {
         "hits": index().search(query, limit=6),
         "maximum_role": context["maximum_role"],
+        "context": context,
         "source_hashes": hashes,
         "rule_source": "A-ACCESS-03",
         "exception_source": "A-ACCESS-04",

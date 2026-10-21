@@ -188,8 +188,24 @@ class SearchResult(Output):
     hits: list[EvidenceChunk]
 
 
+class AccessContext(Output):
+    profile: EmployeeProfile
+    resource_id: Text
+    membership: Membership
+    current: CurrentPermissions
+    budget: Budget | None
+    maximum_role: str
+
+
 class AccessSearchResult(SearchResult):
     maximum_role: str
+    context: AccessContext
+
+    @model_validator(mode="after")
+    def consistent_ceiling(self):
+        if self.maximum_role != self.context.maximum_role:
+            raise ValueError("Access ceilings must use the same context")
+        return self
 
 
 class DocumentResult(Output):

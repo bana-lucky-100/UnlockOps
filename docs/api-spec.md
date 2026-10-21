@@ -318,7 +318,7 @@ Compose 내부: `http://policy-mcp:8000/mcp`, `http://business-mcp:8000/mcp`.
 | Business MCP | `get_tf_membership` | `employee_id`, `resource_id` | `{tf_id,member:boolean,leader_id}` | TF 소속·리더 조회 |
 | Business MCP | `get_current_permissions` | `employee_id`, `resource_id` | `{role:string 또는 null,source,…}`. Jira는 `can_browse`, GitHub 저장소는 `teams` 추가 | 실제 현재 권한 조회 |
 | Business MCP | `check_budget` | `employee_id` | `{budget:{department_id,remaining_monthly_amount,unit_monthly_price,currency,updated_at} 또는 null}` | 부서 예산·좌석 가격 조회 |
-| Business MCP | `search_access_rules` | `query`, `employee_id`, `resource_id` | `{hits:[Evidence],maximum_role,rule_source,exception_source}` | 회사 규정 검색·권한 상한 계산 |
+| Business MCP | `search_access_rules` | `query`, `employee_id`, `resource_id` | `{hits:[Evidence],maximum_role,context,rule_source,exception_source}` | 회사 규정 검색·같은 시점의 접근 조건 묶음 조회 |
 | Business MCP | `read_access_rule` | `doc_id` | `{chunks:[Evidence]}` | 회사 규정 절 원문 조회 |
 | Business MCP | `grant_permission` | `problem_id`, `idempotency_key` | `{ok:true,changed:boolean,role}` | **유일한 변경 도구**, 승인된 계획 실행 |
 | Business MCP | `verify_permission` | `employee_id`, `resource_id`, `requested_role` | `{ok:true,verified:boolean,current:{role,source,…}}` | 실행 후 실제 권한 재조회 |

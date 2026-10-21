@@ -122,10 +122,11 @@ class MCPTools:
 class ScopedTools:
     """한 분석 안에서 요청자·플랫폼·자원을 고정하고 읽기 호출 예산을 관리한다."""
 
-    def __init__(self, tools, requester_id, platform, resource_id=None):
+    def __init__(self, tools, requester_id, platform, resource_id=None, *, access_scope=None):
         """한 분석의 요청자·플랫폼·자원 범위와 호출 횟수·캐시를 초기화한다."""
         self.tools, self.requester_id, self.platform = tools, requester_id, platform
         self.resource_id = resource_id
+        self.access_scope = access_scope
         self.calls = 0
         self.optional_calls = 0
         self.trace = []
@@ -173,6 +174,22 @@ class ScopedTools:
             raise ToolFailure("TOOL_BUDGET", "Tool call limit reached")
         self.calls += 1
         value = validate_output(name, await self.tools.call(name, arguments))
+        if name == "search_access_rules":
+            context = value["context"]
+            if context["profile"]["id"] != self.requester_id:
+                raise ToolFailure("EMPLOYEE_SCOPE", "Cannot use another employee's context")
+            if context["resource_id"] != arguments["resource_id"]:
+                raise ToolFailure("RESOURCE_SCOPE", "Cannot use another resource's context")
+            # 같은 분석의 선택 조회도 이 스냅샷을 사용한다. 전역·승인 후 캐시는 만들지 않는다.
+            projections = [
+                ("get_employee_profile", {"employee_id": self.requester_id}, context["profile"]),
+                ("get_tf_membership", {k: arguments[k] for k in ("employee_id", "resource_id")}, context["membership"]),
+                ("get_current_permissions", {k: arguments[k] for k in ("employee_id", "resource_id")}, context["current"]),
+            ]
+            if context["budget"] is not None or self.access_scope == "SEAT":
+                projections.append(("check_budget", {"employee_id": self.requester_id}, {"budget": context["budget"]}))
+            for tool, args, result in projections:
+                self.cache[(tool, json.dumps(args, sort_keys=True))] = deepcopy(result)
         self.cache[key] = deepcopy(value)
         self.trace.append({"tool": name, "ok": True, "optional": optional})
         return value
