@@ -43,6 +43,35 @@ public class AccessCeilingPolicy {
         }
     }
 
+    /** 실행은 상한뿐 아니라 승인자 기준과 분석 근거의 최신 원문 버전을 함께 확인한다. */
+    public ExecutionRules executionRules(Profile profile, Resource resource) {
+        try {
+            byte[] matrix = Files.readAllBytes(path);
+            byte[] corpus = Files.readAllBytes(path.resolveSibling("policy_corpus.md"));
+            String text = new String(matrix, StandardCharsets.UTF_8);
+            var section = Pattern.compile("(?ms)^## 7\\.[^\\n]*\\n(.*?)(?=^## \\d+\\.|\\z)").matcher(text);
+            if (!section.find()) throw unavailable();
+            String rules = section.group(1);
+            var minimum = Pattern.compile("승인자는 앱 역할이 ([A-Z_]+)이고 직급이 (사원|대리|과장|차장|부장) 이상").matcher(rules);
+            if (!minimum.find()) throw unavailable();
+            UserRole approverRole;
+            try { approverRole = UserRole.valueOf(minimum.group(1)); }
+            catch (IllegalArgumentException e) { throw unavailable(); }
+            boolean tf = resource.accessScope() == AccessScope.TF;
+            var rows = rules.lines().map(String::strip).filter(line -> line.startsWith("|"))
+                .map(line -> line.replace("*", "").split("\\|"))
+                .filter(cells -> cells.length == 3 && (tf ? cells[1].strip().startsWith("TF 전용") :
+                    cells[1].strip().startsWith("일반·"))).toList();
+            if (rows.size() != 1 || !rows.getFirst()[2].contains(tf ? "리더" : "부서장")) throw unavailable();
+            return new ExecutionRules(parse(text, profile, resource), Map.of(SOURCE, hash(matrix),
+                "policy_corpus.md", hash(corpus)), approverRole, JobGrade.from(minimum.group(2)));
+        } catch (IOException | NoSuchAlgorithmException e) { throw unavailable(); }
+    }
+
+    private String hash(byte[] bytes) throws NoSuchAlgorithmException {
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+    }
+
     private String parse(String text, Profile profile, Resource resource) {
         var section = SECTION.matcher(text);
         if (!section.find()) throw unavailable();
@@ -88,4 +117,5 @@ public class AccessCeilingPolicy {
     }
 
     public record Ceiling(String role, Map<String, String> sourceHashes) {}
+    public record ExecutionRules(String role, Map<String, String> sourceHashes, UserRole approverRole, JobGrade minimumGrade) {}
 }

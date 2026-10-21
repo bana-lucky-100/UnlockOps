@@ -1,5 +1,19 @@
 # 검증 기록과 재현 절차
 
+## 내부 승인 계획 실행 API (2026-10-21)
+
+- `POST /internal/problems/{id}/grant`를 추가했습니다. Business MCP와 Agent 호출은 변경하지 않았습니다.
+- 승인·계획 해시·최신 승인자·규정 근거·현재 자격을 재검증하며, 요청 행·직원과 자원 advisory lock·좌석 예산 행을 잠급니다.
+- 권한 변경·예산 차감·영수증 저장은 하나의 트랜잭션으로 처리합니다. 성공 영수증 재사용·이미 보유한 비좌석 권한·좌석 중복을 구분합니다.
+- 신규 실행 Service 10개·Policy 4개·HTTP 5개와 기존 백엔드 단위/HTTP 테스트를 대체 실행기로 실행해 **82개 통과, 실패·건너뜀 0개**를 확인했습니다.
+- 이전과 동일한 캐시 JUnit Platform/Jupiter 6.0.3 및 Mockito javaagent 임시 실행기를 사용했습니다.
+  표준 Maven/JUnit 5 실행은 Surefire 의존성 누락으로 미완료이며, 의존성을 확보한 환경에서 `cd backend && mvn test` 재확인이 필요합니다.
+- PostgreSQL 통합 테스트 `GrantExecutionIT` 4개를 추가했습니다. 동일 요청 재전달, 동일 직원의 중복 요청, 공유 예산 경쟁,
+  영수증 장애 시 권한·예산 롤백과 재시도를 실제 트랜잭션으로 검증하도록 구성했습니다.
+- Docker 엔진이 꺼져 있고 로컬 임시 PostgreSQL 초기화도 공유 메모리 생성 제한으로 실패하여 통합 테스트는 실행하지 못했습니다.
+  Docker 환경에서 `cd backend && mvn verify -Pregression -Dit.test=GrantExecutionIT`를 실행해야 합니다.
+- 운영/테스트 코드 컴파일, `docker compose config -q`, `git diff --check` 통과. 기존 업무 DB 변경·서비스 배포는 하지 않았습니다.
+
 ## 내부 접근 조건 묶음 조회 API (2026-10-21)
 
 - `POST /internal/access-context`를 기존 Controller → Service → Repository 및 내부 토큰 인증 방식으로 추가했습니다.

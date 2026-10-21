@@ -199,6 +199,63 @@ Content-Type: application/json
 - DB 사실은 읽기 전용 REPEATABLE_READ 트랜잭션으로 수집한다. 권한 변경·예산 차감·이력·큐 작업 생성은 하지 않는다.
 - 문서 청크·검색 결과는 별도의 RAG 도구 책임이다. Business MCP와 Agent의 기존 호출은 아직 변경하지 않았다.
 
+### Spring 내부 API — 승인된 계획 실행
+
+| 항목 | 계약 |
+| --- | --- |
+| Method / Path | `POST /internal/problems/{id}/grant` |
+| 인증 | 동일한 `Authorization: Bearer <INTERNAL_API_TOKEN>` 서비스 인증 |
+| Request | path `id`: 요청 UUID. body `idempotencyKey`: 필수·공백 불가·최대 150자. 승인 시 발급된 저장 값과 일치해야 함 |
+| Response | `200 {"ok":true,"changed":boolean,"role":"Write"}`. role은 승인 계획의 역할 |
+| 대상 결정 | 호출자가 직원·자원·역할을 새로 지정하지 않음. DB의 승인 계획을 사용 |
+
+```http
+POST /internal/problems/<요청 UUID>/grant
+Authorization: Bearer <INTERNAL_API_TOKEN>
+Content-Type: application/json
+
+{"idempotencyKey":"<승인 시 발급된 실행 키>"}
+```
+
+- 사람 승인 상태(EXECUTING/HUMAN)·승인 시각·승인 계획 해시·현재 지정 승인자를 재확인한다.
+- DB 요청의 요청자·자원·플랫폼·역할과 계획의 동일성, 현재 TF·부서·권한 상한·Jira 스킴·예산을 검증한다.
+- 회사 권한표와 플랫폼 규정의 필수 문서별 근거가 최신 원문 해시와 맞아야 한다. 규정 누락·미확인 조건은 실행하지 않는다.
+- 요청 행 잠금, 직원·자원 advisory lock, 좌석 예산 행 잠금을 사용한다. Python의 기존 advisory lock 키와 동일하다.
+- 권한 변경·예산 차감·영수증 저장은 같은 트랜잭션이다. 오류는 예외로 전파해 전체 롤백한다.
+- 같은 요청·실행 키로 이미 성공한 경우 원래 영수증을 반환한다. 이때 `changed`는 첫 실행 결과를 그대로 유지한다.
+- 비좌석 자원의 권한을 이미 보유한 경우 `changed=false`이며 영수증만 저장한다. 다른 요청으로 이미 보유한 좌석은 DUPLICATE_SEAT로 차단한다.
+- 성공 응답은 실제 반영 검증·DONE 전환을 대신하지 않는다. Business MCP·worker는 아직 이 API로 전환하지 않았다.
+
+업무·실행 오류는 HTTP 오류 코드와 다음 기계 판독 응답을 함께 반환한다.
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "PRECONDITION_CHANGED",
+    "message": "현재 부여 조건을 충족하지 않습니다.",
+    "retryable": false,
+    "reason": "BUDGET_INSUFFICIENT"
+  }
+}
+```
+
+| HTTP | code | 의미 |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | 대상 요청 없음 |
+| 409 | `INVALID_EXECUTION_KEY` | 저장된 실행 키와 불일치 |
+| 409 | `APPROVAL_REQUIRED` | 유효한 사람 승인 상태 아님 |
+| 409 | `PLAN_CHANGED` / `PLAN_IDENTITY_MISMATCH` | 승인 계획·해시·요청자·대상이 일치하지 않음 |
+| 409 | `APPROVER_CHANGED` / `RESOURCE_CHANGED` | 현재 승인자 자격·지정 또는 자원 정보가 변경됨 |
+| 409 | `PRECONDITION_CHANGED` | reason에 TF·부서·상한·근거·좌석·예산·Jira 조건 실패 코드 포함 |
+| 503 | `POLICY_SOURCE_UNAVAILABLE` | 최신 규정 원문 또는 적용 기준 확인 불가. retryable=false |
+| 503 | `MOCK_JIRA_UNAVAILABLE` | 모의 Jira 일시 장애. retryable=true |
+| 503 | `UPSTREAM_UNAVAILABLE` | 일시 DB 오류·연결 실패. retryable=true |
+
+인증 실패(401), 입력 오류(400), 그 외 예상하지 못한 서버 오류(500)는 기존 `{message}` 형식을 유지한다.
+사유 없는 error.reason은 생략한다. 실패 시 승인 기록을 취소하거나 요청 상태를 직접 FAILED/DONE으로 바꾸지 않는다.
+문서 파일은 `ACCESS_MATRIX_PATH`의 회사 권한표와 같은 디렉터리에 있는 `policy_corpus.md`를 사용한다.
+
 ## 3. MCP 도구 API — 에이전트용
 
 독립 로컬 실행: Policy `http://localhost:8001/mcp`, Business `http://localhost:8002/mcp`.

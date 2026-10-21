@@ -137,3 +137,30 @@ SEAT에서 `budget=null`이면 예산 미확인, 다른 자원에서는 예산 �
 요청 플랫폼과 실제 자원 플랫폼이 다르면 409를 반환합니다. 문서 검색·RAG 근거 반환은 이 API의 책임이 아닙니다.
 
 기존 Business MCP와 Agent는 그대로 유지했습니다. 이후 MCP 일괄 전환 시 이 조회 API를 연결합니다.
+
+## 내부 승인 계획 실행 API
+
+`POST /internal/problems/{id}/grant`는 동일한 내부 서비스 토큰을 사용합니다.
+입력은 `{ "idempotencyKey": "<승인 시 서버가 발급한 실행 키>" }`뿐이며,
+직원·자원·역할은 DB에 저장된 승인 계획에서만 읽습니다. 응답은 `{ "ok": true, "changed": true, "role": "Write" }`입니다.
+
+`InternalGrantController` → `GrantExecutionService` → `GrantExecutionRepository` 구조이며,
+기존 `ProblemRepository`, `GrantRepository`, `AccessContextRepository` 조회를 재사용합니다.
+`GrantExecutionPolicy`는 원문 상한·현재 소속·부서·좌석·예산·근거를 실행 직전에 검증합니다.
+`AccessCeilingPolicy.executionRules`는 같은 회사 권한표의 3절·7절과 인접한 `policy_corpus.md`의 해시를 읽습니다.
+기존 화면 승인용 `GrantPolicy` 및 Business MCP 호출 경로는 변경하지 않았습니다.
+
+1. 요청 행을 잠그고 실행 키를 비교합니다. 기존 영수증이 있으면 상태가 DONE이어도 같은 결과를 반환합니다.
+2. 사람 승인·EXECUTING·결정 시각·결정자·승인 계획 해시와 요청자·플랫폼·대상·역할 일치를 확인합니다.
+3. Python과 같은 직원·자원 advisory lock을 잡고 현재 사실·지정 승인자의 앱 역할·직급을 재조회합니다.
+4. Jira 요청 역할의 조회 스킴, 현재 자격, 문서별 근거의 원문 버전, 좌석 중복·예산을 검증합니다. 좌석 예산 행은 FOR UPDATE로 잠급니다.
+5. 필요한 경우에만 GitHub 팀 가입·권한 upsert·예산 차감을 수행하고 실행 영수증을 저장합니다.
+
+전체는 READ_COMMITTED 트랜잭션입니다. 영수증 저장을 포함해 실패하면 모두 롤백합니다.
+같은 키의 재호출은 원래 영수증을 반환하므로 중복 변경·차감이 없습니다. 이미 필요한 비좌석 권한을 보유했으면
+`changed=false` 영수증만 저장합니다. 다른 요청의 중복 좌석은 기존 MCP와 동일하게 거절합니다.
+Jira 실패 시연은 503·재시도 가능으로 반환하고 영수증을 저장하지 않습니다.
+
+이 API 성공은 모의 권한 변경과 영수증 저장 성공입니다. 실제 반영 재조회나 DONE 전환은 하지 않으며 기존 worker 결과 처리 흐름을 유지합니다.
+상세 응답·오류는 [API 명세](../docs/api-spec.md#spring-내부-api--승인된-계획-실행)를 참고하세요.
+DB 동시성·롤백 통합 테스트는 Docker를 실행한 뒤 `mvn verify -Pregression -Dit.test=GrantExecutionIT`로 실행합니다.
