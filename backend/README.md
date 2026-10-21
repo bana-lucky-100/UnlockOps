@@ -92,7 +92,35 @@ flowchart LR
 - 담당자 목록과 내부 상세는 별도 DTO를 사용합니다. DB 모델이나 내부 필드 추가가 요청자 응답을 확장하지 않습니다.
 - `GrantPlan`의 정렬된 6개 JSON 필드로 Python과 동일한 SHA-256을 계산합니다. 구 결과의 ON_HOLD / INSUFFICIENT_BUDGET은 상태 반영 때만 정규화하고 원본 감사 기록은 유지합니다.
 
-이번 작업은 구조와 검증 기준을 정리합니다. RabbitMQ의 재시도·DLQ·장애 복구 정책 개선은 후속 작업입니다.
+## 결과 메시지 재시도와 DLQ
+
+`MessageRetryConfig`는 기존 listener 재시도에 `MessageFailureClassifier`를 적용합니다.
+업무 상태나 예외 메시지 문자열 대신 예외 타입과 JDBC SQLSTATE의 원인 체인을 확인합니다.
+
+| 오류 | 처리 |
+| --- | --- |
+| 명시적인 일시 DB 예외, 연결 장애, serialization/deadlock/잠금·쿼리 타임아웃 | 최초 포함 최대 3회 시도. 기본 대기 1초·2초 |
+| 메시지 변환·필수 입력·결과 상태·완료 조건 위반 | 최초 실패 후 바로 `unlockops.dead` |
+| DB 무결성·인증·SQL 문법 등 명확한 비일시 오류 | 최초 실패 후 바로 `unlockops.dead` |
+| 그 외 미분류 오류 | 일시 오류로 추정하지 않고 바로 `unlockops.dead` |
+
+시도 횟수·대기는 기존 `spring.rabbitmq.listener.simple.retry` 설정을 사용합니다.
+인증 실패가 pool timeout에 감싸져도 인증 오류를 우선하며, DB와 무관한 네트워크 오류를 무조건 재시도하지 않습니다.
+계획 형식·정책 위반·사라진 자원은 기존 `MANUAL_REVIEW`로 처리하지만, 계획 검증 중 DB 장애와 예상하지 못한 결함은
+이 상태로 삼키지 않고 트랜잭션을 롤백한 뒤 재시도 정책에 전달합니다.
+
+재시도는 listener 바깥에서 수행하므로 매 시도마다 Service 트랜잭션을 새로 시작합니다.
+실패한 inbox·감사 이력·상태 변경은 함께 롤백되고, 정상 반환 후에만 기존 Spring AUTO ACK가 적용됩니다.
+`RESULT_ATTEMPT_FAILED`에는 UUID·시도 횟수·분류를, `RESULT_RETRY_FINISHED`에는 총 시도와
+`HANDLED`/`REJECTED`를 기록합니다. `HANDLED`는 중복/지연 이벤트를 포함한 소비 처리 정상 반환이며 업무 DONE과 별개입니다.
+
+프로세스가 ACK 전에 종료되면 미확인 메시지는 원래 큐로 재전달됩니다. 이 동작과 처리 실패 후 DLQ 이동을 구분합니다.
+DLQ 자동 재발행·parking 큐·FAILED 업무 재실행은 추가하지 않습니다. DLQ는 원인 수정·담당자 확인 후 재처리 또는 종료할 대상입니다.
+재시도 소진/검증 거절만으로 `problems.status`를 바꾸지 않아 `RECEIVED`/`EXECUTING` 등이 유지될 수 있습니다.
+
+`MessageRetryIT`는 일회용 PostgreSQL trigger에서 실제 SQL 오류를 발생시키고, 롤백에도 유지되는 sequence로 처리 횟수를 측정합니다.
+일시 장애 복구·영구/미분류 거절·재시도 소진·완료 검증·중복 및 원본 메시지 보존을 확인합니다.
+브라우저 자동 캡처는 [재현 절차](../docs/messaging-retry.md)를 따릅니다. 캡처는 선택 실행이며 기본 회귀에 브라우저가 필요하지 않습니다.
 
 ## 내부 자원 검색 API
 
