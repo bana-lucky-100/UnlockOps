@@ -11,8 +11,8 @@ from decimal import Decimal, InvalidOperation
 import hashlib
 import re
 
-from .models import ToolFailure
-from .settings import settings
+from ..common.models import ToolFailure
+from ..common.settings import settings
 
 
 # 숫자는 직급 순서와 같은 SaaS 안의 권한 포함 관계를 비교할 때만 사용한다.

@@ -1,6 +1,6 @@
 # MCP 도구 계약
 
-공유 모델: `agent/unlockops/contracts.py`. 두 MCP 서버는 `ContractMCP` 경계에서 입력·출력을 검증하고
+공유 모델: `agent/unlockops/common/contracts.py`. 두 MCP 서버는 `ContractMCP` 경계에서 입력·출력을 검증하고
 `tools/list`의 inputSchema/outputSchema에 같은 모델을 노출합니다. Agent 클라이언트도 같은 계약으로 검증합니다.
 현재 설치된 `mcp` 1.x SDK를 사용하며 다른 FastMCP 패키지로 변경하지 않습니다.
 

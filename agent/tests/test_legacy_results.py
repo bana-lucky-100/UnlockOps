@@ -1,4 +1,4 @@
-from unlockops.models import Result, Status
+from unlockops.common.models import Result, Status
 
 
 def test_old_checkpoint_budget_result_is_safe_to_republish():

@@ -61,7 +61,7 @@ context 필수 응답 계약을 공유하므로 이 변경은 Agent와 Business 
 자원 ID가 주어지면 Spring이 플랫폼을 확인하며 Agent의 ScopedTools 직원·자원·플랫폼 제한은 유지됩니다.
 Spring과 MCP의 회사 권한표 해시가 다르면 상한을 섞어 사용하지 않고 규정 오류로 중단합니다.
 
-도구별 계약은 `agent/unlockops/contracts.py`를 공유합니다. UUID·플랫폼·역할·검색 한도를 입력에서
+도구별 계약은 `agent/unlockops/common/contracts.py`를 공유합니다. UUID·플랫폼·역할·검색 한도를 입력에서
 검증하고, 응답 필수 필드·불리언·예산 형식을 확인합니다. 성공 응답의 기존 구조와 출처 메타데이터는
 유지하며, 오류는 MCP `isError=true`와 `{ok:false,error:{code,message,retryable,reason?}}`로 반환합니다.
 자세한 필드와 재시도 기준은 [MCP 계약](../docs/contracts/mcp.md)에 정리했습니다.

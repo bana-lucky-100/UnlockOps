@@ -9,8 +9,8 @@ from langgraph.checkpoint.memory import InMemorySaver
 from conftest import FakeTools, ROOT
 from test_permission_proposal import FakeModel, proposal
 from test_scenarios import job
-from unlockops import graph as graph_module, permission_proposal, rules
-from unlockops.models import ToolFailure
+from unlockops.access import graph as graph_module, permission_proposal, rules
+from unlockops.common.models import ToolFailure
 from unlockops_rag.search import DocumentIndex
 
 

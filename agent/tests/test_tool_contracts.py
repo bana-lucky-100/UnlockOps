@@ -6,8 +6,8 @@ from mcp.shared.exceptions import McpError
 from mcp.types import CallToolResult, ErrorData, TextContent
 import pytest
 
-from unlockops.models import ToolFailure
-from unlockops.tools import MCPTools
+from unlockops.common.models import ToolFailure
+from unlockops.common.tools import MCPTools
 
 
 IDS = {"employee_id": "10000000-0000-0000-0000-000000000001",

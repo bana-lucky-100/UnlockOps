@@ -9,11 +9,11 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from conftest import FakeTools, ROOT
 from test_scenarios import job
-from unlockops import answering
-from unlockops.answering import AnswerDraft, AnswerReview, AnswerStep, Citation
-from unlockops.graph import build_graph, prepare_response_node
-from unlockops.models import Plan
-from unlockops.response_context import build_response_context
+from unlockops.access import answering
+from unlockops.access.answering import AnswerDraft, AnswerReview, AnswerStep, Citation
+from unlockops.access.graph import build_graph, prepare_response_node
+from unlockops.common.models import Plan
+from unlockops.access.response_context import build_response_context
 from unlockops_rag.search import DocumentIndex
 
 

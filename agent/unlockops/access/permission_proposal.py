@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from .models import ToolFailure
+from ..common.models import ToolFailure
 from .planner import model
 from .rules import ROLES, Verdict, evaluate, grounded_evidence, required_sources as source_ids, source_hashes
 

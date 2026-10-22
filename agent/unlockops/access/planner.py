@@ -5,9 +5,9 @@ import os
 import re
 from functools import lru_cache
 
-from .models import Intent, ToolFailure
-from .settings import settings
-from .tools import READ_TOOLS
+from ..common.models import Intent, ToolFailure
+from ..common.settings import settings
+from ..common.tools import READ_TOOLS
 
 
 # 1. 모델 준비: 연결 설정은 한곳에서 관리한다.

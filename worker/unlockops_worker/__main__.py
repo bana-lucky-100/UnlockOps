@@ -12,10 +12,10 @@ import aio_pika
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Command
 
-from unlockops.graph import build_graph
-from unlockops.models import Job, Result, ToolFailure
-from unlockops.settings import settings
-from unlockops.tools import MCPTools
+from unlockops.access.graph import build_graph
+from unlockops.common.models import Job, Result, ToolFailure
+from unlockops.common.settings import settings
+from unlockops.common.tools import MCPTools
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("unlockops.worker")
@@ -88,7 +88,7 @@ async def main():
                                     await message.ack()
                                     return
                                 raise ToolFailure("INVALID_GRAPH_STATE", "Request is not waiting for approval")
-                            from unlockops.models import Plan
+                            from unlockops.common.models import Plan
                             if Plan.model_validate(snapshot.values["plan"]).digest() != job.plan_hash:
                                 raise ToolFailure("PLAN_CHANGED", "Execution job differs from saved plan")
                             # 승인 대기이면 resume 값을 주고, 이미 재개했다면 저장된 다음 노드를 잇는다.

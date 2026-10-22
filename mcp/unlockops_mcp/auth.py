@@ -1,6 +1,6 @@
 import hmac
 
-from unlockops.settings import settings
+from unlockops.common.settings import settings
 
 
 class TokenAuth:

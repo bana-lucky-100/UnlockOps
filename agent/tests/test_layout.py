@@ -2,13 +2,14 @@
 from importlib import import_module
 from pathlib import Path
 
-from unlockops.settings import PROJECT_ROOT, project_path
+from unlockops.common.settings import PROJECT_ROOT, project_path
 from unlockops_rag.search import DocumentIndex
 
 
 def test_all_service_packages_are_importable():
     for name, folder in (
-        ("unlockops.graph", "agent"),
+        ("unlockops.access.graph", "agent"),
+        ("unlockops.common.settings", "agent"),
         ("unlockops_rag.search", "rag"),
         ("unlockops_mcp.policy", "mcp"),
         ("unlockops_mcp.business", "mcp"),

@@ -9,10 +9,10 @@ from langgraph.types import Command
 
 from conftest import FakeTools, ROOT
 from test_scenarios import job
-from unlockops import answering
-from unlockops.answering import AnswerDraft, AnswerReview, AnswerStep, Citation
-from unlockops.graph import build_graph
-from unlockops.models import Plan, ToolFailure
+from unlockops.access import answering
+from unlockops.access.answering import AnswerDraft, AnswerReview, AnswerStep, Citation
+from unlockops.access.graph import build_graph
+from unlockops.common.models import Plan, ToolFailure
 from unlockops_rag.search import DocumentIndex
 
 
@@ -116,7 +116,7 @@ async def test_optional_exact_document_read_can_supply_answer_evidence(monkeypat
         await scoped.read("read_policy", {"doc_id": "GH-OFF-02"}, optional=True)
         return "complete"
 
-    monkeypatch.setattr("unlockops.graph.investigate", investigate)
+    monkeypatch.setattr("unlockops.access.graph.investigate", investigate)
     tools = NoSearchHits()
     tools.current["repo-uuid"] = "Write"
     state, _, _ = await invoke("payment-core push가 안 돼요", tools)
@@ -207,7 +207,7 @@ async def test_common_response_preserves_decision_and_plan(monkeypatch, contents
             citations=[Citation(chunk_id="source-1", quote="관련 규정")],
         )]), "RAG_GUIDANCE"
 
-    monkeypatch.setattr("unlockops.graph.generate_answer", generate)
+    monkeypatch.setattr("unlockops.access.graph.generate_answer", generate)
     state, tools, snapshot = await invoke(contents)
     assert len(seen) == 1 and seen[0]["handling"] == handling
     before = seen[0]
@@ -266,7 +266,7 @@ async def test_guidance_outage_falls_back_to_manual_review(monkeypatch):
     async def unavailable(state):
         raise ToolFailure("MODEL_UNAVAILABLE", "provider secret")
 
-    monkeypatch.setattr("unlockops.graph.generate_answer", unavailable)
+    monkeypatch.setattr("unlockops.access.graph.generate_answer", unavailable)
     state, tools, snapshot = await invoke("Read와 Write 역할 차이를 설명해주세요")
     assert state["result"]["status"] == "MANUAL_REVIEW"
     assert state["result"]["reasonCode"] == "MODEL_UNAVAILABLE"
@@ -284,7 +284,7 @@ async def test_composed_approval_resumes_without_regenerating_or_changing_plan_h
             citations=[Citation(chunk_id="source-1", quote="승인 필요")],
         )]), "RAG_GUIDANCE"
 
-    monkeypatch.setattr("unlockops.graph.generate_answer", generate)
+    monkeypatch.setattr("unlockops.access.graph.generate_answer", generate)
     tools = FakeTools()
     graph = build_graph(tools, InMemorySaver())
     config = {"configurable": {"thread_id": "composed-approval"}}

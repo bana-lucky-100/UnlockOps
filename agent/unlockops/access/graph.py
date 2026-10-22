@@ -10,14 +10,14 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.types import interrupt
 
 from .answering import generate_answer
-from .contracts import validate_output
-from .models import Intent, Plan, Result, ResultType, ToolFailure
+from ..common.contracts import validate_output
+from ..common.models import Intent, Plan, Result, ResultType, ToolFailure
 from .planner import interpret, investigate
 from .permission_proposal import assess_permission
 from .rules import FORBIDDEN
 from .response_context import build_response_context
-from .settings import settings
-from .tools import ScopedTools
+from ..common.settings import settings
+from ..common.tools import ScopedTools
 
 
 # 규정 원문·권한표 오류만 수동 검토로 전환한다. DB·통신·응답 계약 오류는 포함하지 않는다.

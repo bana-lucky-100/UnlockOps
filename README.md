@@ -57,7 +57,7 @@ Business MCP는 Spring 내부 API를 호출하며 업무 DB에 직접 접근하�
 
 ## 4. Agent 워크플로우
 
-현재는 **하나의 LangGraph 안에서 역할별 노드가 협력하는 구조**입니다. 아래 그래프는 `agent/unlockops/graph.py`의 현재 주 처리 경로를 기준으로 작성했습니다.
+현재는 **하나의 LangGraph 안에서 역할별 노드가 협력하는 구조**입니다. 아래 그래프는 `agent/unlockops/access/graph.py`의 현재 주 처리 경로를 기준으로 작성했습니다.
 
 ```mermaid
 flowchart TD

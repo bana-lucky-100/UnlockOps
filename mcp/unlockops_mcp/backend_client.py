@@ -5,12 +5,12 @@ from __future__ import annotations
 import httpx
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from unlockops.contracts import (
+from unlockops.common.contracts import (
     Budget, CurrentPermissions, EmployeeProfile, ErrorDetail, ErrorResult,
     Membership, TrueFlag, UUIDString, validate_output,
 )
-from unlockops.models import ToolFailure
-from unlockops.settings import settings
+from unlockops.common.models import ToolFailure
+from unlockops.common.settings import settings
 
 
 class ContextResponse(BaseModel):

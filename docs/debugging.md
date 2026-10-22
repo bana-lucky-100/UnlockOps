@@ -56,8 +56,8 @@ MCP 두 서버가 준비되면 `UnlockOps: Agent worker`를 F5로 시작합니�
 
 중단점 위치:
 
-- 의도 추출·LLM 프롬프트: `agent/unlockops/planner.py`
-- 노드·판정·승인 대기·실행·검증: `agent/unlockops/graph.py`
+- 의도 추출·LLM 프롬프트: `agent/unlockops/access/planner.py`
+- 노드·판정·승인 대기·실행·검증: `agent/unlockops/access/graph.py`
 - MCP→Spring HTTP 호출: `mcp/unlockops_mcp/backend_client.py`
 - 실제 모의 권한 변경: `backend/src/main/java/com/unlockops/grant/service/GrantExecutionService.java`
 - 메시지 소비·승인 재개: `worker/unlockops_worker/__main__.py`

@@ -402,5 +402,5 @@ plan·verification_ok는 null이다. 권한 반영 완료는 `DONE / result_type
 추가 질문용 API는 없으며 정보 부족·대상 불명확은 `MANUAL_REVIEW`, 예산 부족은 `REJECTED`로 처리한다.
 
 구현 참조: `backend/src/main/java/com/unlockops/`의 Controller·Service·SecurityConfig,
-`mcp/unlockops_mcp/`、`agent/unlockops/contracts.py`、`worker/unlockops_worker/__main__.py`、`compose.yaml`。
+`mcp/unlockops_mcp/`、`agent/unlockops/common/contracts.py`、`worker/unlockops_worker/__main__.py`、`compose.yaml`。
 상세 MCP 입출력·오류 규칙은 [MCP 계약](contracts/mcp.md)을 참고한다.

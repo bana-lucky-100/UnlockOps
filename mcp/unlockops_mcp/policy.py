@@ -6,8 +6,8 @@ import os
 import uvicorn
 
 from unlockops_rag.search import DocumentFormatError, DocumentIndex
-from unlockops.models import ToolFailure
-from unlockops.settings import settings
+from unlockops.common.models import ToolFailure
+from unlockops.common.settings import settings
 from .auth import TokenAuth
 from .contracts import READ_ONLY, ContractMCP
 

@@ -7,13 +7,13 @@ import jsonschema
 import httpx
 from starlette.testclient import TestClient
 
-from unlockops.settings import settings
+from unlockops.common.settings import settings
 from unlockops_mcp.auth import TokenAuth
 from unlockops_mcp.business import mcp as business_mcp
 from unlockops_mcp.policy import mcp as policy_mcp
-from unlockops.contracts import validate_output
-from unlockops.contracts import INPUTS
-from unlockops.models import ToolFailure
+from unlockops.common.contracts import validate_output
+from unlockops.common.contracts import INPUTS
+from unlockops.common.models import ToolFailure
 from unlockops_mcp.contracts import ContractMCP
 
 

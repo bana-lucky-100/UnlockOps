@@ -7,9 +7,9 @@ import uvicorn
 
 from unlockops_rag.search import DocumentFormatError, DocumentIndex
 from .backend_client import BackendClient
-from unlockops.models import ToolFailure
-from unlockops.rules import source_hashes
-from unlockops.settings import settings
+from unlockops.common.models import ToolFailure
+from unlockops.access.rules import source_hashes
+from unlockops.common.settings import settings
 from .auth import TokenAuth
 from .contracts import APPROVED_WRITE, READ_ONLY, ContractMCP
 

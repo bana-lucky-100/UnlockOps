@@ -2,8 +2,8 @@ import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from unlockops.graph import build_graph
-from unlockops.models import Plan
+from unlockops.access.graph import build_graph
+from unlockops.common.models import Plan
 from conftest import FakeTools
 
 
@@ -97,7 +97,7 @@ async def test_jira_failure_stops_at_three_total_attempts(monkeypatch):
     async def no_delay(_):
         """재시도 횟수를 기다림 없이 검사하도록 지연을 대체한다."""
         pass
-    monkeypatch.setattr("unlockops.graph.pause",no_delay)
+    monkeypatch.setattr("unlockops.access.graph.pause",no_delay)
     tools=FakeTools(fail_jira=True); graph=build_graph(tools,InMemorySaver())
     config={"configurable":{"thread_id":"p"}}
     await graph.ainvoke({"job":job("JIRA","PAY 프로젝트가 안 보여요"),"events":[]},config)
@@ -121,13 +121,13 @@ async def test_missing_policy_cannot_create_an_approval_card():
 
 async def test_out_of_scope_stops_before_any_lookup_or_approval(monkeypatch):
     """지원 범위를 벗어난 요청은 조회와 승인 계획 생성 전에 종료한다."""
-    from unlockops.models import Intent
+    from unlockops.common.models import Intent
 
     async def outside_scope(contents, platform):
         """외부 모델 없이 범위 밖으로 해석된 의도를 반환한다."""
         return Intent(resource_hint="payment-core", out_of_scope=True)
 
-    monkeypatch.setattr("unlockops.graph.interpret", outside_scope)
+    monkeypatch.setattr("unlockops.access.graph.interpret", outside_scope)
     tools = FakeTools()
     graph = build_graph(tools, InMemorySaver())
     config = {"configurable": {"thread_id": "outside-scope"}}
@@ -166,12 +166,12 @@ async def test_verification_retry_policy_never_reexecutes_grant(
     monkeypatch, checks, expected_status, expected_code, expected_calls,
 ):
     """검증 결과·오류별 재조회 횟수를 확인하고 부여는 반복하지 않는다."""
-    from unlockops.models import ToolFailure
+    from unlockops.common.models import ToolFailure
 
     async def no_delay(_):
         """검증 재시도 검사를 위해 대기 시간을 제거한다."""
         pass
-    monkeypatch.setattr("unlockops.graph.pause", no_delay)
+    monkeypatch.setattr("unlockops.access.graph.pause", no_delay)
 
     class VerificationTools(FakeTools):
         verify_calls = 0
@@ -221,7 +221,7 @@ async def test_verification_retry_policy_never_reexecutes_grant(
 ])
 async def test_malformed_mandatory_read_blocks_approval(tool_name, payload, contents):
     """필수 조회 응답의 계약 위반은 승인 계획 생성과 쓰기를 차단한다."""
-    from unlockops.models import ToolFailure
+    from unlockops.common.models import ToolFailure
 
     class InvalidReadTools(FakeTools):
         async def call(self, name, args):
@@ -273,7 +273,7 @@ async def test_invalid_grant_response_does_not_repeat_side_effects(payload):
 
 async def test_tampered_approval_plan_is_rejected_before_write():
     """승인 시 전달한 계획 해시가 다르면 권한 변경 전에 거부한다."""
-    from unlockops.models import ToolFailure
+    from unlockops.common.models import ToolFailure
     tools=FakeTools(); graph=build_graph(tools,InMemorySaver())
     config={"configurable":{"thread_id":"p"}}
     await graph.ainvoke({"job":job("GITHUB","payment-core push가 안 돼요"),"events":[]},config)

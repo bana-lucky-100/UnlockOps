@@ -6,7 +6,7 @@ import json
 import httpx
 import pytest
 
-from unlockops.models import ToolFailure
+from unlockops.common.models import ToolFailure
 from unlockops_mcp.backend_client import BackendClient
 
 EMPLOYEE = "10000000-0000-0000-0000-000000000001"
@@ -149,7 +149,7 @@ def test_missing_budget_field_is_not_silently_treated_as_no_budget():
 
 
 def test_access_search_uses_spring_ceiling_and_checks_source_version(monkeypatch):
-    from unlockops.rules import source_hashes
+    from unlockops.access.rules import source_hashes
     from unlockops_mcp import business
 
     context = {**deepcopy(CONTEXT), "maximum_role": "Read", "source_hashes": source_hashes()}
