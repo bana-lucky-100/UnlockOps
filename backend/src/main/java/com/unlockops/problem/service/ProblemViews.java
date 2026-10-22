@@ -12,7 +12,7 @@ public final class ProblemViews {
     private ProblemViews() {}
 
     public static Requester requester(Problem p, List<PublicEvent> events) {
-        return new Requester(p.id(), p.requesterId(), p.approverId(), p.platform(), p.contents(), p.status(),
+        return new Requester(p.id(), p.requesterId(), p.approverId(), p.platform(), p.contents(), p.status(), p.resultType(),
             p.reasonCode(), p.diagnosis(), p.proposal(), p.resourceId(), p.requestedRole(),
             p.decisionReason(), p.decidedAt(), p.verificationOk(), p.createdAt(), p.updatedAt(),
             p.requesterName(), p.employeeNo(), events);
@@ -29,7 +29,7 @@ public final class ProblemViews {
                     ? "권한 반영을 진행하고 있습니다." : "요청을 분석하고 있습니다.";
                 case HUMAN_DECISION -> payload.path("approved").asBoolean(false)
                     ? "담당자가 승인했습니다." : "담당자가 반려했습니다.";
-                case ANALYZED, EXECUTED -> statusMessage(payload.path("result").path("status").asText());
+                case ANALYZED, EXECUTED -> resultMessage(payload.path("result"));
                 case FAILED -> "처리가 완료되지 않아 담당자 확인이 필요합니다.";
             };
             String key = event.kind() + ":" + message;
@@ -40,7 +40,15 @@ public final class ProblemViews {
         return List.copyOf(result);
     }
 
-    private static String statusMessage(String status) {
+    private static String resultMessage(JsonNode result) {
+        String status = result.path("status").asText();
+        // Immutable historical events may still use the old guidance contract.
+        boolean guidance = "DONE".equals(status) && "GUIDANCE".equals(result.path("result_type").asText());
+        boolean legacyGuidance = !result.has("result_type") && "MANUAL_REVIEW".equals(status)
+            && "RAG_GUIDANCE".equals(result.path("reasonCode").asText())
+            && result.path("proposal").isTextual() && !result.path("proposal").asText().isBlank()
+            && !result.hasNonNull("plan") && !result.hasNonNull("verification_ok");
+        if (guidance || legacyGuidance) return "안내가 완료됐어요";
         // ON_HOLD can remain in immutable historical audit payloads.
         if ("ON_HOLD".equals(status)) status = ProblemStatus.REJECTED.name();
         ProblemStatus parsed;

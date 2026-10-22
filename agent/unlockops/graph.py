@@ -11,7 +11,7 @@ from langgraph.types import interrupt
 
 from .answering import generate_answer
 from .contracts import validate_output
-from .models import Intent, Plan, Result, ToolFailure
+from .models import Intent, Plan, Result, ResultType, ToolFailure
 from .planner import interpret, investigate
 from .permission_proposal import assess_permission
 from .rules import FORBIDDEN
@@ -68,7 +68,7 @@ async def pause(seconds):
     await asyncio.sleep(seconds)
 
 
-def outcome(state, status, code, message, role="", verified=None):
+def outcome(state, status, code, message, role="", verified=None, result_type=None):
     """판정·실행 결과를 백엔드가 받는 공통 응답 형식으로 만든다."""
     plan = None
     if role and state.get("resource"):
@@ -82,6 +82,7 @@ def outcome(state, status, code, message, role="", verified=None):
         )
     return Result(
         status=status,
+        result_type=result_type or (ResultType.ACCESS_VERIFIED if status == "DONE" and verified is True else None),
         reasonCode=code,
         summary=message,
         diagnosis=message,
@@ -366,8 +367,8 @@ async def answer_node(state: AgentState) -> dict:
         result = outcome(state, "MANUAL_REVIEW", code, "안내할 근거를 충분히 확인하지 못해 담당자 검토가 필요합니다.")
         return {"result": result, "plan": None, "handling": "MANUAL_REVIEW",
                 "events": event(state, "answer", grounded=False, reason_code=code)}
-    # 기존 서버 계약으로 안내를 전달한다. 안내 완료 전용 상태는 서버와 합의 후 추가한다.
-    result = outcome(state, "MANUAL_REVIEW", code, state["result"]["diagnosis"])
+    # 안내 완료와 권한 반영 완료는 같은 DONE 안에서 result_type으로 구분한다.
+    result = outcome(state, "DONE", code, state["result"]["diagnosis"], result_type=ResultType.GUIDANCE)
     result["nextAction"] = "안내 확인 후 해결되지 않으면 담당자 검토"
     intro = "확인한 문서를 바탕으로 안내합니다."
     if state.get("current", {}).get("role"):

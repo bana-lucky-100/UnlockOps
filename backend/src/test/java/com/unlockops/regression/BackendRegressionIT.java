@@ -63,7 +63,7 @@ class BackendRegressionIT {
     private static final String TF_RESOURCE = "20000000-0000-0000-0000-000000000001";
     private static final Set<String> PUBLIC_FIELDS = Set.of(
         "id", "requester_id", "approver_id", "platform", "contents", "status", "reason_code", "diagnosis",
-        "proposal", "resource_id", "requested_role", "decision_reason", "decided_at", "verification_ok",
+        "result_type", "proposal", "resource_id", "requested_role", "decision_reason", "decided_at", "verification_ok",
         "created_at", "updated_at", "requester_name", "employee_no");
 
     @Container static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
@@ -217,6 +217,29 @@ class BackendRegressionIT {
     }
 
     @Test
+    void failedExecutionEnqueueRollsBackApprovalAndStateTransition() throws Exception {
+        String id = waiting(login("kim_dev"));
+        MockHttpSession approver = login("park_lead");
+        String hash = field(id, "plan_hash");
+        jdbc.execute("ALTER TABLE outbox ADD CONSTRAINT test_block_execution CHECK (routing_key <> 'execution')");
+        try {
+            decide(approver, id, true, hash, "필요 확인", 500);
+            assertEquals("WAITING_APPROVAL", field(id, "status"));
+            assertNull(field(id, "decided_at"));
+            assertNull(field(id, "approved_plan_hash"));
+            assertNull(field(id, "idempotency_key"));
+            assertEquals(0, routingCount("execution"));
+            assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM problem_events WHERE problem_id=? AND kind='HUMAN_DECISION'",
+                Integer.class, UUID.fromString(id)));
+        } finally {
+            jdbc.execute("ALTER TABLE outbox DROP CONSTRAINT test_block_execution");
+        }
+        decide(approver, id, true, hash, "재시도", 200);
+        assertEquals("EXECUTING", field(id, "status"));
+        assertEquals(1, routingCount("execution"));
+    }
+
+    @Test
     void selfApprovalIsForbiddenEvenIfTheDatabaseAssignmentPointsToRequester() throws Exception {
         String id = waiting(login("kim_dev"));
         jdbc.update("UPDATE problems SET requester_id=? WHERE id=?", UUID.fromString(LEADER), UUID.fromString(id));
@@ -294,6 +317,37 @@ class BackendRegressionIT {
         send(stale);
         awaitInbox(stale);
         assertEquals("FAILED", field(id, "status"));
+    }
+
+    @Test
+    void guidanceCompletionIsConsistentAcrossQueueDatabaseAndHttp() throws Exception {
+        MockHttpSession requester = login("kim_dev");
+        String id = create(requester, "GITHUB", "Read와 Write 차이를 알려주세요", false);
+        ObjectNode outcome = result("DONE", "RAG_GUIDANCE", null).put("result_type", "GUIDANCE");
+        ObjectNode event = envelope(id, "ANALYZE", "ANALYZED", outcome);
+        send(event);
+        awaitInbox(event);
+        assertEquals("DONE", field(id, "status"));
+        assertEquals("GUIDANCE", field(id, "result_type"));
+        assertNull(field(id, "verification_ok"));
+        assertEquals(0, routingCount("execution"));
+        JsonNode response = detail(requester, id);
+        assertEquals("GUIDANCE", response.path("result_type").asText());
+        assertTrue(response.path("events").toString().contains("안내가 완료됐어요"));
+        assertEquals(0, count("grant_receipts"));
+    }
+
+    @Test
+    void legacyGuidanceCompletesWithoutMutatingTheAuditEnvelope() throws Exception {
+        String id = create(login("kim_dev"), "GITHUB", "권한 안내", false);
+        ObjectNode event = envelope(id, "ANALYZE", "ANALYZED", result("MANUAL_REVIEW", "RAG_GUIDANCE", null));
+        send(event);
+        awaitInbox(event);
+        assertEquals("DONE", field(id, "status"));
+        assertEquals("GUIDANCE", field(id, "result_type"));
+        JsonNode audit = json.readTree(jdbc.queryForObject("SELECT payload::text FROM problem_events WHERE event_id=?",
+            String.class, UUID.fromString(event.path("event_id").asText())));
+        assertEquals(event, audit);
     }
 
     @Test

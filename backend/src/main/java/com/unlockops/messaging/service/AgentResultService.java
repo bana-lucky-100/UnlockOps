@@ -70,7 +70,8 @@ public class AgentResultService {
         if (!(execution ? EXECUTION_RESULTS : ANALYSIS_RESULTS).contains(result.status()))
             throw new InvalidAgentMessageException(ILLEGAL_RESULT_STATE);
         if (result.status() == ProblemStatus.DONE) {
-            if (!Boolean.TRUE.equals(result.verificationOk())) throw new InvalidAgentMessageException(UNVERIFIED_COMPLETION);
+            if (execution && result.resultType() != ResultType.ACCESS_VERIFIED)
+                throw new InvalidAgentMessageException(UNVERIFIED_COMPLETION);
             if (execution && !grants.hasReceipt(problem.id(), problem.idempotencyKey()))
                 throw new InvalidAgentMessageException(MISSING_RECEIPT);
         }
@@ -84,7 +85,7 @@ public class AgentResultService {
 
     private ExecutionUpdate executionUpdate(AgentResult result) {
         return new ExecutionUpdate(result.status(), result.diagnosis(), result.proposal(), result.reasonCode(),
-            result.verificationOk(), result.agentMode());
+            result.verificationOk(), result.agentMode(), result.resultType());
     }
 
     private AnalysisUpdate analysisUpdate(Problem problem, AgentResult result) {
@@ -102,7 +103,7 @@ public class AgentResultService {
             // DB failures/defects must escape for rollback. Invalid plans retain an already validated approver.
             ExecutionUpdate fallback = new ExecutionUpdate(ProblemStatus.MANUAL_REVIEW, result.diagnosis(),
                 "실행 계획이 서버 검증을 통과하지 못했습니다. 담당자 검토가 필요합니다.",
-                ServerReason.SERVER_PLAN_VALIDATION.name(), result.verificationOk(), result.agentMode());
+                ServerReason.SERVER_PLAN_VALIDATION.name(), result.verificationOk(), result.agentMode(), null);
             return new AnalysisUpdate(fallback, approver, null, null, result.evidence(), null, null);
         }
     }

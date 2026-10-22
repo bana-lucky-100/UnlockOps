@@ -4,6 +4,7 @@ import com.unlockops.auth.model.AppUser;
 import com.unlockops.problem.dto.ProblemRequests.*;
 import com.unlockops.problem.dto.ProblemResponses.*;
 import com.unlockops.problem.service.ProblemService;
+import com.unlockops.approval.service.ApprovalDecisionService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -15,7 +16,11 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/problems")
 public class ProblemController {
     private final ProblemService service;
-    public ProblemController(ProblemService service) { this.service = service; }
+    private final ApprovalDecisionService decisions;
+    public ProblemController(ProblemService service, ApprovalDecisionService decisions) {
+        this.service = service;
+        this.decisions = decisions;
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -35,6 +40,6 @@ public class ProblemController {
 
     @PostMapping("/{id}/decision")
     public Status decide(@AuthenticationPrincipal AppUser user, @PathVariable UUID id, @RequestBody @Valid Decision request) {
-        return service.decide(user, id, request);
+        return decisions.decide(user, id, request);
     }
 }

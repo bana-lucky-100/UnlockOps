@@ -10,7 +10,7 @@ import com.unlockops.messaging.service.JobService;
 import com.unlockops.problem.dto.ProblemRequests.Decision;
 import com.unlockops.problem.model.*;
 import com.unlockops.problem.repository.*;
-import com.unlockops.problem.service.ProblemService;
+import com.unlockops.approval.service.*;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,12 +19,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-class ProblemServiceSecurityTest {
+class ApprovalDecisionServiceTest {
     ProblemRepository problems;
     ProblemEventRepository events;
     OutboxRepository outbox;
     GrantPolicy policy;
-    ProblemService service;
+    ApprovalDecisionService service;
     UUID id = UUID.randomUUID(), requester = UUID.randomUUID(), approver = UUID.randomUUID();
     ObjectNode row;
     String hash;
@@ -34,7 +34,16 @@ class ProblemServiceSecurityTest {
         events = mock(ProblemEventRepository.class);
         outbox = mock(OutboxRepository.class);
         policy = mock(GrantPolicy.class);
-        service = new ProblemService(problems, events, new JobService(outbox), ProblemFixtures.JSON, policy, true);
+        service = new ApprovalDecisionService(problems, events, ProblemFixtures.JSON, policy,
+            new ApprovedExecutionService(problems, new ApprovalCompletionPolicy(), new JobService(outbox), ProblemFixtures.JSON));
+        when(problems.startExecution(id)).thenReturn(true);
+        doAnswer(invocation -> {
+            ProblemRepository.DecisionUpdate update = invocation.getArgument(1);
+            row.put("status", update.status().name()).put("decision_source", "HUMAN")
+                .put("decided_by", update.actor().toString()).put("decided_at", "2026-10-22T00:00:00Z")
+                .put("approved_plan_hash", update.approvedPlanHash()).put("idempotency_key", update.idempotencyKey());
+            return null;
+        }).when(problems).decide(eq(id), any());
         row = ProblemFixtures.row(id, requester, approver);
         hash = ProblemFixtures.JSON.planHash(ProblemFixtures.problem(row).plan());
         row.put("plan_hash", hash);

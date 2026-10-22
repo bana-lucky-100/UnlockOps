@@ -72,20 +72,27 @@ public class ProblemRepository {
         jdbc.update("UPDATE problems SET status='DIAGNOSING',updated_at=NOW() WHERE id=?", id);
     }
 
+    public boolean startExecution(UUID id) {
+        return jdbc.update("""
+            UPDATE problems SET status='EXECUTING',proposal='승인이 기록되어 권한 부여를 진행하고 있습니다.',updated_at=NOW()
+            WHERE id=? AND status='WAITING_APPROVAL'
+            """, id) == 1;
+    }
+
     public void markFailed(UUID id, String errorCode, String proposal) {
         jdbc.update("UPDATE problems SET status='FAILED',reason_code=?,proposal=?,updated_at=NOW() WHERE id=?",
             errorCode, proposal, id);
     }
 
     public record ExecutionUpdate(ProblemStatus status, String diagnosis, String proposal, String reasonCode,
-                                  Boolean verificationOk, AgentMode agentMode) {}
+                                  Boolean verificationOk, AgentMode agentMode, ResultType resultType) {}
 
     public void applyExecution(UUID id, ExecutionUpdate update) {
         jdbc.update("""
             UPDATE problems SET status=?,diagnosis=?,proposal=?,reason_code=?,verification_ok=?,
-              agent_mode=?,updated_at=NOW() WHERE id=?
+              agent_mode=?,result_type=?,updated_at=NOW() WHERE id=?
             """, update.status().name(), update.diagnosis(), update.proposal(), update.reasonCode(),
-            update.verificationOk(), update.agentMode() == null ? null : update.agentMode().value(), id);
+            update.verificationOk(), update.agentMode() == null ? null : update.agentMode().value(), update.resultType() == null ? null : update.resultType().name(), id);
     }
 
     public record AnalysisUpdate(ExecutionUpdate result, UUID approverId, UUID resourceId, SaasRole requestedRole,
@@ -96,11 +103,11 @@ public class ProblemRepository {
         jdbc.update("""
             UPDATE problems SET status=?,approver_id=?,diagnosis=?,proposal=?,resource_id=?,requested_role=?,
               evidence=?::jsonb,reason_code=?,plan=?::jsonb,plan_hash=?,verification_ok=?,agent_mode=?,
-              decision_source='AGENT',updated_at=NOW() WHERE id=?
+              decision_source='AGENT',result_type=?,updated_at=NOW() WHERE id=?
             """, result.status().name(), update.approverId(), result.diagnosis(), result.proposal(),
             update.resourceId(), update.requestedRole() == null ? null : update.requestedRole().value(),
             json.write(update.evidence()), result.reasonCode(), update.plan() == null ? null : json.write(update.plan()),
-            update.planHash(), result.verificationOk(), result.agentMode() == null ? null : result.agentMode().value(), id);
+            update.planHash(), result.verificationOk(), result.agentMode() == null ? null : result.agentMode().value(), result.resultType() == null ? null : result.resultType().name(), id);
     }
 
     private Problem map(ResultSet rs, int row) throws SQLException {
@@ -109,7 +116,8 @@ public class ProblemRepository {
         String plan = rs.getString("plan_json");
         return new Problem(rs.getObject("id", UUID.class), rs.getObject("requester_id", UUID.class),
             rs.getObject("approver_id", UUID.class), Platform.valueOf(rs.getString("platform")),
-            rs.getString("contents"), ProblemStatus.valueOf(rs.getString("status")), rs.getString("diagnosis"),
+            rs.getString("contents"), ProblemStatus.valueOf(rs.getString("status")),
+            rs.getString("result_type") == null ? null : ResultType.valueOf(rs.getString("result_type")), rs.getString("diagnosis"),
             rs.getString("proposal"), rs.getObject("resource_id", UUID.class), role == null ? null : SaasRole.from(role),
             json.tree(rs.getString("evidence_json")), rs.getString("reason_code"), rs.getString("decision_reason"),
             source == null ? null : DecisionSource.valueOf(source), rs.getObject("decided_by", UUID.class),

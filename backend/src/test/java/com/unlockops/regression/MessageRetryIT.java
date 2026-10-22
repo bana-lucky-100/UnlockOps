@@ -175,7 +175,7 @@ class MessageRetryIT {
         assertEquals(0, inboxCount(event));
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM problem_events WHERE problem_id=?", Integer.class, problemId));
         if (scenario != null) capture(scenario, event,
-            scenario.startsWith("02") ? "UNVERIFIED_COMPLETION" : "40001: serialization_failure (persistent)", 1);
+            scenario.startsWith("02") ? "INVALID_RESULT" : "40001: serialization_failure (persistent)", 1);
         Message dead = rabbit.receive("unlockops.dead", 10000);
         assertNotNull(dead);
         assertEquals(event, json.readTree(dead.getBody()));

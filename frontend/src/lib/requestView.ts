@@ -71,7 +71,7 @@ export function summaryOf(p: Problem): string {
  * 그 상태의 안내는 오른쪽 안내 카드가 맡는다.
  */
 export function aiMessageOf(p: Problem): string | null {
-  if (p.status === 'REJECTED' || (p.status === 'MANUAL_REVIEW' && !isGuidanceComplete(p))) return null
+  if (p.status === 'REJECTED' || p.status === 'MANUAL_REVIEW') return null
   return p.diagnosis?.trim() || null
 }
 
@@ -139,16 +139,10 @@ export function evidenceOf(p: Problem): { facts: EvidenceFact[]; docs: EvidenceD
   return { facts, docs: [...docs.values()].sort((a, b) => order(a.id) - order(b.id) || a.id.localeCompare(b.id)) }
 }
 
-/** 기존 서버가 안내 성공에 붙인 마지막 분석 이벤트의 검토 문구도 완료로 표시한다. */
-function guidanceEventIndex(p: Problem): number {
-  return isGuidanceComplete(p) ? (p.events ?? []).map(e => e.kind).lastIndexOf('ANALYZED') : -1
-}
-
 export function requesterEventsOf(p: Problem): { at: string; text: string }[] {
-  const guidanceIndex = guidanceEventIndex(p)
-  return (p.events ?? []).map((e, i) => ({
+  return (p.events ?? []).map(e => ({
     at: e.created_at,
-    text: i === guidanceIndex ? '안내가 완료됐어요' : typeof e.payload?.message === 'string' ? e.payload.message : '',
+    text: typeof e.payload?.message === 'string' ? e.payload.message : '',
   })).filter(e => e.text)
 }
 
@@ -163,14 +157,18 @@ export function approverEventsOf(p: Problem): { at: string; text: string }[] {
   }
   const out: { at: string; text: string }[] = []
   let prev = ''
-  const guidanceIndex = guidanceEventIndex(p)
-  for (const [i, e] of (p.events ?? []).entries()) {
+  for (const e of p.events ?? []) {
     const pl = (e.payload ?? {}) as Record<string, unknown>
     const result = pl.result as Record<string, unknown> | undefined
-    const text = i === guidanceIndex ? '안내가 완료됐어요'
-      : e.kind === 'PROGRESS' ? (pl.job_type === 'EXECUTE' ? '권한을 넣고 있어요' : 'AI가 요청을 분석하고 있어요')
+    // Historical audit envelopes remain immutable; current Problem status never uses this fallback.
+    const guidance = result && (
+      (result.status === 'DONE' && result.result_type === 'GUIDANCE') ||
+      (!('result_type' in result) && result.status === 'MANUAL_REVIEW' && result.reasonCode === 'RAG_GUIDANCE'
+        && typeof result.proposal === 'string' && !!result.proposal.trim() && !result.plan && result.verification_ok == null)
+    )
+    const text = e.kind === 'PROGRESS' ? (pl.job_type === 'EXECUTE' ? '권한을 넣고 있어요' : 'AI가 요청을 분석하고 있어요')
       : e.kind === 'HUMAN_DECISION' ? (pl.approved ? '승인했어요' : '거절했어요')
-      : (e.kind === 'ANALYZED' || e.kind === 'EXECUTED') && result ? STATUS_TEXT[result.status as Status] ?? ''
+      : (e.kind === 'ANALYZED' || e.kind === 'EXECUTED') && result ? (guidance ? '안내가 완료됐어요' : STATUS_TEXT[result.status as Status] ?? '')
       : e.kind === 'FAILED' ? '처리하지 못해 운영 담당자 확인이 필요해요'
       : ''
     if (!text || text === prev) continue

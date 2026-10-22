@@ -47,7 +47,8 @@ async def invoke(contents, tools=None, platform="GITHUB"):
 async def test_guide_answers_without_creating_a_grant_or_requiring_a_resource(contents):
     state, tools, snapshot = await invoke(contents)
     result = state["result"]
-    assert result["status"] == "MANUAL_REVIEW"
+    assert result["status"] == "DONE"
+    assert result["result_type"] == "GUIDANCE"
     assert result["reasonCode"] == "RAG_GUIDANCE"
     assert state["handling"] == "ANSWER"
     assert result["plan"] is None and result["verification_ok"] is None
@@ -64,7 +65,8 @@ async def test_existing_permission_produces_guidance_for_errors_or_access_reques
     tools = RetrievalTools()
     tools.current["repo-uuid"] = "Write"
     state, tools, _ = await invoke(contents, tools)
-    assert state["result"]["status"] == "MANUAL_REVIEW"
+    assert state["result"]["status"] == "DONE"
+    assert state["result"]["result_type"] == "GUIDANCE"
     assert state["result"]["reasonCode"] == "RAG_GUIDANCE"
     assert state["handling"] == "ANSWER"
     assert "현재 권한은 Write" in state["result"]["proposal"]
@@ -118,7 +120,8 @@ async def test_optional_exact_document_read_can_supply_answer_evidence(monkeypat
     tools = NoSearchHits()
     tools.current["repo-uuid"] = "Write"
     state, _, _ = await invoke("payment-core push가 안 돼요", tools)
-    assert state["result"]["status"] == "MANUAL_REVIEW"
+    assert state["result"]["status"] == "DONE"
+    assert state["result"]["result_type"] == "GUIDANCE"
     assert state["result"]["reasonCode"] == "RAG_GUIDANCE"
     assert any(e.get("doc_id") == "GH-OFF-02" for e in state["result"]["evidence"])
 

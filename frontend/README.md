@@ -34,9 +34,9 @@ Web Crypto를 사용하므로 HTTPS 또는 localhost의 보안 컨텍스트에�
 Docker 화면은 localhost:8088, Vite 개발 화면은 localhost:5173입니다.
 백엔드 시작 순서는 [디버깅 안내](../docs/debugging.md)를 참고하세요.
 
-안내 성공은 기존 API 계약인 `MANUAL_REVIEW / RAG_GUIDANCE`와 비어 있지 않은 `proposal`로 판별합니다.
+안내 성공은 서버가 반환한 `status=DONE`, `result_type=GUIDANCE`로 판별합니다. 사유 코드나 문구로 완료 상태를 추측하지 않습니다.
 화면에서는 초록색 `안내 완료`로 표시하고, 끝난 요청 및 최근 처리 목록에 포함하며 해당 요청의 자동 조회를 종료합니다.
 안내 완료 상세에서 요청자에게는 API의 `diagnosis`만 표시하고, 긴 안내 본문(`proposal`)은 승인자에게만 표시합니다.
 권한 부여 단계 대신 접수 → 진단 → 안내 제공을 보여줍니다.
-서버 상태와 권한 반영 완료(`DONE`, `verification_ok=true`)의 검증 규칙은 바꾸지 않습니다.
+권한 반영 완료는 `DONE / result_type=ACCESS_VERIFIED / verification_ok=true`로 구분합니다. 구 감사 이벤트만 호환 표시하며, 현재 요청의 완료 여부는 새 계약만 사용합니다.
 `guidanceCompletion.test.mjs`는 이 응답의 완료 분류·본문 표시·진행 기록과 실제 검토 필요 상태의 구분을 검증합니다.

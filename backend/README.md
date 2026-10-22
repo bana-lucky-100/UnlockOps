@@ -79,8 +79,8 @@ flowchart LR
 2. `OutboxService.publishPending`: 최대 20건을 `FOR UPDATE SKIP LOCKED`로 잠그고 발행합니다. 브로커 confirm·라우팅을 확인한 뒤 published_at을 기록합니다. 배치 실패 시 트랜잭션을 롤백합니다.
 3. `AgentResultService.apply`: inbox 중복 검사 → 요청 행 잠금 → 원본 감사 이벤트 저장 → 현재 상태에 맞는 전이 검사를 같은 트랜잭션에서 수행합니다. 지연된 분석은 승인·완료 상태를 덮어쓰지 못합니다.
 4. 승인 대기 결과는 6개 필드의 `GrantPlan`, `GrantPolicy`, 비어 있지 않은 evidence를 검증합니다. 실패하면 기존처럼 MANUAL_REVIEW로 전환하고 실행 필드를 비웁니다.
-5. `ProblemService.decide`: 지정 승인자·본인 승인 금지·현재 카드 해시·최신 자격·계획 해시를 다시 검증합니다. 승인 시 사람 결정·이력·EXECUTE outbox를 한 트랜잭션에 저장합니다. 반려에는 사유가 필요합니다.
-6. 실행 결과는 사람 결정·승인 계획을 보존합니다. DONE에는 verification_ok=true와 해당 실행 키의 grant_receipts가 필요합니다. 검증 실패 시 inbox와 감사 이벤트까지 함께 롤백합니다.
+5. `ApprovalDecisionService.decide`: 지정 승인자·본인 승인 금지·현재 카드 해시·최신 자격을 검사하고 사람 결정을 기록합니다. `ApprovedExecutionService`가 저장된 승인 완료 여부·계획 해시·실행 키를 확인한 뒤 EXECUTING 전이와 EXECUTE outbox를 처리합니다. 결정·이력·전이·outbox는 한 트랜잭션이며, 반려에는 사유가 필요합니다.
+6. 실행 결과는 사람 결정·승인 계획을 보존합니다. 실행 DONE에는 result_type=ACCESS_VERIFIED, verification_ok=true와 해당 실행 키의 grant_receipts가 필요합니다. 분석의 안내 완료는 DONE / result_type=GUIDANCE이며 계획·verification_ok는 null입니다. 검증 실패 시 inbox와 감사 이벤트까지 함께 롤백합니다.
 
 ## 타입과 공개 응답 경계
 

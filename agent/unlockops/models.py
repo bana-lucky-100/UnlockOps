@@ -46,6 +46,13 @@ class Intent(BaseModel):
     out_of_scope: bool = False
 
 
+class ResultType(StrEnum):
+    """DONE의 완료 대상. 안내 제공은 실제 권한 반영을 의미하지 않는다."""
+
+    GUIDANCE = "GUIDANCE"
+    ACCESS_VERIFIED = "ACCESS_VERIFIED"
+
+
 class Plan(BaseModel):
     """승인받을 요청자·자원·역할을 담은 불변 실행 계획의 형식."""
 
@@ -71,6 +78,7 @@ class Result(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     status: Status
+    result_type: ResultType | None = None
     reasonCode: str
     summary: str
     diagnosis: str
@@ -83,16 +91,36 @@ class Result(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def normalize_legacy_budget(cls, value):
+    def normalize_legacy_result(cls, value):
         # 이전 큐 메시지·체크포인트도 현재 상태 이름으로 읽는다.
-        """이전 예산 결과의 상태와 사유 코드를 현재 응답 형식으로 맞춘다."""
+        """이전 예산·안내·권한 완료 결과를 현재 상태와 결과 유형으로 맞춘다."""
         if isinstance(value, dict):
             value = dict(value)
             if value.get("status") == "ON_HOLD":
                 value["status"] = "REJECTED"
             if value.get("reasonCode") == "INSUFFICIENT_BUDGET":
                 value["reasonCode"] = "BUDGET_INSUFFICIENT"
+            if "result_type" not in value:
+                if (value.get("status") == "MANUAL_REVIEW"
+                    and value.get("reasonCode") == "RAG_GUIDANCE"
+                    and isinstance(value.get("proposal"), str) and value["proposal"].strip()
+                    and value.get("plan") is None and value.get("verification_ok") is None):
+                    value.update(status="DONE", result_type="GUIDANCE")
+                elif value.get("status") == "DONE" and value.get("verification_ok") is True:
+                    value["result_type"] = "ACCESS_VERIFIED"
         return value
+
+    @model_validator(mode="after")
+    def validate_completion(self):
+        if self.status != Status.DONE:
+            if self.result_type is not None:
+                raise ValueError("Only DONE can have a result_type")
+        elif self.result_type == ResultType.GUIDANCE:
+            if not self.proposal.strip() or self.plan is not None or self.verification_ok is not None:
+                raise ValueError("Guidance requires text and cannot claim a grant or verification")
+        elif self.result_type != ResultType.ACCESS_VERIFIED or self.verification_ok is not True:
+            raise ValueError("Access completion requires verification")
+        return self
 
 
 class Job(BaseModel):

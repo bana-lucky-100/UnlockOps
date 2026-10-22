@@ -2,7 +2,7 @@ package com.unlockops;
 
 import com.unlockops.approval.controller.ApprovalsController;
 import com.unlockops.approval.repository.ApprovalRepository;
-import com.unlockops.approval.service.ApprovalService;
+import com.unlockops.approval.service.*;
 import com.unlockops.auth.model.*;
 import com.unlockops.auth.repository.UserRepository;
 import com.unlockops.common.json.Jsons;
@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest({ProblemController.class, ApprovalsController.class})
-@Import({SecurityConfig.class, ProblemService.class, ApprovalService.class, GrantPolicy.class, Jsons.class})
+@Import({SecurityConfig.class, ProblemService.class, ApprovalService.class, ApprovalDecisionService.class, ApprovedExecutionService.class, ApprovalCompletionPolicy.class, GrantPolicy.class, Jsons.class})
 class HttpSecurityTest {
     @Autowired MockMvc mvc;
     @MockitoBean UserRepository users;

@@ -61,16 +61,20 @@ compose_response는 일반 안내와 승인·거절·수동 검토의 설명을 
 
 답변 경로는 준비된 입력으로 안내를 작성합니다. 데모에서는 문서 원문을 발췌하고,
 LLM 모드에서는 생성 후 별도 근거 검토를 거칩니다. 코드가 인용 ID·원문 발췌의 일치도 확인합니다.
-일반 안내의 자료 부족·내용 미지원·모델 장애는 MANUAL_REVIEW입니다. 안내도 기존 서버 계약에 맞춰
-MANUAL_REVIEW / RAG_GUIDANCE로 전달하며 proposal에 답변을 담습니다.
-화면 상태는 담당자 검토로 남고 실제 오류 해결·권한 반영을 완료했다고 표현하지 않습니다.
-새 상태·DB 마이그레이션은 추가하지 않으며 plan·verification_ok는 null입니다.
+일반 안내의 자료 부족·내용 미지원·모델 장애는 MANUAL_REVIEW입니다. 성공은 DONE / result_type=GUIDANCE로 전달하며
+proposal에 답변을 담습니다. 안내 제공 완료를 뜻하고 실제 오류 해결·권한 반영 완료를 뜻하지 않습니다.
+권한 반영 완료는 DONE / result_type=ACCESS_VERIFIED이며 verification_ok=true가 필요합니다.
+V5 마이그레이션으로 result_type을 저장하고 과거 안내 성공 행을 변환합니다. 안내의 plan·verification_ok는 null입니다.
 
 LLM 모드의 `planner.investigate`는 두 MCP의 도구 설명·입력 스키마를 받아 읽기 도구를 선택합니다.
 `ScopedTools`는 직원·플랫폼·자원 범위와 호출 횟수를 제한합니다. 필수 조회는 선택 조회보다 먼저 코드에서
 수행합니다. 실제 읽기 호출은 context를 포함해 최대 30회, 모델 선택 조회 시도는 최대 10회이며 선택 조회
 한도가 소진돼도 이미 수집한 필수 근거로 판정합니다. 모델이 사실 조회를 생략하거나 근거를 문장으로
 만들어도 권한 변경을 승인하지 않습니다. MCP 경계의 스키마·오류는 [공유 계약](contracts/mcp.md)으로 검증합니다.
+
+승인 API는 ApprovalDecisionService에서 결정 검증·기록을 수행하고, ApprovedExecutionService에서 저장된 승인을
+다시 조회해 실행 전환 여부를 결정합니다. ApprovalCompletionPolicy는 현재 한 번의 사람 승인 완료를 판단하며,
+Phase 2에서 단계별 승인 기록을 연결할 확장 지점입니다. 결정·이력·실행 전환·outbox는 같은 트랜잭션입니다.
 
 승인 카드의 계획 SHA-256과 UI가 제출한 해시를 비교합니다. 승인 시 Spring이 조건과 승인자를 재검증하고,
 Business MCP가 호출하는 Spring 실행 API도 실행 직전 DB 승인·계획 해시·TF·직무·부서·예산을 검사합니다. 모델이나 클라이언트는 실행 도구에

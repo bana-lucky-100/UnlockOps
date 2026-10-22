@@ -180,8 +180,8 @@ async def test_existing_rag_document_controls_model_input_and_grant_ceiling(tmp_
 @pytest.mark.parametrize("case,expected_handling,expected_status", [
     ("approval", "APPROVAL", "WAITING_APPROVAL"),
     ("not_member", "REJECT", "REJECTED"),
-    ("already_has_access", "ANSWER", "MANUAL_REVIEW"),
-    ("guide", "ANSWER", "MANUAL_REVIEW"),
+    ("already_has_access", "ANSWER", "DONE"),
+    ("guide", "ANSWER", "DONE"),
 ])
 async def test_permission_assessment_and_common_response_work_together(
     monkeypatch, case, expected_handling, expected_status,

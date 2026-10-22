@@ -22,7 +22,7 @@ public final class ProblemResponses {
     /** An explicit public allowlist, independent of database/internal model fields. */
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record Requester(
-        UUID id, UUID requesterId, UUID approverId, Platform platform, String contents, ProblemStatus status,
+        UUID id, UUID requesterId, UUID approverId, Platform platform, String contents, ProblemStatus status, ResultType resultType,
         String reasonCode, String diagnosis, String proposal, UUID resourceId, SaasRole requestedRole,
         String decisionReason, OffsetDateTime decidedAt, Boolean verificationOk,
         OffsetDateTime createdAt, OffsetDateTime updatedAt, String requesterName, String employeeNo,
@@ -30,12 +30,12 @@ public final class ProblemResponses {
 
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record Assigned(
-        UUID id, Platform platform, String contents, ProblemStatus status, String reasonCode,
+        UUID id, Platform platform, String contents, ProblemStatus status, ResultType resultType, String reasonCode,
         String diagnosis, String proposal, UUID approverId, SaasRole requestedRole, String planHash,
         Boolean verificationOk, AgentMode agentMode, OffsetDateTime createdAt, OffsetDateTime updatedAt,
         String requesterName, String employeeNo) implements View {
         public static Assigned from(Problem p) {
-            return new Assigned(p.id(), p.platform(), p.contents(), p.status(), p.reasonCode(),
+            return new Assigned(p.id(), p.platform(), p.contents(), p.status(), p.resultType(), p.reasonCode(),
                 p.diagnosis(), p.proposal(), p.approverId(), p.requestedRole(), p.planHash(),
                 p.verificationOk(), p.agentMode(), p.createdAt(), p.updatedAt(), p.requesterName(), p.employeeNo());
         }

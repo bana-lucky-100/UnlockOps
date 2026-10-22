@@ -1,10 +1,11 @@
 export type Platform = 'GITHUB' | 'JIRA' | 'SLACK' | 'NOTION'
 export type Status = 'RECEIVED' | 'DIAGNOSING' | 'WAITING_APPROVAL' | 'EXECUTING' | 'DONE' | 'REJECTED' | 'MANUAL_REVIEW' | 'FAILED'
+export type ResultType = 'GUIDANCE' | 'ACCESS_VERIFIED'
 export interface User { id: string; login_id: string; employee_no: string; name: string; role: 'REQUESTER'|'APPROVER'; job_grade: string; job_family: string; department: string }
 export interface ApprovalSummary { department: string; memberCount: number; weekRequests: number; approved: number; rejected: number; failed: number }
 export interface Evidence { doc_id?: string; article?: string; text?: string; source?: string; version?: string; kind?: string; [key: string]: unknown }
 export interface Problem {
-  id: string; platform: Platform; contents: string; status: Status; requester_name: string; employee_no: string;
+  id: string; platform: Platform; contents: string; status: Status; result_type?: ResultType|null; requester_name: string; employee_no: string;
   proposal?: string; diagnosis?: string; reason_code?: string; requested_role?: string; approver_id?: string;
   plan_hash?: string; verification_ok?: boolean|null; agent_mode?: string;
   created_at: string; updated_at: string; evidence?: Evidence[];

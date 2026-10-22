@@ -79,11 +79,11 @@ LLM 모드는 모든 판정 경로에서 같은 입력으로 생성·인용 검�
 선택 플랫폼의 검색 근거가 없거나 검토를 통과하지 못하면 `MANUAL_REVIEW`로 종료합니다.
 일반 안내의 모델 생성·검토 호출 장애는 answer_node에서 처리하여 `MANUAL_REVIEW / MODEL_UNAVAILABLE`로 종료합니다.
 
-안내는 기존 서버 계약의 `MANUAL_REVIEW / RAG_GUIDANCE`로 전달하며 plan과 verification_ok는 null입니다.
-proposal에 답변과 출처를 담고, 내부 handling은 ANSWER로 기록합니다.
-화면 상태와 공개 이력은 기존 담당자 검토 표시로 남습니다. 안내 완료 전용 상태는 서버 담당자와
-계약을 합의한 뒤 별도로 도입할 수 있습니다. 백엔드·DB·프론트 변경 없이 기존 proposal 표시를 사용합니다.
-권한 반영 완료인 `DONE`의 verification_ok=true 검사와 실행 영수증 검사는 유지합니다.
+안내 성공은 `DONE / result_type=GUIDANCE / reasonCode=RAG_GUIDANCE`로 전달하며 plan과 verification_ok는 null입니다.
+proposal에 답변과 출처를 담고, 내부 handling은 ANSWER로 기록합니다. 화면과 공개 이력 모두 안내 완료입니다.
+권한 반영 완료는 `DONE / result_type=ACCESS_VERIFIED`이며 verification_ok=true가 필요합니다.
+실행 작업의 DONE에는 서버의 실행 영수증 검사도 유지합니다. 안내 실패는 MANUAL_REVIEW이며 result_type은 null입니다.
+이전 체크포인트의 안내 성공과 검증된 DONE은 Result 입력 경계에서 새 계약으로 정규화합니다.
 
 gather는 필수 사실·규정을 먼저 조회한 뒤 LLM 선택 조회를 실행합니다. 실제 읽기 호출 한도는
 분석당 30회(context 포함), 선택 조회 시도는 캐시·범위 오류를 포함해 최대 10회입니다.

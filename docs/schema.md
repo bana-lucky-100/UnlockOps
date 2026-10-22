@@ -1,7 +1,7 @@
 # DB 스키마 요약
 
 실제 DDL은 `backend/src/main/resources/db/migration/V1__schema.sql`, 회사 A사 데이터는 V2에 있습니다.
-상태 8개 변경과 본인 요청 목록 인덱스는 V3, HTTP 접수 멱등성 키는 V4에 있습니다.
+상태 8개 변경과 본인 요청 목록 인덱스는 V3, HTTP 접수 멱등성 키는 V4, 완료 결과 유형과 과거 안내 성공 변환은 V5에 있습니다.
 새 backend를 시작하면 Flyway가 미적용 버전을 순서대로 적용합니다. 실제 환경의 적용 여부는 Flyway 이력을 확인합니다.
 
 기존 세 테이블을 중심으로 다음 필드와 상태 저장을 추가했습니다.
@@ -10,7 +10,7 @@
 |---|---|
 | departments | id, name, code, head_id |
 | users | 기존 필드 + employee_no, login_id, job_family. 직급 이름은 job_grade로 통일 |
-| problems | 기존 필드 + reason_code, decision_source, decided_by, plan, plan_hash, approved_plan_hash, agent_mode, simulate_jira_failure, client_request_key |
+| problems | 기존 필드 + result_type, reason_code, decision_source, decided_by, plan, plan_hash, approved_plan_hash, agent_mode, simulate_jira_failure, client_request_key |
 | tfs / tf_members | TF 리더와 날짜, 명단의 active 상태 |
 | resources | platform, external_id, aliases, access_scope, tf_id, 소유·지정 부서, security_grade |
 | permissions | 모의 SaaS의 사용자×자원 단일 현재 역할 |
@@ -31,3 +31,7 @@ null이 아닌 키의 동시 접수 중 한 트랜잭션만 요청과 ANALYZE ou
 
 표의 시드에 포함된 기존 Copilot 좌석 비용은 '이미 차감된 잔여 예산'으로 취급합니다.
 시드 로딩 중 다시 차감하지 않으며, 승인 후 새로 부여하는 좌석만 원자적으로 한 번 차감합니다.
+
+`result_type`은 DONE일 때만 값이 있습니다. GUIDANCE는 안내 제공 완료이며 본문이 있고 계획·검증 값은 null입니다.
+ACCESS_VERIFIED는 실제 권한 확인 완료이며 verification_ok=true가 필요합니다. DB CHECK도 이 조건을 강제합니다.
+V5는 과거 유효한 MANUAL_REVIEW / RAG_GUIDANCE를 DONE / GUIDANCE로 변환하되 원본 problem_events는 변경하지 않습니다.
