@@ -7,12 +7,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.*;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Component;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 /** Small JDBC/JSON boundary; workflow transactions live in the domain services. */
-@Repository
+// @Repository would wrap this in a CGLIB proxy whose public fields (jdbc, json, codec) are null.
+@Component
 public class Phase2Store {
     public final JdbcTemplate jdbc;
     public final Jsons json;
