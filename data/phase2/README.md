@@ -48,11 +48,19 @@ DEMO_ENABLED=true와 DEMO_PASSWORD 설정으로 backend를 재시작하면 DemoS
 - 별도의 GitHub 저장소 Read/Write 항목·팀, Jira Developer의 Browse 스킴을 보존할 데이터.
 - 현재 계정/라이선스/데이터 접근/업무 배정 전제는 saas_context_facts의 합성 사실이다. 외부 계정 연동이 아니다.
 - R-01~R-04, 퇴사자 X-11, 사용 이력 UNKNOWN은 각각 다른 사용자와 할당을 사용한다.
-- R-04는 이미 전달된 인앱 알림을 포함한다. 정상 신규 점검 결과나 권한 실행 영수증을 미리 만드는 것은 아니다.
+- R-04는 이미 전달된 인앱 알림과 그 알림이 여는 **합성 과거 점검·스냅샷·보고서**를 함께 포함한다. 과거 시점은 2026-10-21 09:00 KST, 정책은 revision 1, 좌석은 월 19 USD다. 새 점검을 시작하기 전에도 알림에서 후보 상세와 근거를 읽을 수 있다. 현재 점검의 성공 결과나 권한 실행 영수증을 미리 만드는 것은 아니다.
 - A사 기본 scope는 R-01 한 건, B사 기본 scope는 X-10 GitHub/Figma 두 건이다. R-02/R-03/R-04/X-11/UNKNOWN은 별도 scope_id로 격리한다.
 - selection_mode=ASSIGNMENTS는 서버에 저장된 scope→assignment 목록으로 제한한다. DEPARTMENT 범위는 해당 조직 전체를 조회한다. 클라이언트가 임의 할당 목록을 전달하지 않는다.
 - 평가셋 20개의 budget/membership/decision 등 overrides는 **개별 평가에서 적용할 데이터 정의**다. 현재 서비스 동작을 의미하지 않는다.
 - execution_ready=true는 평가 실행기가 해당 조건을 적용할 수 있다는 뜻이다. 통과 표시는 아니며 원본의 validation_status는 NOT_RUN이다. 실제 결과는 실행별 report.json에만 남긴다.
+
+## 기존 R-04 알림의 보고서 누락 보완
+
+기존 시드는 후보와 전달된 알림만 만들었기 때문에, 새 점검 전 후보 상세 API가 404를 반환하고 현재 후보 목록에서 빠질 수 있었다. 수정된 `seed.sql`을 기존 시연 DB에 다시 적용하거나 `DEMO_SEED_PATH`를 사용하는 백엔드를 재시작하면 누락된 합성 과거 이력이 추가된다. 자동 시드가 아닌 환경의 재적용 명령은 위의 시드 적용 명령과 같다.
+
+이 재적용은 기존 후보·episode·알림 ID, 전달/읽음 시각, 이미 저장된 보고서·스냅샷과 정책 revision 2·3을 덮어쓰지 않는다. 권한·예산도 변경하지 않는다. 이미 revision 3을 사용한다면 과거 `policies/apply.sql`을 다시 적용할 필요가 없다. 당시 revision 1 근거는 과거 보고서에 보존하고, 새 점검만 최신 정책을 따른다.
+
+회귀 검증은 `cd backend && mvn verify -Pregression -Dit.test=ReclaimSeedReportIT,WorkflowFoundationIT`로 실행한다. 격리 smoke의 R-04도 새 점검 전 알림 상세와 overview를 먼저 검사한 뒤 재점검/중복 알림 방지를 확인한다.
 
 ## 격리 평가 실행
 

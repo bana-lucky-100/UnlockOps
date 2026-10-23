@@ -53,6 +53,14 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
         case_namespace = uuid5(namespace, definition["id"])
 
         def translate(value):
+            # Historical reports/snapshots contain nested timestamps as well as SQL literals.
+            if value.startswith(("{", "[")):
+                try:
+                    structured = json.loads(value)
+                except ValueError:
+                    pass
+                else:
+                    return json.dumps(tree(structured), ensure_ascii=False, separators=(",", ":"))
             value = UUID_RE.sub(lambda m: str(uuid5(case_namespace, m.group())), value)
             # Identifiers, names and email uniqueness; original policy body/hash is unchanged.
             for prefix in ("p2_", "p2-", "P2_", "P2-"):

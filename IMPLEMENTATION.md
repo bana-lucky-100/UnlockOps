@@ -766,3 +766,23 @@ P1은 우선 수정할 승인 정확성 문제, P2는 후속 수정할 조회·�
 - Worker를 `unlockops_worker/runtime.py`로 통합하면서 MCP cancel scope를 부모 Worker 작업에서 열고 닫는 수정과, 완료 체크포인트 재전달 시 MCP를 다시 열지 않는 동작을 보존했다. 문서는 main의 최신 설명에 회수 역할·응답 계약을 합쳤고 양쪽 구현 이력을 유지했다.
 - 병합 후 검증: 회수·공통 워크플로 **37 passed**, 전체 Python 및 평가 준비 **224 passed, 1 skipped**. main에서 이전 실행기·테스트가 제거돼 병합 전 393건과 전체 검사 수가 다르며, 회수 설계 테스트는 모두 유지했다. 공통 계약·HTTP 계약·정책 import·v4 생성물 검사와 diff 공백 검사 통과.
 - 이번 병합에서 Docker 서비스를 다시 빌드하거나 실제 LLM을 호출하지 않았다. 현재 실행 중인 컨테이너는 병합 전 빌드이므로 병합 후 실행 검증 결과로 간주하지 않는다. 병합 커밋·원격 푸시는 수행하지 않았다.
+## R-04 초기 알림 보고서 조회 수정 — 2026-10-23 · #43
+
+R-04의 '이미 전달한 알림' 시드는 후보와 알림만 준비하고 당시 보고서를 생략했다. 새 점검 전에는 후보 상세가 404를 반환하고 overview 목록에서도 빠졌다. 기존 평가는 점검 후에만 상세를 조회해 이 조건을 놓쳤다.
+
+- `scripts/generate_phase2_seed.py`와 생성된 `data/phase2/seed.sql`에 명시적인 합성 과거 실행·스냅샷·보고서를 추가했다. 2026-10-21의 고정 사실, 정책 revision 1, 월 19 USD를 사용한다. 기존 target/episode/notification ID와 전달 시각은 유지한다.
+- seed 재적용은 누락 이력만 INSERT하고 이미 저장된 보고서·스냅샷·알림/읽음·예산·권한을 덮어쓰지 않는다. 실제 권한 회수나 새 알림/Agent 작업을 만들지 않는다. API와 적용된 Flyway migration은 변경하지 않았다.
+- `ReclaimSeedReportIT`가 실제 Spring HTTP와 일회용 PostgreSQL에서 점검 전 알림→보고서→목록, 다른 회사 403, 재적용/읽음/권한/예산 보존을 검사한다. 원본에서 상세 404와 report 부재로 실패한 뒤 수정본에서 통과했다.
+- R-04 전체 스택 평가도 점검 전에 알림 상세와 overview를 검사한다. 평가 fixture 복제 시 새로 추가된 스냅샷·보고서 JSON 내부 날짜도 실행일에 맞춰 함께 이동하며, 정책 원문과 해시는 유지한다.
+- 기존 `WorkflowFoundationIT`의 run 변경 검사는 생성한 테스트 run ID에 한정했다. 추가된 과거 이력 때문에 다른 행의 제약 위반으로 검사가 잘못 통과하거나 역사적 스냅샷을 변경하지 않도록 했다.
+
+실제 검증 결과:
+
+- 수정 전 기본 단위 43개·기존 DB 회귀 3개 통과. 새 HTTP 회귀는 기대한 200 대신 404로 실패했고 연결 report가 없음을 확인했다.
+- 수정 후 단위 43개 및 `ReclaimSeedReportIT,WorkflowFoundationIT,CompletionMigrationIT,ExistingAccountsMigrationIT` DB 회귀 5개 통과. 명령은 `mvn verify -Pregression -Dit.test=ReclaimSeedReportIT,WorkflowFoundationIT,CompletionMigrationIT,ExistingAccountsMigrationIT`에 로컬 Docker API 1.44/Mockito javaagent 옵션을 사용했다.
+- 평가 fixture 검사 3개, 생성기 재실행 일치·diff 공백 검사 통과.
+- `BUILDKIT_PROGRESS=quiet python3 scripts/evaluate_phase2.py --run --suite smoke --keep`: 실제 프론트 nginx→Spring→RabbitMQ→Worker→Business/Policy MCP→DB의 8개 사례 PASS. R-04 초기 보고서 조회·읽음 멱등성·재점검 알림/episode 보존과 DB 부수효과를 확인했다. LEGACY 데이터 불변 검사와 프론트 테스트/빌드도 통과했다. quiet는 Docker 빌드 진행 로그가 평가 JSON stdout에 섞이지 않게 하는 실행 옵션이다.
+- 별도 격리 DB에 수정 전 seed와 정책 revision 3을 설치한 뒤, 수정 seed만 두 번 재적용했다. 원본 R-04 ID의 상세 404→200/목록 표시를 확인했고 후보·episode·알림·전달/읽음 시각·할당·예산·revision 3이 유지됐다. 새 큐 작업은 0건이다.
+- 로컬 결과: `test-results/phase2/213c94e9-07b9-43cf-adc7-7d330e192638/report.json`, `existing-seed-repair.json`. 검증은 별도 UUID 스택에서 실행했으며 사용자 실행 중 DB에는 적용하지 않았다. 실제 SaaS·실제 모델 호출·브라우저 클릭은 미검증이다.
+
+기존 시연 DB 적용은 수정 seed 재적용 또는 `DEMO_SEED_PATH`를 사용하는 백엔드 재시작으로 수행한다. 정책 revision 3을 이전 revision으로 되돌릴 필요가 없다. 절차는 `data/phase2/README.md`에 기록했다. 전체 회수 조회 구조 개선과 기존 미해결 CR-03 등은 별도 작업으로 유지한다.

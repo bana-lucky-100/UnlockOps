@@ -51,9 +51,9 @@ class WorkflowFoundationIT {
                     '2026-10-22T09:00:00+09:00','2026-10-22',repeat('a',64),'RECEIVED','test'
                 FROM reclaim_scopes LIMIT 1
                 """);
-            rejected(sql,"UPDATE reclaim_runs SET status='DONE',reason_code='NO_NEW_CANDIDATES'");
-            rejected(sql,"UPDATE reclaim_runs SET status='WAITING_APPROVAL'");
-            rejected(sql,"INSERT INTO reclaim_runs(id,company_id,scope_id,task_type,contract_version,trigger,scheduled_for,schedule_date,requested_by,client_request_key,request_hash,status,reason_code,message,snapshot_id,as_of,scan_complete,needs_review_count,new_candidate_count,pending_notification_count,created_at,updated_at) SELECT '90000000-0000-0000-0000-000000000002',company_id,scope_id,task_type,contract_version,trigger,scheduled_for,schedule_date,requested_by,client_request_key,request_hash,status,reason_code,message,snapshot_id,as_of,scan_complete,needs_review_count,new_candidate_count,pending_notification_count,created_at,updated_at FROM reclaim_runs");
+            rejected(sql,"UPDATE reclaim_runs SET status='DONE',reason_code='NO_NEW_CANDIDATES' WHERE id='90000000-0000-0000-0000-000000000001'");
+            rejected(sql,"UPDATE reclaim_runs SET status='WAITING_APPROVAL' WHERE id='90000000-0000-0000-0000-000000000001'");
+            rejected(sql,"INSERT INTO reclaim_runs(id,company_id,scope_id,task_type,contract_version,trigger,scheduled_for,schedule_date,requested_by,client_request_key,request_hash,status,reason_code,message,snapshot_id,as_of,scan_complete,needs_review_count,new_candidate_count,pending_notification_count,created_at,updated_at) SELECT '90000000-0000-0000-0000-000000000002',company_id,scope_id,task_type,contract_version,trigger,scheduled_for,schedule_date,requested_by,client_request_key,request_hash,status,reason_code,message,snapshot_id,as_of,scan_complete,needs_review_count,new_candidate_count,pending_notification_count,created_at,updated_at FROM reclaim_runs WHERE id='90000000-0000-0000-0000-000000000001'");
             String policyUpdate=Files.readString(Path.of("../data/phase2/policies/apply.sql"));
             sql.execute(policyUpdate);sql.execute(policyUpdate);
             assertEquals(2,number(sql,"SELECT count(*) FROM policy_revisions WHERE revision=2"));
@@ -64,18 +64,19 @@ class WorkflowFoundationIT {
             sql.execute(v4);sql.execute(v4);
             assertEquals(2,number(sql,"SELECT count(*) FROM pricing_revisions p JOIN entitlements e ON e.id=p.entitlement_id WHERE p.revision=3 AND e.code='EDITOR_SEAT' AND p.monthly_amount=16.00 AND p.source_kind='PUBLIC_LIST_PRICE'"));
             assertEquals(2,number(sql,"SELECT count(*) FROM saas_context_facts WHERE platform='DATABRICKS' AND job_run_as_data_access"));
-            rejected(sql,"UPDATE reclaim_runs SET status='MANUAL_REVIEW',reason_code='MISSING_SOURCE_EVIDENCE'");
+            rejected(sql,"UPDATE reclaim_runs SET status='MANUAL_REVIEW',reason_code='MISSING_SOURCE_EVIDENCE' WHERE id='90000000-0000-0000-0000-000000000001'");
             sql.executeUpdate("""
                 INSERT INTO reclaim_snapshots(id,company_id,run_id,as_of,policy_id,policy_revision,expected_count,context)
                 SELECT '90000000-0000-0000-0000-000000000003',r.company_id,r.id,now(),p.policy_id,1,0,'{}'::jsonb
                 FROM reclaim_runs r JOIN policy_revisions p ON p.company_id=r.company_id AND p.revision=1
+                WHERE r.id='90000000-0000-0000-0000-000000000001'
                 """);
             sql.executeUpdate("""
                 UPDATE reclaim_runs SET snapshot_id=s.id,as_of=s.as_of,scan_complete=true,
                     status='DONE',reason_code='SCAN_COMPLETED',needs_review_count=1
                 FROM reclaim_snapshots s WHERE s.run_id=reclaim_runs.id
                 """);
-            rejected(sql,"UPDATE reclaim_runs SET reason_code='NO_NEW_CANDIDATES'");
+            rejected(sql,"UPDATE reclaim_runs SET reason_code='NO_NEW_CANDIDATES' WHERE id='90000000-0000-0000-0000-000000000001'");
             assertEquals(permissions,number(sql,"SELECT count(*) FROM permissions"));
         }
     }
