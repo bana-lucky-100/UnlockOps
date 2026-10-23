@@ -29,12 +29,13 @@ class WorkflowFoundationIT {
             String v4=Files.readString(Path.of("../data/phase2/policies/apply-v4.sql"));
             // Applied below after the immutable revision-2 import.
             assertEquals(members,number(sql,"SELECT count(*) FROM github_team_members"));
-            assertEquals(0,number(sql,"SELECT count(*) FROM access_assignments"));
+            assertEquals(0,number(sql,"SELECT count(*) FROM access_assignments WHERE company_id<>'00000000-0000-0000-0000-000000000000'"));
+            assertTrue(number(sql,"SELECT count(*) FROM access_assignments WHERE company_id='00000000-0000-0000-0000-000000000000'")>0);
             String seed=Files.readString(Path.of("../data/phase2/seed.sql"));
             sql.execute(seed); sql.execute(seed);
             assertEquals(permissions,number(sql,"SELECT count(*) FROM permissions"));
             assertEquals(10,number(sql,"SELECT count(DISTINCT platform) FROM resources WHERE company_id<>'00000000-0000-0000-0000-000000000000'"));
-            assertEquals(8,number(sql,"SELECT count(*) FROM access_assignments"));
+            assertEquals(8,number(sql,"SELECT count(*) FROM access_assignments WHERE company_id<>'00000000-0000-0000-0000-000000000000'"));
             assertEquals(1,number(sql,"SELECT count(*) FROM reclaim_notifications WHERE delivery_status='DELIVERED'"));
             assertEquals(0,number(sql,"SELECT count(*) FROM reclaim_scopes WHERE enabled"));
             rejected(sql,"UPDATE pricing_revisions SET monthly_amount=999");

@@ -54,21 +54,23 @@ public class AccessWorkflowService {
         return view(db.problem(id,false));
     }
     @Transactional(readOnly=true)
-    public AccessView get(UUID actor,UUID id) { var p=db.problem(id,false);acl.problem(actor,p);return view(p); }
+    public AccessView get(UUID actor,UUID id) { var p=db.problemRecord(id,false);acl.problem(actor,p);return view(p); }
     @Transactional(readOnly=true)
     public List<AccessView> list(UUID actor) { return visibleProblems(actor).stream().map(this::view).toList(); }
     private List<JsonNode> visibleProblems(UUID actor) {
         var user=acl.actor(actor);
         return db.rows("""
             SELECT to_jsonb(p) || jsonb_build_object('requester_name',requester.name)
-            FROM problems p JOIN users requester ON requester.id=p.requester_id WHERE p.contract_version=2 AND p.company_id=? AND
-              (p.requester_id=? OR EXISTS(SELECT 1 FROM approval_steps s WHERE s.problem_id=p.id AND s.plan_version=p.active_plan_version AND s.approver_id=?)
+            FROM problems p JOIN users requester ON requester.id=p.requester_id WHERE p.company_id=? AND
+              (p.requester_id=? OR (p.contract_version=1 AND (p.approver_id=? OR p.decided_by=?))
+               OR EXISTS(SELECT 1 FROM approval_steps s WHERE s.problem_id=p.id AND s.plan_version=p.active_plan_version AND s.approver_id=?)
                OR EXISTS(SELECT 1 FROM operator_assignments o JOIN users u ON u.id=p.requester_id
                  WHERE o.user_id=? AND o.company_id=p.company_id AND o.department_id=u.department_id AND o.platform=p.platform AND o.capability='SAAS_OPERATOR'))
             ORDER BY p.created_at DESC LIMIT 100
-            """,uuid(user,"company_id"),actor,actor,actor);
+            """,uuid(user,"company_id"),actor,actor,actor,actor,actor);
     }
     public AccessView view(JsonNode p) {
+        if(HistoricalAccess.matches(p)) return HistoricalAccess.view(db,p);
         var steps=db.rows("SELECT to_jsonb(s) FROM approval_steps s WHERE problem_id=? AND plan_version=? ORDER BY step",uuid(p,"id"),p.path("active_plan_version").isNull()?null:p.path("active_plan_version").intValue())
             .stream().map(s->new ApprovalStep(s.path("step").intValue(),str(s,"approver_id"),ApprovalStatus.valueOf(str(s,"status")),str(s,"reason"),str(s,"acted_at"))).toList();
         Integer current=steps.stream().filter(s->s.status()==ApprovalStatus.WAITING).map(ApprovalStep::step).findFirst().orElse(null);
@@ -99,7 +101,8 @@ public class AccessWorkflowService {
     }
     @Transactional(readOnly=true)
     public Map<String,Object> report(UUID actor,UUID id) {
-        var p=db.problem(id,false);acl.problem(actor,p);
+        var p=db.problemRecord(id,false);acl.problem(actor,p);
+        if(HistoricalAccess.matches(p)) return HistoricalAccess.report(db,p);
         var result=new LinkedHashMap<String,Object>();result.put("workflow",view(p));result.put("contents",str(p,"contents"));
         result.put("analysis_summary",str(p,"diagnosis"));result.put("plan",p.path("plan"));result.put("policy_evidence",p.path("evidence"));
         result.put("platform",str(p,"platform"));result.put("requester_id",str(p,"requester_id"));
@@ -168,7 +171,8 @@ public class AccessWorkflowService {
     }
     @Transactional
     public AccessView resume(UUID actor,UUID id) {
-        var p=db.problem(id,true);acl.problem(actor,p);
+        var p=db.problemRecord(id,true);acl.problem(actor,p);
+        if(HistoricalAccess.matches(p)) return reanalyseHistory(actor,p);
         conflict(Set.of("ON_HOLD","MANUAL_REVIEW").contains(str(p,"status")),"보류·수동 검토 요청만 재개할 수 있습니다.");
         abandonSteps(p);
         db.jdbc.update("""
@@ -178,6 +182,28 @@ public class AccessWorkflowService {
               diagnosis=NULL,proposal='최신 조건으로 다시 분석합니다.',updated_at=now() WHERE id=?
             """,id);
         jobs.access(id,"ANALYZE",null,null);audit(id,"RESUMED",db.json.tree(db.json.write(Map.of("actor_id",actor))));return view(db.problem(id,false));
+    }
+    private AccessView reanalyseHistory(UUID actor,JsonNode p) {
+        conflict(HistoricalAccess.pending(p),"완료·반려·실패 기록은 재개할 수 없습니다. 새 요청을 작성해 주세요.");
+        UUID id=uuid(p,"id");
+        // Preserve the exact record before discarding its obsolete approval/execution identity.
+        audit(id,"HISTORY_REANALYSIS",p);
+        String contents=RequestPlatformScope.mask(str(p,"contents"));
+        var platforms=RequestPlatformScope.mentioned(contents);
+        var platform=platforms.isEmpty()?Platform.valueOf(str(p,"platform")):platforms.getFirst();
+        String resource=platform.name().equals(str(p,"platform"))?str(p,"resource_id"):null;
+        var payload=db.json.write(new AccessRequestInput(2,platform,contents,resource,null));
+        db.jdbc.update("""
+            UPDATE problems SET contract_version=2,status='RECEIVED',contents=?,platform=?,resource_id=?,
+              request_payload=?::jsonb,requested_entitlement_id=NULL,requested_role=NULL,
+              reason_code=NULL,result_type=NULL,verification_ok=NULL,evidence='[]'::jsonb,
+              plan=NULL,plan_hash=NULL,approved_plan_hash=NULL,active_plan_version=NULL,approver_id=NULL,
+              active_job_event_id=NULL,idempotency_key=NULL,decision_reason=NULL,decision_source=NULL,
+              decided_by=NULL,decided_at=NULL,diagnosis=NULL,proposal='최신 조건으로 다시 분석합니다.',updated_at=now()
+            WHERE id=? AND contract_version=1
+            """,contents,platform.name(),resource==null?null:UUID.fromString(resource),payload,id);
+        jobs.access(id,"ANALYZE",null,null);audit(id,"RESUMED",db.json.tree(db.json.write(Map.of("actor_id",actor))));
+        return view(db.problem(id,false));
     }
     /** Called inside the inbox transaction; current generation was checked by the router. */
     public void analysis(JsonNode p,AccessEvent event) {

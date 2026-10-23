@@ -32,6 +32,10 @@ public class WorkflowStore {
     public JsonNode problem(UUID id,boolean lock) {
         return one("SELECT to_jsonb(p) FROM problems p WHERE id=? AND contract_version=2"+(lock?" FOR UPDATE":""),id);
     }
+    /** HTTP history reads and explicit reanalysis only. Workers still require problem(). */
+    public JsonNode problemRecord(UUID id,boolean lock) {
+        return one("SELECT to_jsonb(p) FROM problems p WHERE id=?"+(lock?" FOR UPDATE":""),id);
+    }
     public JsonNode run(UUID id,boolean lock) {
         return one("SELECT to_jsonb(r) FROM reclaim_runs r WHERE id=?"+(lock?" FOR UPDATE":""),id);
     }

@@ -730,3 +730,19 @@ P1은 우선 수정할 승인 정확성 문제, P2는 후속 수정할 조회·�
 - 기존 CR-03/04/05와 세부 정책 정합화는 별도 결함/업무로 유지한다. 구조 이동으로 해결됐다고 간주하지 않는다.
 
 현재 구조는 docs/architecture.md, API는 docs/api-spec.md·contracts/phase2/http.json, 실행 검증은 docs/verification.md를 따른다.
+
+## 기존 계정·과거 요청 연결 — 2026-10-23
+
+통합 리뷰의 첫 번째 결함을 수정했다. 화면만 현재 흐름으로 바뀌고 기존 조직의 정책·권한·보유 내역이 비어 있던 문제와 과거 요청 조회 누락이 대상이다.
+
+- Flyway V9를 추가했다. 기존 LEGACY mock 조직의 원래 네 플랫폼(GitHub/Jira/Slack/Notion)에 정책 원문·권한/가격 revision·현재 순차 승인 경로·담당자 매핑·계정 사실을 준비한다. A/B사 데이터·적용된 V1~V8은 수정하지 않는다.
+- 계정·자원 ID, 비밀번호, 잔여 예산, 원래 permissions·팀 멤버십·과거 요청/영수증을 보존한다. 현재 보유 권한은 access_assignments와 현재 mock 제공자 상태로 이관한다. 이관 시 예산을 재차 차감하지 않으며 사용량은 UNKNOWN이다. GitHub 팀 연결과 Jira Browse 조건을 원래 조회 기준대로 확인한다.
+- 기존 직무·직급 상한은 immutable mapping의 allowed_job_families/allowed_job_grades/grantable로 유지한다. NON_DEV를 OPS 등으로 임의 변환하지 않고, 이관 매핑이 명시한 네 플랫폼에서 기존 job_family로 판정한다. 다른 회사의 UNKNOWN 처리 기준은 유지한다.
+- 부서장과 문서에 명시된 기존 SaaS 담당자(song_ops)를 연결한다. 본인 승인·중복 승인자·담당자 미지정은 수동 검토한다. 기존 좌석 단가·통화가 부서별로 상충하면 단가를 추측하지 않고 가격 확인이 필요하다.
+- 현재 목록·상세 API에서 허용된 과거 요청을 읽는다. 과거 지정 승인자/기록된 결정자도 같은 회사의 해당 기록만 읽는다. 과거 plan과 evidence는 historical_record와 감사 이력으로 보존하며 현재 실행 계약으로 해석하지 않는다.
+- 과거 대기 건은 재분석 필요로 표시한다. 재개 시 같은 ID의 원본을 감사 이력에 저장하고, 이전 승인·해시·실행 키를 제거한 뒤 contract_version=2의 새 ANALYZE를 발행한다. 완료·반려·실패 기록은 재실행하지 않는다. Worker와 내부 실행 API는 계속 현재 계약만 처리한다.
+- 프론트 소스·생성 계약·기존 migration은 변경하지 않았다. 기존 Notion 보기 요청은 이관된 VIEWER 코드로 해석하도록 alias를 연결했다. 리뷰의 안내 생성·스케줄 설정 문제는 이번 수정 범위에 포함하지 않는다.
+
+검증: Python **199 passed, 1 skipped**, Java 소스 독립 컴파일 및 JUnit **36 passed**, 계약/정책/v4 생성물 검사와 diff 공백 검사 통과. Flyway PostgreSQL 파서가 V9 전체를 13개 문장으로 정상 분리했다. 이는 PostgreSQL 실행 검증을 뜻하지 않는다.
+
+실제 DB 업그레이드·이력·신규 순차 승인·중복 좌석·동일 실행 재전달 시 예산 1회 차감을 검사하는 ExistingAccountsMigrationIT를 추가했다. Docker 소켓 접근 거부와 로컬 PostgreSQL shared memory 생성 권한 제한으로 실제 DB 통합 실행은 미검증이다. 배포 DB에는 적용하지 않았다. 실행 가능 환경에서는 `cd backend && mvn verify -Pregression -Dit.test=ExistingAccountsMigrationIT`로 확인한다.

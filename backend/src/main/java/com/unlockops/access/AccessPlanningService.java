@@ -60,6 +60,18 @@ public class AccessPlanningService {
         var mapping=ent.path("mapping");
         if(!mapping.path("mock").asBoolean() || mapping.path("allows_admin").asBoolean())
             return stop(Status.MANUAL_REVIEW,"OUT_OF_SCOPE","베이스라인에서 실행할 수 없는 권한 매핑입니다.");
+        if(mapping.has("grantable") && !mapping.path("grantable").asBoolean())
+            return stop(Status.REJECTED,"POLICY_NOT_ELIGIBLE","현재 정책에서 신청할 수 없는 권한입니다.");
+        // Data-bound limits preserve the original organisation's role ceilings.
+        // Other tenants keep their existing rules unless their mapping declares a limit.
+        for(var limit:Map.of("allowed_job_families","job_family","allowed_job_grades","job_grade").entrySet()) {
+            if(!mapping.has(limit.getKey())) continue;
+            var allowed=mapping.path(limit.getKey());
+            if(!allowed.isArray()) return stop(Status.MANUAL_REVIEW,"MISSING_SOURCE_EVIDENCE","권한 상한 매핑을 확인해야 합니다.");
+            boolean matches=false;
+            for(var value:allowed) if(value.asText().equals(str(user,limit.getValue()))) matches=true;
+            if(!matches) return stop(Status.REJECTED,"POLICY_NOT_ELIGIBLE","직무·직급별 권한 상한을 넘는 요청입니다.");
+        }
         if("TF".equals(str(ent,"access_scope")) && !db.exists("""
             SELECT EXISTS(SELECT 1 FROM tf_members m JOIN tfs t ON t.id=m.tf_id WHERE m.user_id=? AND m.tf_id=?
               AND m.active AND t.starts_on<=? AND (t.ends_on IS NULL OR t.ends_on>=?))
@@ -80,7 +92,11 @@ public class AccessPlanningService {
         if("DATABRICKS".equals(str(p,"platform")) && (f.path("job_run_as_principal").asText("").isBlank() || !f.path("job_run_as_data_access").asBoolean()))
             return stop(Status.MANUAL_REVIEW,"MISSING_SOURCE_EVIDENCE","작업 Run as 실행 주체의 데이터 접근 권한 확인이 필요합니다.");
         String function=str(f,"job_function"),platform=str(p,"platform");
-        if("UNKNOWN".equals(function)) return stop(Status.MANUAL_REVIEW,"MISSING_SOURCE_EVIDENCE","직무 확인이 필요합니다.");
+        // Imported mappings explicitly use stored job_family/resource scope;
+        // they do not need an invented SALES/OPS/etc. job_function for NON_DEV.
+        if("UNKNOWN".equals(function) && (!mapping.path("uses_job_family").asBoolean()
+                || !Set.of("GITHUB","JIRA","SLACK","NOTION").contains(platform)))
+            return stop(Status.MANUAL_REVIEW,"MISSING_SOURCE_EVIDENCE","직무 확인이 필요합니다.");
         boolean eligible=switch(platform) {
             case "GITHUB" -> "DEV".equals(str(user,"job_family")) || "Read".equals(str(ent,"external_role"));
             case "SNOWFLAKE","DATABRICKS" -> Set.of("DEV","ANALYST").contains(function);

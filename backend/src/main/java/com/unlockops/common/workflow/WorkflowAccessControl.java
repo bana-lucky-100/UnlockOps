@@ -23,7 +23,8 @@ public class WorkflowAccessControl {
     }
     public void problem(UUID actor,JsonNode p) {
         var u=actor(actor); forbid(uuid(u,"company_id").equals(uuid(p,"company_id")));
-        forbid(actor.equals(uuid(p,"requester_id")) || db.exists("""
+        forbid(actor.equals(uuid(p,"requester_id")) || (p.path("contract_version").asInt()==1 &&
+            (actor.equals(uuid(p,"approver_id")) || actor.equals(uuid(p,"decided_by")))) || db.exists("""
             SELECT EXISTS(SELECT 1 FROM approval_steps WHERE problem_id=? AND approver_id=? AND plan_version=?)
             """,uuid(p,"id"),actor,p.path("active_plan_version").isNull()?null:p.path("active_plan_version").intValue())
             || capability(actor,uuid(p,"company_id"),uuid(db.one("SELECT to_jsonb(u) FROM users u WHERE id=?",uuid(p,"requester_id")),"department_id"),str(p,"platform"),"SAAS_OPERATOR"));

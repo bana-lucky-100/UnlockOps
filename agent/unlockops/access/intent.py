@@ -39,7 +39,7 @@ ROLE_ALIASES = {
     'DATADOG': {'read': 'SERVICE_VIEWER', 'read only': 'SERVICE_VIEWER', 'viewer': 'SERVICE_VIEWER'},
     'TABLEAU_CLOUD': {'can edit': 'PROJECT_PUBLISHER', 'explorer': 'PROJECT_PUBLISHER'},
     'FIGMA': {'can edit': 'EDITOR_SEAT', 'full': 'EDITOR_SEAT'},
-    'NOTION': {'can edit': 'EDITOR'},
+    'NOTION': {'can edit': 'EDITOR', 'can view': 'VIEWER'},
 }
 
 
