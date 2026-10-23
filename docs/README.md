@@ -13,3 +13,7 @@
 API·MCP·이벤트를 변경하면 공통 계약과 영향을 받는 서비스 README를 함께 갱신합니다.
 
 - [Phase 2 준비: 상태 계약 통일과 승인 책임 분리](phase2-foundation-refactor.md)
+
+- [Phase 2 공통 계약](../contracts/phase2/README.md)
+- [Phase 2 mock 데이터](../data/phase2/README.md)
+- [누적 구현 기록과 설계 의도](../IMPLEMENTATION.md)

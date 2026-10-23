@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "event_id": "8d1c3c12-c8a8-5746-bca2-f947e12e2174",
+  "job_event_id": "18623ece-65d0-592b-abfb-bbb98b6ceba5",
+  "task_type": "RECLAIM_SCAN",
+  "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+  "event_type": "RECLAIM_CHECKED",
+  "result": {
+    "schema_version": 2,
+    "status": "EXECUTING",
+    "reason_code": "SCAN_IN_PROGRESS",
+    "message": "점검 결과 반영 대기",
+    "current_step": null,
+    "total_steps": 0,
+    "approval_steps": [],
+    "verification_ok": null,
+    "task_type": "RECLAIM_SCAN",
+    "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+    "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+    "as_of": "2026-10-22T09:00:00+09:00",
+    "scan_complete": true,
+    "needs_review_count": 0,
+    "new_candidate_count": 1,
+    "pending_notification_count": 0
+  },
+  "targets": [
+    {
+      "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+      "target_id": null,
+      "episode_id": null,
+      "platform": "GITHUB",
+      "candidate_status": "PENDING_REVIEW",
+      "candidate_reason_code": "TF_ENDED_UNUSED_30D",
+      "exclusion_reason_code": null,
+      "skip_reason_code": null,
+      "review_required": false,
+      "notified_at": null,
+      "read_at": null,
+      "action_taken": "NONE",
+      "generation_mode": "template",
+      "explanation": "TF 종료 후 미사용 30일 이상인 좌석으로 담당자 검토가 필요합니다.",
+      "policy_evidence": [
+        {
+          "doc_id": "P2-A-POLICY",
+          "article": "POL-06 제5조",
+          "version": "1",
+          "source_hash": "40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5",
+          "text": "프로젝트 지급 좌석은 TF 종료 후 연속 미사용 30일 이상이고 다른 활성 TF 이용 및 유효 유지 승인이 없으면 검토 후보로 제안한다."
+        }
+      ],
+      "fact_evidence": [
+        {
+          "source": "assignment_usage",
+          "record_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+          "observed_at": "2026-10-22T09:00:00+09:00"
+        }
+      ],
+      "cost_impact": {
+        "status": "ESTIMATED",
+        "monthly_amount": "19.00",
+        "currency": "USD",
+        "basis": "SYNTHETIC_CONTRACT"
+      }
+    }
+  ]
+}

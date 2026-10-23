@@ -69,3 +69,23 @@ Spring과 MCP의 회사 권한표 해시가 다르면 상한을 섞어 사용하
 ```sh
 .venv/bin/python -m pytest mcp/tests -q
 ```
+
+## Phase 2 도구
+
+`phase2_business.py`와 `phase2_policy.py`를 기존 두 서버에 등록했습니다. 입출력 스키마는
+`agent/unlockops/common/phase2_tools.py`를 공유하고 `phase2_backend.py`가 서버 응답을 검증·정규화합니다.
+
+| 도구 | 내부 연결 |
+|---|---|
+| get_access_request_context | GET /internal/v2/problems/{id}/context |
+| assess_access_request | POST /internal/v2/problems/{id}/assessment |
+| execute_access_plan | POST /internal/v2/problems/{id}/execute |
+| verify_access_plan | POST /internal/v2/problems/{id}/verify |
+| get_reclaim_check_context | POST /internal/v2/reclaim/context |
+| list_revocation_candidates | POST /internal/v2/reclaim/candidates |
+| get_reclaim_notification_history | POST /internal/v2/reclaim/notification-history |
+| search_workflow_policy / read_workflow_policy | 작업 context로 정책 revision을 확정한 뒤 로컬 검색·정확 조회 |
+
+v2 변경 도구는 execute_access_plan 하나이며 서버가 최종 승인·현재 자격·계획 해시·실행 키를 검사합니다.
+회수 도구는 모두 읽기 전용입니다. Policy MCP도 서버에서 회사별 정책을 확인하므로
+BACKEND_INTERNAL_URL/INTERNAL_API_TOKEN이 필요합니다. v1 도구·문서 경로는 유지합니다.

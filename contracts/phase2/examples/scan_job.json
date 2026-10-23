@@ -1,0 +1,10 @@
+{
+  "schema_version": 2,
+  "event_id": "18623ece-65d0-592b-abfb-bbb98b6ceba5",
+  "task_type": "RECLAIM_SCAN",
+  "job_type": "RECLAIM_CHECK",
+  "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+  "trigger": "MANUAL_DEMO",
+  "scope_key": "phase2:A:paid-seats",
+  "scheduled_for": "2026-10-22T09:00:00+09:00"
+}

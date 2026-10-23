@@ -131,3 +131,14 @@ uv --cache-dir .cache/uv sync --extra test
 
 VS Code의 `UnlockOps: Python current test`로 테스트 파일에 중단점을 걸 수 있습니다.
 실제 worker 디버깅은 [공통 안내](../docs/debugging.md)를 참고하세요.
+
+## Phase 2: 별도 승인·회수 그래프
+
+위 설명은 기존 v1 흐름입니다. v2는 `access/phase2_graph.py`(분석), `access/phase2_execution.py`(실행),
+`reclaim/graph.py`(회수 점검)로 분리합니다. 사람 승인 상태는 Spring이 관리하며 v1 interrupt를 재사용하지 않습니다.
+분석은 회사 정책 revision을 검색·원문 확인하고 서버 assessment의 판정·계획에 설명을 보완합니다.
+실행은 최신 서버 승인 계획·해시·키를 확인한 뒤 모의 부여와 독립 검증을 수행합니다.
+회수는 불변 스냅샷의 모든 행과 알림 이력을 읽고 설명만 보완합니다. 회수 쓰기 도구는 허용하지 않습니다.
+`common/phase2_tools.py`는 MCP 계약, `phase2_runtime.py`는 작업 범위·오류 경계,
+`phase2_reporting.py`는 근거 기반 설명 생성·검토와 고정 문구 fallback을 담당합니다.
+최종 상태·가격·승인자·알림은 서버가 확정합니다. 자세한 의도·검증 상태는 [구현 기록](../IMPLEMENTATION.md)을 참고하세요.

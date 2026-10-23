@@ -1,0 +1,1397 @@
+{
+  "$defs": {
+    "AccessEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "event_id": {
+          "format": "uuid",
+          "title": "Event Id",
+          "type": "string"
+        },
+        "job_event_id": {
+          "format": "uuid",
+          "title": "Job Event Id",
+          "type": "string"
+        },
+        "proposed_entitlement_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proposed Entitlement Id"
+        },
+        "policy_evidence": {
+          "items": {
+            "$ref": "#/$defs/PolicyEvidence"
+          },
+          "title": "Policy Evidence",
+          "type": "array"
+        },
+        "task_type": {
+          "const": "ACCESS_REQUEST",
+          "default": "ACCESS_REQUEST",
+          "title": "Task Type",
+          "type": "string"
+        },
+        "problem_id": {
+          "format": "uuid",
+          "title": "Problem Id",
+          "type": "string"
+        },
+        "job_type": {
+          "enum": [
+            "ANALYZE",
+            "EXECUTE"
+          ],
+          "title": "Job Type",
+          "type": "string"
+        },
+        "event_type": {
+          "enum": [
+            "PROGRESS",
+            "ANALYZED",
+            "EXECUTED",
+            "FAILED"
+          ],
+          "title": "Event Type",
+          "type": "string"
+        },
+        "result": {
+          "$ref": "#/$defs/AccessView"
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "job_event_id",
+        "problem_id",
+        "job_type",
+        "event_type",
+        "result"
+      ],
+      "title": "AccessEvent",
+      "type": "object"
+    },
+    "AccessJob": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "event_id": {
+          "format": "uuid",
+          "title": "Event Id",
+          "type": "string"
+        },
+        "task_type": {
+          "const": "ACCESS_REQUEST",
+          "default": "ACCESS_REQUEST",
+          "title": "Task Type",
+          "type": "string"
+        },
+        "job_type": {
+          "enum": [
+            "ANALYZE",
+            "EXECUTE"
+          ],
+          "title": "Job Type",
+          "type": "string"
+        },
+        "problem_id": {
+          "format": "uuid",
+          "title": "Problem Id",
+          "type": "string"
+        },
+        "plan_hash": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plan Hash"
+        },
+        "idempotency_key": {
+          "anyOf": [
+            {
+              "maxLength": 150,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Idempotency Key"
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "job_type",
+        "problem_id"
+      ],
+      "title": "AccessJob",
+      "type": "object"
+    },
+    "AccessRequestInput": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "platform": {
+          "$ref": "#/$defs/Platform"
+        },
+        "contents": {
+          "maxLength": 5000,
+          "minLength": 1,
+          "title": "Contents",
+          "type": "string"
+        },
+        "resource_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resource Id"
+        },
+        "entitlement_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entitlement Id"
+        }
+      },
+      "required": [
+        "schema_version",
+        "platform",
+        "contents"
+      ],
+      "title": "AccessRequestInput",
+      "type": "object"
+    },
+    "AccessView": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "task_type": {
+          "const": "ACCESS_REQUEST",
+          "default": "ACCESS_REQUEST",
+          "title": "Task Type",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/Status"
+        },
+        "reason_code": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z][A-Z0-9_]{0,99}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason Code"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "current_step": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Current Step"
+        },
+        "total_steps": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Steps",
+          "type": "integer"
+        },
+        "approval_steps": {
+          "items": {
+            "$ref": "#/$defs/ApprovalStep"
+          },
+          "title": "Approval Steps",
+          "type": "array"
+        },
+        "verification_ok": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verification Ok"
+        },
+        "problem_id": {
+          "format": "uuid",
+          "title": "Problem Id",
+          "type": "string"
+        },
+        "result_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "GUIDANCE",
+                "ACCESS_VERIFIED"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result Type"
+        },
+        "plan_hash": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plan Hash"
+        },
+        "plan_version": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plan Version"
+        }
+      },
+      "required": [
+        "schema_version",
+        "status",
+        "message",
+        "problem_id"
+      ],
+      "title": "AccessView",
+      "type": "object"
+    },
+    "ApprovalDecisionInput": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "APPROVE",
+            "REJECT",
+            "HOLD"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "expected_plan_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Expected Plan Hash",
+          "type": "string"
+        },
+        "expected_plan_version": {
+          "minimum": 1,
+          "title": "Expected Plan Version",
+          "type": "integer"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "action",
+        "expected_plan_hash",
+        "expected_plan_version"
+      ],
+      "title": "ApprovalDecisionInput",
+      "type": "object"
+    },
+    "ApprovalStatus": {
+      "enum": [
+        "PENDING",
+        "WAITING",
+        "APPROVED",
+        "REJECTED",
+        "ON_HOLD",
+        "SKIPPED"
+      ],
+      "title": "ApprovalStatus",
+      "type": "string"
+    },
+    "ApprovalStep": {
+      "additionalProperties": false,
+      "properties": {
+        "step": {
+          "minimum": 1,
+          "title": "Step",
+          "type": "integer"
+        },
+        "approver_id": {
+          "format": "uuid",
+          "title": "Approver Id",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ApprovalStatus"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "acted_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Acted At"
+        }
+      },
+      "required": [
+        "step",
+        "approver_id",
+        "status"
+      ],
+      "title": "ApprovalStep",
+      "type": "object"
+    },
+    "CandidatePage": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "format": "uuid",
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "as_of": {
+          "format": "date-time",
+          "title": "As Of",
+          "type": "string"
+        },
+        "expected_count": {
+          "minimum": 0,
+          "title": "Expected Count",
+          "type": "integer"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Cursor"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ReclaimCandidate"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "run_id",
+        "snapshot_id",
+        "as_of",
+        "expected_count",
+        "items"
+      ],
+      "title": "CandidatePage",
+      "type": "object"
+    },
+    "CandidatePageRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "policy_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Hash",
+          "type": "string"
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cursor"
+        }
+      },
+      "required": [
+        "run_id",
+        "policy_hash"
+      ],
+      "title": "CandidatePageRequest",
+      "type": "object"
+    },
+    "CandidateStatus": {
+      "enum": [
+        "PENDING_REVIEW",
+        "RETAINED",
+        "EXCLUDED"
+      ],
+      "title": "CandidateStatus",
+      "type": "string"
+    },
+    "CostImpact": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "ESTIMATED",
+            "UNKNOWN"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "monthly_amount": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]{0,9})\\.[0-9]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Monthly Amount"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Currency"
+        },
+        "basis": {
+          "anyOf": [
+            {
+              "enum": [
+                "SYNTHETIC_CONTRACT",
+                "CONTRACT",
+                "PUBLIC_LIST_PRICE"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "CostImpact",
+      "type": "object"
+    },
+    "FactEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "record_id": {
+          "minLength": 1,
+          "title": "Record Id",
+          "type": "string"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "record_id",
+        "observed_at"
+      ],
+      "title": "FactEvidence",
+      "type": "object"
+    },
+    "GrantPlanV2": {
+      "additionalProperties": false,
+      "description": "All executable meaning is bound to immutable revision references.\n\nMoney is a decimal string; ids are normalized UUIDs; approver order is significant.\nNo free-form model-generated text participates in canonical hashing.",
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "problem_id": {
+          "format": "uuid",
+          "title": "Problem Id",
+          "type": "string"
+        },
+        "company_id": {
+          "format": "uuid",
+          "title": "Company Id",
+          "type": "string"
+        },
+        "requester_id": {
+          "format": "uuid",
+          "title": "Requester Id",
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/$defs/Platform"
+        },
+        "resource_id": {
+          "format": "uuid",
+          "title": "Resource Id",
+          "type": "string"
+        },
+        "entitlement_id": {
+          "format": "uuid",
+          "title": "Entitlement Id",
+          "type": "string"
+        },
+        "entitlement_revision": {
+          "minimum": 1,
+          "title": "Entitlement Revision",
+          "type": "integer"
+        },
+        "pricing_id": {
+          "format": "uuid",
+          "title": "Pricing Id",
+          "type": "string"
+        },
+        "pricing_revision": {
+          "minimum": 1,
+          "title": "Pricing Revision",
+          "type": "integer"
+        },
+        "monthly_amount": {
+          "pattern": "^(0|[1-9][0-9]{0,9})\\.[0-9]{2}$",
+          "title": "Monthly Amount",
+          "type": "string"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "cost_basis": {
+          "enum": [
+            "SEAT_MONTHLY",
+            "USAGE_ESTIMATE",
+            "NO_ADDITIONAL_COST"
+          ],
+          "title": "Cost Basis",
+          "type": "string"
+        },
+        "policy_id": {
+          "format": "uuid",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "policy_revision": {
+          "minimum": 1,
+          "title": "Policy Revision",
+          "type": "integer"
+        },
+        "route_id": {
+          "format": "uuid",
+          "title": "Route Id",
+          "type": "string"
+        },
+        "route_revision": {
+          "minimum": 1,
+          "title": "Route Revision",
+          "type": "integer"
+        },
+        "approver_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Approver Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "problem_id",
+        "company_id",
+        "requester_id",
+        "platform",
+        "resource_id",
+        "entitlement_id",
+        "entitlement_revision",
+        "pricing_id",
+        "pricing_revision",
+        "monthly_amount",
+        "currency",
+        "cost_basis",
+        "policy_id",
+        "policy_revision",
+        "route_id",
+        "route_revision",
+        "approver_ids"
+      ],
+      "title": "GrantPlanV2",
+      "type": "object"
+    },
+    "NotificationHistoryRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "assignment_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Assignment Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "run_id",
+        "assignment_ids"
+      ],
+      "title": "NotificationHistoryRequest",
+      "type": "object"
+    },
+    "Platform": {
+      "enum": [
+        "SNOWFLAKE",
+        "DATABRICKS",
+        "SALESFORCE",
+        "DATADOG",
+        "TABLEAU_CLOUD",
+        "FIGMA",
+        "GITHUB",
+        "JIRA",
+        "SLACK",
+        "NOTION"
+      ],
+      "title": "Platform",
+      "type": "string"
+    },
+    "PolicyEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "doc_id": {
+          "minLength": 1,
+          "title": "Doc Id",
+          "type": "string"
+        },
+        "article": {
+          "minLength": 1,
+          "title": "Article",
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        },
+        "source_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Hash",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "doc_id",
+        "article",
+        "version",
+        "source_hash",
+        "text"
+      ],
+      "title": "PolicyEvidence",
+      "type": "object"
+    },
+    "ReclaimCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "assignment_id": {
+          "format": "uuid",
+          "title": "Assignment Id",
+          "type": "string"
+        },
+        "target_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Id"
+        },
+        "episode_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Id"
+        },
+        "platform": {
+          "$ref": "#/$defs/Platform"
+        },
+        "candidate_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CandidateStatus"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "candidate_reason_code": {
+          "anyOf": [
+            {
+              "enum": [
+                "TF_ENDED_UNUSED_30D",
+                "EMPLOYEE_LEFT"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Reason Code"
+        },
+        "exclusion_reason_code": {
+          "anyOf": [
+            {
+              "enum": [
+                "ACTIVE_OTHER_TF",
+                "RETENTION_APPROVED",
+                "USAGE_RESUMED"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exclusion Reason Code"
+        },
+        "skip_reason_code": {
+          "anyOf": [
+            {
+              "const": "ALREADY_NOTIFIED",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Skip Reason Code"
+        },
+        "review_required": {
+          "default": false,
+          "title": "Review Required",
+          "type": "boolean"
+        },
+        "notified_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notified At"
+        },
+        "read_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Read At"
+        },
+        "action_taken": {
+          "const": "NONE",
+          "default": "NONE",
+          "title": "Action Taken",
+          "type": "string"
+        },
+        "generation_mode": {
+          "default": "template",
+          "enum": [
+            "template",
+            "llm"
+          ],
+          "title": "Generation Mode",
+          "type": "string"
+        },
+        "explanation": {
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "policy_evidence": {
+          "items": {
+            "$ref": "#/$defs/PolicyEvidence"
+          },
+          "title": "Policy Evidence",
+          "type": "array"
+        },
+        "fact_evidence": {
+          "items": {
+            "$ref": "#/$defs/FactEvidence"
+          },
+          "title": "Fact Evidence",
+          "type": "array"
+        },
+        "cost_impact": {
+          "$ref": "#/$defs/CostImpact"
+        }
+      },
+      "required": [
+        "assignment_id",
+        "platform",
+        "explanation",
+        "cost_impact"
+      ],
+      "title": "ReclaimCandidate",
+      "type": "object"
+    },
+    "ReclaimContextRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id"
+      ],
+      "title": "ReclaimContextRequest",
+      "type": "object"
+    },
+    "ReclaimEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "event_id": {
+          "format": "uuid",
+          "title": "Event Id",
+          "type": "string"
+        },
+        "job_event_id": {
+          "format": "uuid",
+          "title": "Job Event Id",
+          "type": "string"
+        },
+        "task_type": {
+          "const": "RECLAIM_SCAN",
+          "default": "RECLAIM_SCAN",
+          "title": "Task Type",
+          "type": "string"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "event_type": {
+          "enum": [
+            "PROGRESS",
+            "RECLAIM_CHECKED",
+            "FAILED"
+          ],
+          "title": "Event Type",
+          "type": "string"
+        },
+        "result": {
+          "$ref": "#/$defs/ReclaimRunView"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/ReclaimCandidate"
+          },
+          "title": "Targets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "job_event_id",
+        "run_id",
+        "event_type",
+        "result"
+      ],
+      "title": "ReclaimEvent",
+      "type": "object"
+    },
+    "ReclaimJob": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "event_id": {
+          "format": "uuid",
+          "title": "Event Id",
+          "type": "string"
+        },
+        "task_type": {
+          "const": "RECLAIM_SCAN",
+          "default": "RECLAIM_SCAN",
+          "title": "Task Type",
+          "type": "string"
+        },
+        "job_type": {
+          "const": "RECLAIM_CHECK",
+          "default": "RECLAIM_CHECK",
+          "title": "Job Type",
+          "type": "string"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "trigger": {
+          "enum": [
+            "DAILY_SCHEDULE",
+            "MANUAL_DEMO"
+          ],
+          "title": "Trigger",
+          "type": "string"
+        },
+        "scope_key": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Scope Key",
+          "type": "string"
+        },
+        "scheduled_for": {
+          "format": "date-time",
+          "title": "Scheduled For",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "run_id",
+        "trigger",
+        "scope_key",
+        "scheduled_for"
+      ],
+      "title": "ReclaimJob",
+      "type": "object"
+    },
+    "ReclaimRunView": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "task_type": {
+          "const": "RECLAIM_SCAN",
+          "default": "RECLAIM_SCAN",
+          "title": "Task Type",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/Status"
+        },
+        "reason_code": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z][A-Z0-9_]{0,99}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason Code"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "current_step": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Current Step"
+        },
+        "total_steps": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Steps",
+          "type": "integer"
+        },
+        "approval_steps": {
+          "items": {
+            "$ref": "#/$defs/ApprovalStep"
+          },
+          "title": "Approval Steps",
+          "type": "array"
+        },
+        "verification_ok": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verification Ok"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot Id"
+        },
+        "as_of": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As Of"
+        },
+        "scan_complete": {
+          "default": false,
+          "title": "Scan Complete",
+          "type": "boolean"
+        },
+        "needs_review_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Needs Review Count",
+          "type": "integer"
+        },
+        "new_candidate_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "New Candidate Count",
+          "type": "integer"
+        },
+        "pending_notification_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Pending Notification Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "status",
+        "message",
+        "run_id"
+      ],
+      "title": "ReclaimRunView",
+      "type": "object"
+    },
+    "ReclaimStartInput": {
+      "additionalProperties": false,
+      "properties": {
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_id"
+      ],
+      "title": "ReclaimStartInput",
+      "type": "object"
+    },
+    "Status": {
+      "enum": [
+        "RECEIVED",
+        "DIAGNOSING",
+        "WAITING_APPROVAL",
+        "ON_HOLD",
+        "EXECUTING",
+        "DONE",
+        "REJECTED",
+        "MANUAL_REVIEW",
+        "FAILED"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Schema export root. Each field is also independently reusable by its $def.",
+  "properties": {
+    "plan": {
+      "$ref": "#/$defs/GrantPlanV2"
+    },
+    "access_view": {
+      "$ref": "#/$defs/AccessView"
+    },
+    "reclaim_view": {
+      "$ref": "#/$defs/ReclaimRunView"
+    },
+    "job": {
+      "discriminator": {
+        "mapping": {
+          "ACCESS_REQUEST": "#/$defs/AccessJob",
+          "RECLAIM_SCAN": "#/$defs/ReclaimJob"
+        },
+        "propertyName": "task_type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AccessJob"
+        },
+        {
+          "$ref": "#/$defs/ReclaimJob"
+        }
+      ],
+      "title": "Job"
+    },
+    "event": {
+      "discriminator": {
+        "mapping": {
+          "ACCESS_REQUEST": "#/$defs/AccessEvent",
+          "RECLAIM_SCAN": "#/$defs/ReclaimEvent"
+        },
+        "propertyName": "task_type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AccessEvent"
+        },
+        {
+          "$ref": "#/$defs/ReclaimEvent"
+        }
+      ],
+      "title": "Event"
+    },
+    "context_request": {
+      "$ref": "#/$defs/ReclaimContextRequest"
+    },
+    "candidate_page_request": {
+      "$ref": "#/$defs/CandidatePageRequest"
+    },
+    "notification_history_request": {
+      "$ref": "#/$defs/NotificationHistoryRequest"
+    },
+    "candidate_page": {
+      "$ref": "#/$defs/CandidatePage"
+    },
+    "access_request": {
+      "$ref": "#/$defs/AccessRequestInput"
+    },
+    "approval_decision": {
+      "$ref": "#/$defs/ApprovalDecisionInput"
+    },
+    "reclaim_start": {
+      "$ref": "#/$defs/ReclaimStartInput"
+    }
+  },
+  "required": [
+    "plan",
+    "access_view",
+    "reclaim_view",
+    "job",
+    "event",
+    "context_request",
+    "candidate_page_request",
+    "notification_history_request",
+    "candidate_page",
+    "access_request",
+    "approval_decision",
+    "reclaim_start"
+  ],
+  "title": "ContractBundle",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:unlockops:contracts:phase2:v2"
+}

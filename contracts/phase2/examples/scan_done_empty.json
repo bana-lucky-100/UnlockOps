@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "status": "DONE",
+  "reason_code": "NO_NEW_CANDIDATES",
+  "message": "신규 회수 후보 없음",
+  "current_step": null,
+  "total_steps": 0,
+  "approval_steps": [],
+  "verification_ok": null,
+  "task_type": "RECLAIM_SCAN",
+  "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+  "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+  "as_of": "2026-10-22T09:00:00+09:00",
+  "scan_complete": true,
+  "needs_review_count": 0,
+  "new_candidate_count": 0,
+  "pending_notification_count": 0
+}
