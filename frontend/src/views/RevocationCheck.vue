@@ -115,10 +115,13 @@ async function doRevoke() {
     tab.value = 'ALL' // 회수된 후보는 '전체'에만 남으므로, 완료 배지가 보이는 탭으로 옮긴다
   } catch (e) {
     if (e instanceof ApiError && e.status === 409) {
-      // 창을 닫으므로 안내는 창 밖(하단 안내)에 남긴다.
-      done.value = '이미 처리된 후보예요. 목록을 다시 불러왔어요.'
-      revoking.value = false; closeRevoke(); await load()
-    } else revokeError.value = `회수하지 못했어요. ${(e as Error)?.message ?? ''}`
+      // 409는 이미 회수됨만이 아니다(사용 재개 · 유지 승인 · 점검 미완료 · 키 충돌). 이미 회수됨만 그렇게 말하고, 나머지는 서버 이유를 그대로 보인다.
+      // 어느 경우든 최신 상태를 다시 불러오고, 창을 닫으므로 안내는 창 밖(하단 안내)에 남긴다.
+      done.value = e.code === 'ALREADY_REVOKED' ? '이미 회수된 후보예요. 목록을 다시 불러왔어요.' : `회수하지 않았어요 · ${e.message}`
+      revoking.value = false; closeRevoke(); await load(); tab.value = 'ALL'
+    } else revokeError.value = e instanceof ApiError && e.status >= 500
+      ? '회수 결과를 확인하지 못했어요. 목록을 다시 불러와 현재 상태를 확인해 주세요.'
+      : `회수하지 못했어요. ${(e as Error)?.message ?? ''}`
   } finally { revoking.value = false }
 }
 // 10. 점검이 진행 중(접수 · 선별 · 결과 저장)인 보고서를 받으면 끝날 때까지 3초마다 다시 불러온다. 화면을 떠나면 멈춘다.
@@ -135,7 +138,7 @@ const help = {
   howto: [
     { t: '[지금 다시 점검]으로 점검해요', d: 'TF가 끝났거나 오래 쓰지 않은 유료 권한을 찾아요. 자동 점검(매일 09:00)은 담당 범위를 켜야 돌아가요(기본은 꺼짐)' },
     { t: '새로 찾은 후보만 먼저 보여 줘요', d: '이미 알린 후보는 다시 알리지 않아요. "이미 알린 후보" 탭에서 따로 볼 수 있어요' },
-    { t: '회수는 사람이 결정해요', d: '후보와 근거, 줄일 수 있는 금액을 보고 [회수]를 누르면 확인 창에서 한 번 더 확인한 뒤 회수해요. 회수 버튼이 없으면 기존 절차로 진행해 주세요' },
+    { t: '회수는 사람이 결정해요', d: '후보와 근거, 줄일 수 있는 금액을 보고 [회수]를 누르면 확인 창에서 한 번 더 확인한 뒤 회수해요. 회수 버튼은 실행 권한이 있는 담당자에게, 아직 처리되지 않은 후보에만 보여요' },
   ],
   faqs: [
     { q: '어떤 기준으로 후보가 되나요?', a: 'TF가 끝난 뒤 30일 넘게 쓰지 않았고, 다른 TF 소속이나 유지 승인이 없는 유료 권한이에요 (시연용 가정 기준).' },
@@ -212,7 +215,9 @@ const help = {
           </div>
           <p class="rv-note">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
-            <template v-if="canRevokeAny">[회수]를 누르면 확인 후 바로 권한을 회수해요</template><template v-else>실제 회수는 하지 않아요. 기존 절차로 진행해 주세요</template>
+            <template v-if="mock">실제 회수는 하지 않아요. 기존 절차로 진행해 주세요</template>
+            <template v-else-if="canRevokeAny">[회수]를 누르면 확인 후 바로 권한을 회수해요</template>
+            <template v-else>현재 회수 가능한 후보가 없어요</template>
           </p>
         </div>
 
