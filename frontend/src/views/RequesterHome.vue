@@ -175,7 +175,7 @@ const help = {
           <div class="rh-pf">
             <button ref="pfBtn" type="button" class="rh-pf-btn" :class="{ on: !!selected }" :style="selected ? { '--c': PLATFORMS[selected].color, '--s': PLATFORMS[selected].soft } : {}"
               aria-haspopup="true" :aria-expanded="pfOpen" @click="pfOpen = !pfOpen">
-              <SaasMark v-if="selected" :platform="selected" :size="16" />
+              <SaasMark v-if="selected" :platform="selected" :size="22" tile />
               <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" /></svg>
               {{ selected ? PLATFORMS[selected].label : '플랫폼 선택' }}
               <svg class="rh-pf-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
@@ -183,7 +183,7 @@ const help = {
             <div v-if="pfOpen" ref="pfPop" class="rh-pf-pop" role="group" aria-label="플랫폼 고르기">
               <button v-for="p in ORDER" :key="p" type="button" class="rh-pf-item" :class="{ hint: guesses.includes(p) }"
                 :aria-pressed="selected === p" :style="{ '--c': PLATFORMS[p].color, '--s': PLATFORMS[p].soft }" @click="pick(p); pfOpen = false">
-                <SaasMark :platform="p" :size="20" />
+                <SaasMark :platform="p" :size="24" tile />
                 {{ PLATFORMS[p].label }}
               </button>
             </div>

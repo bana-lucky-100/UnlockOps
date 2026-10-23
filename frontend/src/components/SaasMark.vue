@@ -27,7 +27,7 @@ const src = computed(() => `${import.meta.env.BASE_URL}logos/mark/${slug.value}.
 </script>
 
 <template>
-  <span class="sm" :class="{ tile }" :style="{ width: `${size}px`, height: `${size}px`, ...(!slug || failed ? { background: badge.bg, color: badge.fg } : {}) }" aria-hidden="true">
+  <span class="sm" :class="{ tile }" :style="{ width: `${size}px`, height: `${size}px`, ...(tile ? { padding: `${Math.max(2, Math.round(size * 0.14))}px` } : {}), ...(!slug || failed ? { background: badge.bg, color: badge.fg } : {}) }" aria-hidden="true">
     <img v-if="slug && !failed" :src="src" alt="" @error="failed = true">
     <span v-else class="sm-mono" :style="{ fontSize: `${Math.max(9, Math.round(size * 0.38))}px` }">{{ badge.mono }}</span>
   </span>
@@ -35,7 +35,7 @@ const src = computed(() => `${import.meta.env.BASE_URL}logos/mark/${slug.value}.
 
 <style scoped>
 .sm { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; box-sizing: border-box; vertical-align: middle; }
-.sm.tile { border-radius: 9px; background: #fff; border: 1px solid var(--uo-line, #E4E7F2); padding: 5px; }
+.sm.tile { border-radius: 25%; background: #fff; border: 1px solid var(--uo-line, #E4E7F2); }
 .sm img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .sm-mono { font-family: var(--uo-font-en); font-weight: 700; line-height: 1; }
 </style>
