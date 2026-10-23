@@ -56,9 +56,16 @@ const loaded = ref(false)
 const loadError = ref('')
 
 const ready = computed(() => !!selected.value && contents.value.trim().length >= 2)
-const placeholder = computed(() => selected.value
-  ? '예: ' + EXAMPLE[selected.value]
-  : '예: 분석용 Snowflake 웨어하우스 이용 권한이 필요해요. 추천 모델 TF 때문에요')
+// 휴대폰에서는 예시가 두 줄을 넘어 잘리므로 첫 문장(무엇이 필요한지)만 보여 준다. 이유는 입력창 아래 안내가 맡는다.
+const narrow = ref(typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 720px)').matches)
+if (typeof window !== 'undefined' && window.matchMedia) {
+  const mq = window.matchMedia('(max-width: 720px)')
+  mq.addEventListener?.('change', e => { narrow.value = e.matches })
+}
+const placeholder = computed(() => {
+  const full = selected.value ? EXAMPLE[selected.value] : '분석용 Snowflake 웨어하우스 이용 권한이 필요해요. 추천 모델 TF 때문에요'
+  return '예: ' + (narrow.value ? full.split('. ')[0] : full)
+})
 const rows = computed(() => Math.min(4, Math.max(1, Math.ceil(contents.value.length / 40) + contents.value.split('\n').length - 1)))
 
 const counts = computed(() => {
@@ -263,7 +270,7 @@ const help = {
 .rh-pf-item[aria-pressed="true"] { background: var(--c); color: #fff; }
 .rh-pf-hint { margin: 0; font-size: 13px; color: var(--uo-muted); }
 .rh-form { position: relative; display: flex; align-items: flex-end; gap: 12px; padding: 8px 8px 8px 8px; background: rgba(255,255,255,0.92); border: 1px solid var(--uo-line-strong); border-radius: 16px; box-shadow: 0 8px 30px rgba(59,75,216,0.10); }
-.rh-form textarea { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: 16px; line-height: 1.5; color: var(--uo-ink); padding: 10px 0; resize: none; }
+.rh-form textarea { flex: 1; min-width: 0; min-height: 48px; border: 0; outline: none; background: transparent; font: inherit; font-size: 16px; line-height: 1.5; color: var(--uo-ink); padding: 12px 0; resize: none; }
 .rh-form:focus-within { outline: 2px solid var(--uo-primary); outline-offset: 2px; }
 .rh-count { font-size: 12px; color: var(--uo-muted); white-space: nowrap; padding-bottom: 14px; }
 .rh-send { width: 44px; height: 44px; flex: 0 0 44px; border: 0; border-radius: 12px; background: #B4B9CE; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
@@ -306,7 +313,7 @@ const help = {
   /* 휴대폰: 플랫폼 버튼은 입력창 위 한 줄로, 상태 카드 3개는 한 줄에 작게 */
   .rh-form { flex-wrap: wrap; padding: 8px; }
   .rh-pf { flex-basis: 100%; padding-top: 0; }
-  .rh-form textarea { padding: 6px 4px; }
+  .rh-form textarea { min-height: 72px; padding: 8px 4px; }
   .rh-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .rh-step { min-height: 0; padding: 14px 12px 16px; border-radius: 14px; }
   .rh-step-name { font-size: 13px; }
