@@ -192,3 +192,10 @@ test('회수 버튼은 서버가 can_revoke를 준 후보에만 열린다', () =
   assert.equal(r.candidates[2].candidate_status, 'RECLAIMED')
   assert.equal(r.candidates[2].reclaimed_at, '2026-10-23T15:20:00+09:00')
 })
+
+test('헤더 프로필은 로그인 카드와 같은 이니셜 · 색을 쓴다', async () => {
+  const { personaAvatar } = await import('../src/lib/persona.ts')
+  assert.equal(personaAvatar({ login_id: 'p2_a_head', name: '김동빈' }).initial, '동')
+  assert.equal(personaAvatar({ login_id: 'p2_a_operator', name: '신형철' }).fg, '#2B3480')
+  assert.equal(personaAvatar({ login_id: 'p2_b_requester', name: '박요청(B)' }).initial, '요')
+})

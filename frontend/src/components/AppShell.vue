@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import lockImg from '../assets/lock.jpg'
 import { currentUser, homeOf, logout } from '../session'
+import { personaAvatar } from '../lib/persona'
 
 export interface HelpContent { howto: { t: string; d: string }[]; faqs: { q: string; a: string }[] }
 
@@ -25,6 +26,7 @@ const nav = computed(() => currentUser.value?.role === 'APPROVER'
       { to: '/', label: '홈', icon: 'M3 11l9-7 9 7M5 10v10h14V10' },
       { to: '/requests', label: '내 요청', icon: 'M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 8h8M8 12h8M8 16h5' },
     ])
+const avatar = computed(() => currentUser.value ? personaAvatar(currentUser.value) : null)
 const home = computed(() => currentUser.value ? homeOf(currentUser.value) : '/')
 
 function openHelp() { helpOpen.value = true }
@@ -62,7 +64,7 @@ async function signOut() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 0 1 4.9.7c0 1.7-2.4 2.1-2.4 3.6M12 17h.01" /></svg>도움말
             </button>
             <span v-if="currentUser" class="sh-who">{{ currentUser.name }} · {{ currentUser.department }}<template v-if="currentUser.role === 'APPROVER'"> (승인자)</template></span>
-            <span v-if="currentUser" class="sh-avatar" aria-hidden="true">{{ currentUser.name.slice(0, 1) }}</span>
+            <span v-if="avatar" class="sh-avatar" aria-hidden="true" :style="{ background: avatar.bg, color: avatar.fg, borderColor: avatar.fg }">{{ avatar.initial }}</span>
             <button type="button" class="sh-pill" @click="signOut">로그아웃</button>
           </div>
         </header>
@@ -111,7 +113,7 @@ async function signOut() {
 .sh-brand span { font-family: var(--uo-font); font-weight: 500; font-size: 14px; color: var(--uo-muted); letter-spacing: 0; }
 .sh-me { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--uo-muted); flex-wrap: wrap; }
 .sh-pill { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 12px; border: 1px solid #D5D9EA; border-radius: 999px; background: #fff; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
-.sh-avatar { width: 36px; height: 36px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--uo-primary); background: #DDE2FF; color: var(--uo-primary); display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.sh-avatar { width: 36px; height: 36px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid currentColor; display: flex; align-items: center; justify-content: center; font-weight: 700; }
 .sh-err { color: var(--uo-bad); font-weight: 600; }
 .sh-help { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end; }
 .sh-scrim { position: absolute; inset: 0; border: 0; padding: 0; background: rgba(20,26,51,0.32); cursor: pointer; }
