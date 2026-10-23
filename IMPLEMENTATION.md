@@ -675,6 +675,18 @@ P1은 우선 수정할 승인 정확성 문제, P2는 후속 수정할 조회·�
 
 | 2026-10-23 | 시나리오 v4 정합화 | 회수 완료/추가 확인/실패 계약, V8 migration, 정책·가격 revision 3, 자연어 권한 매핑·최소 권한 목적 검사·첫 플랫폼 처리·마스킹·평가셋 정합화. Python 368건, 평가 준비 3건, Java 핵심 7건, 프론트 3건 통과. DB 적용·전체 프론트 빌드·통합 시연 미실행 |
 
+
+## 2026-10-23 회수 AI 역할 분리 및 보고서 보완
+
+사용자 요청에 따라 AI 코드만 수정했습니다. 프론트·Spring·공통 계약 생성물은 변경하지 않았습니다.
+
+- `agent/unlockops/reclaim/`를 `graph.py`(연결·이벤트), `state.py`(상태), `context.py`(점검 준비), `policy.py`(RAG), `scan.py`(대상·알림 이력), `reporting.py`(설명·검증·보고서)로 나눴습니다. 파일명에 `phase2_`는 붙이지 않습니다.
+- 그래프는 `context → policy_review → candidate_review → report_writer → finish`이며, 기존 Worker 진입점·노드 이름·체크포인트 키를 유지합니다. POL-06 제5조를 필수 조회하고 원문·조항·revision·해시가 일치하는지 검증합니다.
+- 별도 AI 보고서에 `candidates`, `summary.needs_review_count`, `needs_review[{user_name, platform, missing}]`를 구성합니다. 현재 서버 큐의 엄격한 `result/targets` 계약은 유지하며, 공개 S-04 응답 연결은 백엔드 담당자의 후속 작업입니다.
+- 부분 실패는 `FAILED / SCAN_FAILED`와 검증된 부분 결과를 보존합니다. 모델은 설명만 보완하며, 실패하면 정형 문구를 유지합니다. 판정·금액·근거·대상 식별자가 바뀌면 차단합니다. Agent는 DONE이나 실제 회수를 확정하지 않습니다.
+- 현재 MCP에 없는 이름·마지막 사용일·상세 누락 항목은 추측하지 않습니다. 신뢰할 수 있는 별도 사실 메타데이터가 제공될 때 보고서에 보완할 수 있습니다.
+- 검증: 전체 Python 테스트 **392건 통과·1건 건너뜀**, 공통 계약 생성물 일치 확인 통과. 실제 DB·브로커·LLM·프론트 통합 실행은 수행하지 않았습니다.
+
 ## 승인 RAG 문서 점검과 보고서 근거 보강 — 2026-10-23
 
 - 수신 POL 14개·공식 요약 14개, 회사별 정책 묶음 revision 3, 검색·승인 보고서 연결을 대조하고 `docs/rag-approval-review.md`에 역할·지원 차이를 정리했다. 정책·가격·승인 경로의 immutable revision은 보존했다.
@@ -746,3 +758,11 @@ P1은 우선 수정할 승인 정확성 문제, P2는 후속 수정할 조회·�
 검증: Python **199 passed, 1 skipped**, Java 소스 독립 컴파일 및 JUnit **36 passed**, 계약/정책/v4 생성물 검사와 diff 공백 검사 통과. Flyway PostgreSQL 파서가 V9 전체를 13개 문장으로 정상 분리했다. 이는 PostgreSQL 실행 검증을 뜻하지 않는다.
 
 실제 DB 업그레이드·이력·신규 순차 승인·중복 좌석·동일 실행 재전달 시 예산 1회 차감을 검사하는 ExistingAccountsMigrationIT를 추가했다. Docker 소켓 접근 거부와 로컬 PostgreSQL shared memory 생성 권한 제한으로 실제 DB 통합 실행은 미검증이다. 배포 DB에는 적용하지 않았다. 실행 가능 환경에서는 `cd backend && mvn verify -Pregression -Dit.test=ExistingAccountsMigrationIT`로 확인한다.
+
+## 회수 Agent 변경과 실행 구조 통합 병합 — 2026-10-23
+
+- main의 `workflow_contracts`, `tool_contracts`, `runtime`, `reporting`, `WorkflowTools`와 `max_reclaim_candidates`/`max_result_bytes` 이름으로 회수 모듈·Worker·테스트를 연결했다. 삭제된 phase2 실행기를 복원하지 않았다.
+- 회수의 `context → policy_review → candidate_review → report_writer → finish` 역할 구조, POL-06 제5조 필수 조회·원문 검증, `candidates`/`needs_review` 별도 보고서, 부분 실패 시 검증된 결과 보존을 유지했다. 서버 큐의 `result/targets`와 최종 DONE·알림 결정 경계도 그대로다.
+- Worker를 `unlockops_worker/runtime.py`로 통합하면서 MCP cancel scope를 부모 Worker 작업에서 열고 닫는 수정과, 완료 체크포인트 재전달 시 MCP를 다시 열지 않는 동작을 보존했다. 문서는 main의 최신 설명에 회수 역할·응답 계약을 합쳤고 양쪽 구현 이력을 유지했다.
+- 병합 후 검증: 회수·공통 워크플로 **37 passed**, 전체 Python 및 평가 준비 **224 passed, 1 skipped**. main에서 이전 실행기·테스트가 제거돼 병합 전 393건과 전체 검사 수가 다르며, 회수 설계 테스트는 모두 유지했다. 공통 계약·HTTP 계약·정책 import·v4 생성물 검사와 diff 공백 검사 통과.
+- 이번 병합에서 Docker 서비스를 다시 빌드하거나 실제 LLM을 호출하지 않았다. 현재 실행 중인 컨테이너는 병합 전 빌드이므로 병합 후 실행 검증 결과로 간주하지 않는다. 병합 커밋·원격 푸시는 수행하지 않았다.

@@ -1,6 +1,7 @@
 """Workflow routing and durable replay for access analysis, execution and reclaim."""
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
 from contextlib import AsyncExitStack
@@ -13,6 +14,7 @@ from unlockops.common.settings import settings
 from unlockops.access.graph import build_analysis_graph
 from unlockops.access.execution import build_execution_graph
 from unlockops.reclaim.graph import build_graph as build_reclaim_graph
+from unlockops.reclaim.reporting import build_failure_event, report_from_event
 
 
 QUEUES = ("v2.analysis", "v2.execution", "results", "dead")
@@ -65,12 +67,25 @@ class LazyMCP:
     def __init__(self, stack):
         self.stack, self.tools = stack, None
 
-    async def call(self, name, arguments):
-        if self.tools is None:
+    async def open(self):
+        """Enter MCP cancel scopes in the same Worker task that will close them."""
+        if self.tools is not None:
+            return
+        attempts = settings.max_execution_attempts
+        for attempt in range(attempts):
             try:
                 self.tools = await self.stack.enter_async_context(MCPTools())
+                return
+            except ToolFailure as error:
+                failure = error
             except Exception:
-                raise ToolFailure("MCP_UNAVAILABLE", "MCP connection could not be established", True) from None
+                failure = ToolFailure("MCP_UNAVAILABLE", "MCP connection could not be established", True)
+            if not failure.retryable or attempt + 1 == attempts:
+                raise failure from None
+            await asyncio.sleep(min(2 ** attempt, 2))
+
+    async def call(self, name, arguments):
+        await self.open()
         return await self.tools.call(name, arguments)
 
 
@@ -88,6 +103,12 @@ async def run_job(job, saver, tools=None):
         if "result_event" in snapshot.values:
             return validate_event(snapshot.values["result_event"], job) if snapshot.values["result_event"] else None
         value = None if snapshot.values else {"job": serialized, "events": []}
+        # Open and close MCP/AnyIO scopes in this parent task. Exhausted
+        # connection retries propagate for delivery retry, without persisting
+        # WORKER_ERROR or replacing an existing graph checkpoint.
+        # Completed checkpoint replay above never opens a connection.
+        if isinstance(selected_tools, LazyMCP):
+            await selected_tools.open()
         try:
             await graph.ainvoke(value, config)
         except (OSError, ConnectionError, sqlite3.Error):
@@ -95,8 +116,13 @@ async def run_job(job, saver, tools=None):
             raise
         except Exception:
             # Do not log provider responses or request contents. Keep unexpected failure replay stable too.
-            event = failure_event(job, "WORKER_ERROR")
-            await graph.aupdate_state(config, {"result_event": event})
+            if isinstance(job, ReclaimJob):
+                latest = await graph.aget_state(config)
+                event = build_failure_event(job, latest.values, "WORKER_ERROR", max_bytes=settings.max_result_bytes)
+                await graph.aupdate_state(config, {"result_event": event, "report_payload": report_from_event(event)})
+            else:
+                event = failure_event(job, "WORKER_ERROR")
+                await graph.aupdate_state(config, {"result_event": event})
         final = await graph.aget_state(config)
         if "result_event" not in final.values:
             raise RuntimeError("Graph did not produce a durable terminal result")
@@ -105,6 +131,38 @@ async def run_job(job, saver, tools=None):
             return None
         event = validate_event(event, job)
         if len(json.dumps(event, ensure_ascii=False).encode()) > settings.max_result_bytes:
-            event = failure_event(job, "SCAN_LIMIT" if isinstance(job, ReclaimJob) else "WORKER_ERROR")
-            await graph.aupdate_state(config, {"result_event": event})
+            if isinstance(job, ReclaimJob):
+                event = build_failure_event(job, final.values, "SCAN_LIMIT", max_bytes=settings.max_result_bytes)
+                await graph.aupdate_state(config, {"result_event": event, "report_payload": report_from_event(event)})
+            else:
+                event = failure_event(job, "WORKER_ERROR")
+                await graph.aupdate_state(config, {"result_event": event})
         return event
+
+
+async def read_reclaim_report(job: ReclaimJob, saver, *, display_facts=None):
+    """Read a completed Agent report without rescanning, model calls or writes.
+
+    A future server adapter can use this S-04 contract. It does not replace the
+    currently deployed strict ReclaimEvent/result/targets queue envelope.
+    """
+    if not isinstance(job, ReclaimJob):
+        raise ValueError("A reclaim job is required")
+    graph = build_reclaim_graph(None, job, saver)
+    snapshot = await graph.aget_state(checkpoint_config(job))
+    if not snapshot.values:
+        return None
+    if snapshot.values.get("job") != job.model_dump(mode="json"):
+        raise ValueError("Checkpoint belongs to another reclaim job")
+    event = snapshot.values.get("result_event")
+    if not event:
+        return None
+    return report_from_event(validate_event(event, job), display_facts=display_facts)
+
+
+async def run_reclaim_report(job: ReclaimJob, saver, tools=None, *, display_facts=None):
+    """Run or replay the Agent and return the agreed candidates/needs_review data."""
+    if not isinstance(job, ReclaimJob):
+        raise ValueError("A reclaim job is required")
+    await run_job(job, saver, tools)
+    return await read_reclaim_report(job, saver, display_facts=display_facts)

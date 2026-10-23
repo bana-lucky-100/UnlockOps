@@ -252,7 +252,7 @@ async def test_v4_natural_requests_resolve_only_the_selected_platform(monkeypatc
 
 
 async def test_v4_reclaim_narrates_only_new_confirmed_candidates(monkeypatch):
-    from unlockops.reclaim import graph
+    from unlockops.reclaim import reporting as graph
     calls=[]
     async def spy(facts,evidence,template):
         calls.append(facts)
