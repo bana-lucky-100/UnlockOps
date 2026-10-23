@@ -325,6 +325,33 @@ class ReclaimCandidate(Contract):
         return self
 
 
+class ReclaimTargetStatus(StrEnum):
+    PENDING_REVIEW = "PENDING_REVIEW"
+    RETAINED = "RETAINED"
+    EXCLUDED = "EXCLUDED"
+    RECLAIMED = "RECLAIMED"
+
+
+class ReclaimTargetView(ReclaimCandidate):
+    """Current HTTP projection; Worker candidates remain scan-only ReclaimCandidate."""
+    candidate_status: ReclaimTargetStatus | None = None
+    action_taken: Literal["NONE", "REVOKED"] = "NONE"
+    can_revoke: bool
+    reclaimed_at: AwareDatetime | None
+    employee_name: str
+    resource_name: str
+
+    @model_validator(mode="after")
+    def validate_current_target(self):
+        reclaimed = self.candidate_status == ReclaimTargetStatus.RECLAIMED
+        if reclaimed != (self.reclaimed_at is not None) or reclaimed != (self.action_taken == "REVOKED"):
+            raise ValueError("Reclaimed targets require an execution action and timestamp")
+        if self.can_revoke and (self.candidate_status != ReclaimTargetStatus.PENDING_REVIEW
+                                or self.review_required or self.target_id is None):
+            raise ValueError("Only a confirmed pending target can be executable")
+        return self
+
+
 class AccessJob(Contract):
     schema_version: Literal[2]
     event_id: UUID
@@ -457,6 +484,91 @@ class ReclaimStartInput(Contract):
     scope_id: UUID
 
 
+class AssignmentStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+
+class ReclaimExecutionStatus(StrEnum):
+    NOT_EXECUTED = "NOT_EXECUTED"
+    SUCCEEDED = "SUCCEEDED"
+
+
+class ReclaimExecutionBlockReason(StrEnum):
+    EXECUTION_FORBIDDEN = "EXECUTION_FORBIDDEN"
+    MOCK_ONLY = "MOCK_ONLY"
+    ALREADY_REVOKED = "ALREADY_REVOKED"
+    CANDIDATE_CHANGED = "CANDIDATE_CHANGED"
+    RECHECK_REQUIRED = "RECHECK_REQUIRED"
+
+
+class ReclaimRevokeInput(Contract):
+    """Human confirmation uses the path target and session; the JSON body is {}."""
+    pass
+
+
+class ReclaimExecutionReceipt(Contract):
+    schema_version: Literal[2]
+    id: UUID
+    target_id: UUID
+    assignment_id: UUID
+    episode_id: UUID
+    review_run_id: UUID
+    employee_name: str
+    resource_name: str
+    executed_by: UUID
+    executed_by_name: str
+    executed_at: AwareDatetime
+    reason: str = Field(min_length=1, max_length=2000)
+    verification_ok: Literal[True]
+    assignment_status_before: Literal["ACTIVE"]
+    assignment_status_after: Literal["INACTIVE"]
+    provider_present_before: bool
+    provider_present_after: Literal[False]
+    policy_revision: int = Field(ge=1)
+    policy_hash: Hash
+    current_facts: dict
+
+
+class ReclaimExecutionState(Contract):
+    schema_version: Literal[2]
+    target_id: UUID
+    assignment_id: UUID
+    episode_id: UUID
+    review_run_id: UUID | None
+    employee_name: str
+    resource_name: str
+    assignment_status: AssignmentStatus
+    can_revoke: bool
+    block_reason: ReclaimExecutionBlockReason | None
+    execution_status: ReclaimExecutionStatus
+    receipt: ReclaimExecutionReceipt | None
+
+    @model_validator(mode="after")
+    def consistent_execution(self):
+        if self.can_revoke != (self.block_reason is None):
+            raise ValueError("Execution eligibility and block reason disagree")
+        if (self.execution_status == "SUCCEEDED") != (self.receipt is not None):
+            raise ValueError("Success requires a receipt")
+        if self.receipt and (self.receipt.assignment_id != self.assignment_id or self.can_revoke):
+            raise ValueError("Receipt identity or eligibility mismatch")
+        if self.can_revoke and (self.assignment_status != "ACTIVE" or self.review_run_id is None):
+            raise ValueError("An active assignment and confirmed review are required")
+        return self
+
+
+class ReclaimExecutionError(Contract):
+    message: str
+    code: Literal["IDEMPOTENCY_CONFLICT", "ALREADY_REVOKED", "CANDIDATE_CHANGED", "RECHECK_REQUIRED", "EXECUTION_FORBIDDEN", "MOCK_ONLY"]
+    receipt_id: UUID | None
+
+
+class ReclaimExecutionPage(Contract):
+    schema_version: Literal[2]
+    items: list[ReclaimExecutionReceipt]
+    next_cursor: int | None = Field(ge=0)
+
+
 class ContractBundle(Contract):
     """Schema export root. Each field is also independently reusable by its $def."""
     plan: GrantPlanV2
@@ -471,3 +583,9 @@ class ContractBundle(Contract):
     access_request: AccessRequestInput
     approval_decision: ApprovalDecisionInput
     reclaim_start: ReclaimStartInput
+    reclaim_revoke: ReclaimRevokeInput
+    reclaim_execution_receipt: ReclaimExecutionReceipt
+    reclaim_execution_state: ReclaimExecutionState
+    reclaim_execution_page: ReclaimExecutionPage
+    reclaim_execution_error: ReclaimExecutionError
+    reclaim_target: ReclaimTargetView

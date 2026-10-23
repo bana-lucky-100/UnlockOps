@@ -33,7 +33,9 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(401).body(new ApiError("로그인 정보를 확인해 주세요."));
     }
 
-    @ExceptionHandler({IllegalArgumentException.class, MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
+    @ExceptionHandler({IllegalArgumentException.class, MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
+        org.springframework.web.bind.MissingRequestHeaderException.class,
+        org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ApiError> invalid(Exception e) {
         return ResponseEntity.badRequest().body(new ApiError("입력 형식과 필수 항목을 확인해 주세요."));
     }

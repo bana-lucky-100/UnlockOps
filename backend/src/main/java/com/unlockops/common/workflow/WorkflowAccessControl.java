@@ -46,4 +46,14 @@ public class WorkflowAccessControl {
             """,id);
         actor(actor); forbid(capability(actor,uuid(a,"company_id"),uuid(a,"department_id"),str(a,"platform"),"RECLAIM_REVIEWER") || capability(actor,uuid(a,"company_id"),uuid(a,"department_id"),str(a,"platform"),"IT_HEAD"));
     }
+    public boolean canExecuteReclaim(UUID actor,UUID assignment) {
+        var user=actor(actor);
+        var a=db.one("""
+            SELECT jsonb_build_object('company_id',a.company_id,'department_id',u.department_id,'platform',r.platform)
+            FROM access_assignments a JOIN users u ON u.id=a.user_id JOIN resources r ON r.id=a.resource_id WHERE a.id=?
+            """,assignment);
+        return uuid(user,"company_id").equals(uuid(a,"company_id")) &&
+            (capability(actor,uuid(a,"company_id"),uuid(a,"department_id"),str(a,"platform"),"SAAS_OPERATOR") ||
+             capability(actor,uuid(a,"company_id"),uuid(a,"department_id"),str(a,"platform"),"IT_HEAD"));
+    }
 }

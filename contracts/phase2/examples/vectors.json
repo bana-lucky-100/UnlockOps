@@ -275,6 +275,146 @@
           }
         ]
       }
+    },
+    {
+      "name": "ReclaimExecutionReceipt-mock-revoke",
+      "model": "ReclaimExecutionReceipt",
+      "payload": {
+        "schema_version": 2,
+        "id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "target_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237",
+        "episode_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "review_run_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "employee_name": "김지성",
+        "resource_name": "GitHub Copilot 좌석",
+        "executed_by": "e6b04385-a16d-501a-99ee-809760daf458",
+        "executed_by_name": "담당자",
+        "executed_at": "2026-10-23T10:00:00+09:00",
+        "reason": "회수 근거 확인",
+        "verification_ok": true,
+        "assignment_status_before": "ACTIVE",
+        "assignment_status_after": "INACTIVE",
+        "provider_present_before": true,
+        "provider_present_after": false,
+        "policy_revision": 3,
+        "policy_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "current_facts": {
+          "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237"
+        }
+      }
+    },
+    {
+      "name": "ReclaimExecutionState-mock-revoke",
+      "model": "ReclaimExecutionState",
+      "payload": {
+        "schema_version": 2,
+        "target_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237",
+        "episode_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "review_run_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "employee_name": "김지성",
+        "resource_name": "GitHub Copilot 좌석",
+        "assignment_status": "ACTIVE",
+        "can_revoke": true,
+        "block_reason": null,
+        "execution_status": "NOT_EXECUTED",
+        "receipt": null
+      }
+    },
+    {
+      "name": "ReclaimExecutionPage-mock-revoke",
+      "model": "ReclaimExecutionPage",
+      "payload": {
+        "schema_version": 2,
+        "items": [
+          {
+            "schema_version": 2,
+            "id": "e6b04385-a16d-501a-99ee-809760daf458",
+            "target_id": "e6b04385-a16d-501a-99ee-809760daf458",
+            "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237",
+            "episode_id": "e6b04385-a16d-501a-99ee-809760daf458",
+            "review_run_id": "e6b04385-a16d-501a-99ee-809760daf458",
+            "employee_name": "김지성",
+            "resource_name": "GitHub Copilot 좌석",
+            "executed_by": "e6b04385-a16d-501a-99ee-809760daf458",
+            "executed_by_name": "담당자",
+            "executed_at": "2026-10-23T10:00:00+09:00",
+            "reason": "회수 근거 확인",
+            "verification_ok": true,
+            "assignment_status_before": "ACTIVE",
+            "assignment_status_after": "INACTIVE",
+            "provider_present_before": true,
+            "provider_present_after": false,
+            "policy_revision": 3,
+            "policy_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "current_facts": {
+              "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237"
+            }
+          }
+        ],
+        "next_cursor": null
+      }
+    },
+    {
+      "name": "revoke-already-completed-error",
+      "model": "ReclaimExecutionError",
+      "payload": {
+        "message": "이미 회수 완료",
+        "code": "ALREADY_REVOKED",
+        "receipt_id": "e6b04385-a16d-501a-99ee-809760daf458"
+      }
+    },
+    {
+      "name": "revoke-empty-confirmation-body",
+      "model": "ReclaimRevokeInput",
+      "payload": {}
+    },
+    {
+      "name": "overview-reclaimed-target",
+      "model": "ReclaimTargetView",
+      "payload": {
+        "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+        "target_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "episode_id": "93890071-1e89-58e0-bfa6-4fc58b01365c",
+        "platform": "GITHUB",
+        "candidate_status": "RECLAIMED",
+        "candidate_reason_code": "TF_ENDED_UNUSED_30D",
+        "exclusion_reason_code": null,
+        "skip_reason_code": null,
+        "review_required": false,
+        "notified_at": null,
+        "read_at": null,
+        "action_taken": "REVOKED",
+        "generation_mode": "template",
+        "explanation": "TF 종료 후 미사용 30일 이상인 좌석으로 담당자 검토가 필요합니다.",
+        "policy_evidence": [
+          {
+            "doc_id": "P2-A-POLICY",
+            "article": "POL-06 제5조",
+            "version": "1",
+            "source_hash": "40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5",
+            "text": "프로젝트 지급 좌석은 TF 종료 후 연속 미사용 30일 이상이고 다른 활성 TF 이용 및 유효 유지 승인이 없으면 검토 후보로 제안한다."
+          }
+        ],
+        "fact_evidence": [
+          {
+            "source": "assignment_usage",
+            "record_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+            "observed_at": "2026-10-22T09:00:00+09:00"
+          }
+        ],
+        "cost_impact": {
+          "status": "ESTIMATED",
+          "monthly_amount": "19.00",
+          "currency": "USD",
+          "basis": "SYNTHETIC_CONTRACT"
+        },
+        "can_revoke": false,
+        "reclaimed_at": "2026-10-23T10:00:00+09:00",
+        "employee_name": "김지성",
+        "resource_name": "GitHub Copilot 좌석"
+      }
     }
   ],
   "invalid": [
@@ -870,6 +1010,298 @@
         "needs_review_count": 0,
         "new_candidate_count": 0,
         "pending_notification_count": 0
+      }
+    },
+    {
+      "name": "revoke-success-needs-verification",
+      "model": "ReclaimExecutionReceipt",
+      "payload": {
+        "schema_version": 2,
+        "id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "target_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237",
+        "episode_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "review_run_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "employee_name": "김지성",
+        "resource_name": "GitHub Copilot 좌석",
+        "executed_by": "e6b04385-a16d-501a-99ee-809760daf458",
+        "executed_by_name": "담당자",
+        "executed_at": "2026-10-23T10:00:00+09:00",
+        "reason": "회수 근거 확인",
+        "verification_ok": false,
+        "assignment_status_before": "ACTIVE",
+        "assignment_status_after": "INACTIVE",
+        "provider_present_before": true,
+        "provider_present_after": false,
+        "policy_revision": 3,
+        "policy_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "current_facts": {
+          "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237"
+        }
+      }
+    },
+    {
+      "name": "revoke-provider-must-be-absent",
+      "model": "ReclaimExecutionReceipt",
+      "payload": {
+        "schema_version": 2,
+        "id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "target_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237",
+        "episode_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "review_run_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "employee_name": "김지성",
+        "resource_name": "GitHub Copilot 좌석",
+        "executed_by": "e6b04385-a16d-501a-99ee-809760daf458",
+        "executed_by_name": "담당자",
+        "executed_at": "2026-10-23T10:00:00+09:00",
+        "reason": "회수 근거 확인",
+        "verification_ok": true,
+        "assignment_status_before": "ACTIVE",
+        "assignment_status_after": "INACTIVE",
+        "provider_present_before": true,
+        "provider_present_after": true,
+        "policy_revision": 3,
+        "policy_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "current_facts": {
+          "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237"
+        }
+      }
+    },
+    {
+      "name": "revoke-timestamp-needs-timezone",
+      "model": "ReclaimExecutionReceipt",
+      "payload": {
+        "schema_version": 2,
+        "id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "target_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237",
+        "episode_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "review_run_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "employee_name": "김지성",
+        "resource_name": "GitHub Copilot 좌석",
+        "executed_by": "e6b04385-a16d-501a-99ee-809760daf458",
+        "executed_by_name": "담당자",
+        "executed_at": "2026-10-23T10:00:00",
+        "reason": "회수 근거 확인",
+        "verification_ok": true,
+        "assignment_status_before": "ACTIVE",
+        "assignment_status_after": "INACTIVE",
+        "provider_present_before": true,
+        "provider_present_after": false,
+        "policy_revision": 3,
+        "policy_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "current_facts": {
+          "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237"
+        }
+      }
+    },
+    {
+      "name": "revoke-eligibility-block-conflict",
+      "model": "ReclaimExecutionState",
+      "payload": {
+        "schema_version": 2,
+        "target_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237",
+        "episode_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "review_run_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "employee_name": "김지성",
+        "resource_name": "GitHub Copilot 좌석",
+        "assignment_status": "ACTIVE",
+        "can_revoke": true,
+        "block_reason": "RECHECK_REQUIRED",
+        "execution_status": "NOT_EXECUTED",
+        "receipt": null
+      }
+    },
+    {
+      "name": "revoke-inactive-is-not-eligible",
+      "model": "ReclaimExecutionState",
+      "payload": {
+        "schema_version": 2,
+        "target_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237",
+        "episode_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "review_run_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "employee_name": "김지성",
+        "resource_name": "GitHub Copilot 좌석",
+        "assignment_status": "INACTIVE",
+        "can_revoke": true,
+        "block_reason": null,
+        "execution_status": "NOT_EXECUTED",
+        "receipt": null
+      }
+    },
+    {
+      "name": "revoke-success-needs-receipt",
+      "model": "ReclaimExecutionState",
+      "payload": {
+        "schema_version": 2,
+        "target_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237",
+        "episode_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "review_run_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "employee_name": "김지성",
+        "resource_name": "GitHub Copilot 좌석",
+        "assignment_status": "ACTIVE",
+        "can_revoke": true,
+        "block_reason": null,
+        "execution_status": "SUCCEEDED",
+        "receipt": null
+      }
+    },
+    {
+      "name": "revoke-unknown-conflict-code",
+      "model": "ReclaimExecutionError",
+      "payload": {
+        "message": "에러",
+        "code": "UNKNOWN",
+        "receipt_id": null
+      }
+    },
+    {
+      "name": "revoke-client-actor-forbidden",
+      "model": "ReclaimRevokeInput",
+      "payload": {
+        "executed_by": "e6b04385-a16d-501a-99ee-809760daf458"
+      }
+    },
+    {
+      "name": "reclaimed-cannot-execute",
+      "model": "ReclaimTargetView",
+      "payload": {
+        "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+        "target_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "episode_id": "93890071-1e89-58e0-bfa6-4fc58b01365c",
+        "platform": "GITHUB",
+        "candidate_status": "RECLAIMED",
+        "candidate_reason_code": "TF_ENDED_UNUSED_30D",
+        "exclusion_reason_code": null,
+        "skip_reason_code": null,
+        "review_required": false,
+        "notified_at": null,
+        "read_at": null,
+        "action_taken": "REVOKED",
+        "generation_mode": "template",
+        "explanation": "TF 종료 후 미사용 30일 이상인 좌석으로 담당자 검토가 필요합니다.",
+        "policy_evidence": [
+          {
+            "doc_id": "P2-A-POLICY",
+            "article": "POL-06 제5조",
+            "version": "1",
+            "source_hash": "40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5",
+            "text": "프로젝트 지급 좌석은 TF 종료 후 연속 미사용 30일 이상이고 다른 활성 TF 이용 및 유효 유지 승인이 없으면 검토 후보로 제안한다."
+          }
+        ],
+        "fact_evidence": [
+          {
+            "source": "assignment_usage",
+            "record_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+            "observed_at": "2026-10-22T09:00:00+09:00"
+          }
+        ],
+        "cost_impact": {
+          "status": "ESTIMATED",
+          "monthly_amount": "19.00",
+          "currency": "USD",
+          "basis": "SYNTHETIC_CONTRACT"
+        },
+        "can_revoke": true,
+        "reclaimed_at": "2026-10-23T10:00:00+09:00",
+        "employee_name": "김지성",
+        "resource_name": "GitHub Copilot 좌석"
+      }
+    },
+    {
+      "name": "reclaimed-requires-time",
+      "model": "ReclaimTargetView",
+      "payload": {
+        "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+        "target_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "episode_id": "93890071-1e89-58e0-bfa6-4fc58b01365c",
+        "platform": "GITHUB",
+        "candidate_status": "RECLAIMED",
+        "candidate_reason_code": "TF_ENDED_UNUSED_30D",
+        "exclusion_reason_code": null,
+        "skip_reason_code": null,
+        "review_required": false,
+        "notified_at": null,
+        "read_at": null,
+        "action_taken": "REVOKED",
+        "generation_mode": "template",
+        "explanation": "TF 종료 후 미사용 30일 이상인 좌석으로 담당자 검토가 필요합니다.",
+        "policy_evidence": [
+          {
+            "doc_id": "P2-A-POLICY",
+            "article": "POL-06 제5조",
+            "version": "1",
+            "source_hash": "40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5",
+            "text": "프로젝트 지급 좌석은 TF 종료 후 연속 미사용 30일 이상이고 다른 활성 TF 이용 및 유효 유지 승인이 없으면 검토 후보로 제안한다."
+          }
+        ],
+        "fact_evidence": [
+          {
+            "source": "assignment_usage",
+            "record_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+            "observed_at": "2026-10-22T09:00:00+09:00"
+          }
+        ],
+        "cost_impact": {
+          "status": "ESTIMATED",
+          "monthly_amount": "19.00",
+          "currency": "USD",
+          "basis": "SYNTHETIC_CONTRACT"
+        },
+        "can_revoke": false,
+        "reclaimed_at": null,
+        "employee_name": "김지성",
+        "resource_name": "GitHub Copilot 좌석"
+      }
+    },
+    {
+      "name": "reclaimed-requires-action",
+      "model": "ReclaimTargetView",
+      "payload": {
+        "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+        "target_id": "e6b04385-a16d-501a-99ee-809760daf458",
+        "episode_id": "93890071-1e89-58e0-bfa6-4fc58b01365c",
+        "platform": "GITHUB",
+        "candidate_status": "RECLAIMED",
+        "candidate_reason_code": "TF_ENDED_UNUSED_30D",
+        "exclusion_reason_code": null,
+        "skip_reason_code": null,
+        "review_required": false,
+        "notified_at": null,
+        "read_at": null,
+        "action_taken": "NONE",
+        "generation_mode": "template",
+        "explanation": "TF 종료 후 미사용 30일 이상인 좌석으로 담당자 검토가 필요합니다.",
+        "policy_evidence": [
+          {
+            "doc_id": "P2-A-POLICY",
+            "article": "POL-06 제5조",
+            "version": "1",
+            "source_hash": "40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5",
+            "text": "프로젝트 지급 좌석은 TF 종료 후 연속 미사용 30일 이상이고 다른 활성 TF 이용 및 유효 유지 승인이 없으면 검토 후보로 제안한다."
+          }
+        ],
+        "fact_evidence": [
+          {
+            "source": "assignment_usage",
+            "record_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+            "observed_at": "2026-10-22T09:00:00+09:00"
+          }
+        ],
+        "cost_impact": {
+          "status": "ESTIMATED",
+          "monthly_amount": "19.00",
+          "currency": "USD",
+          "basis": "SYNTHETIC_CONTRACT"
+        },
+        "can_revoke": false,
+        "reclaimed_at": "2026-10-23T10:00:00+09:00",
+        "employee_name": "김지성",
+        "resource_name": "GitHub Copilot 좌석"
       }
     }
   ]

@@ -5,7 +5,7 @@ Java 21·Spring Boot 3.5.7·PostgreSQL·RabbitMQ 기반 서버입니다. 현재 
 | 패키지 | 책임 |
 |---|---|
 | `access` | 접수·조회·서버 정책 판정·순차 승인·보류/재개·모의 권한 부여·독립 검증 |
-| `reclaim` | 회수 점검 접수·스냅샷·후보 판정·결과 저장·인앱 알림·스케줄 |
+| `reclaim` | 회수 점검·스냅샷·후보/알림·스케줄, 담당자 확정에 따른 모의 권한 회수·검증·영수증 |
 | `common/workflow` | 회사·담당 범위 검사, JDBC/JSON 경계, 정책 조항 |
 | `messaging/workflow` | 작업 등록과 현재 작업 ID에 연결한 결과 반영 |
 | `messaging` | outbox 발행·결과 수신·중복 방지·실패 분류·재시도 |
@@ -17,7 +17,7 @@ Java 21·Spring Boot 3.5.7·PostgreSQL·RabbitMQ 기반 서버입니다. 현재 
 
 승인은 계획 해시와 버전을 함께 확인하고, 현재 차례의 승인자만 처리합니다. 반려·보류에는 사유가 필요하며 재개는 최신 조건으로 다시 승인받습니다.
 권한 부여·예산 차감·영수증은 같은 트랜잭션입니다. 사람의 승인·최신 정책/가격/매핑을 실행 직전 재검증하고, 별도 제공자 상태 조회가 일치해야 DONE입니다.
-회수는 후보 선별·알림까지 처리합니다. 권한 말소·예산 환입·외부 Slack/메일 전송은 구현 범위에 포함하지 않습니다.
+회수 점검은 후보 선별·알림까지 처리합니다. 별도 세션 API에서 담당자가 확정하면 demo/mock 회사의 SEAT 할당과 모의 제공자 권한을 원자적으로 회수하고 검증된 영수증을 저장합니다. 예산 자동 환입·외부 SaaS·Slack/메일 전송은 포함하지 않습니다. [프론트 전달 API·데이터 계약](../docs/reclaim-execution-api.md)을 참고하세요.
 
 ```sh
 cd backend
@@ -25,7 +25,7 @@ mvn test
 mvn verify -Pregression -Dit.test=WorkflowFoundationIT,CompletionMigrationIT,ExistingAccountsMigrationIT
 ```
 
-일반 시작은 Flyway V1~V9를 적용합니다. 이미 적용된 V1~V8과 과거 영수증·스냅샷은 수정하지 않습니다.
+일반 시작은 Flyway V1~V10을 적용합니다. V10은 후보 RECLAIMED/reclaimed_at, 후속 action_taken=REVOKED와 불변 회수 영수증을 추가합니다. 이미 적용된 V1~V9와 과거 영수증·스냅샷은 수정하지 않습니다.
 Compose 시연 모드에서는 `DEMO_ENABLED=true`, `DEMO_SEED_PATH=/app/data/phase2/seed.sql`로 baseline과 누락된 정책 revision 2·3을 한 트랜잭션에 준비합니다.
 이미 설치된 revision은 재작성하지 않습니다. A/B사 시연 계정·로그인 ID는 유지합니다.
 이전 `DEMO_PHASE2_SEED_PATH`, `PHASE2_RECLAIM_SCHEDULE_ENABLED`, `PHASE2_RECLAIM_CRON` 환경변수는 설정 호환 별칭으로 받습니다.

@@ -18,8 +18,9 @@ public class ReclaimWorkflowService {
     private final ReclaimSnapshotService snapshots;
     private final WorkflowJobs jobs;
     private final boolean demo;
-    public ReclaimWorkflowService(WorkflowStore db,WorkflowAccessControl acl,ReclaimSnapshotService snapshots,WorkflowJobs jobs,@Value("${app.demo-enabled:false}") boolean demo) {
-        this.db=db;this.acl=acl;this.snapshots=snapshots;this.jobs=jobs;this.demo=demo;
+    private final ReclaimExecutionService execution;
+    public ReclaimWorkflowService(WorkflowStore db,WorkflowAccessControl acl,ReclaimSnapshotService snapshots,WorkflowJobs jobs,ReclaimExecutionService execution,@Value("${app.demo-enabled:false}") boolean demo) {
+        this.db=db;this.acl=acl;this.snapshots=snapshots;this.jobs=jobs;this.execution=execution;this.demo=demo;
     }
     @Transactional
     public ReclaimRunView start(UUID actor,UUID scopeId,String key) {
@@ -99,24 +100,36 @@ public class ReclaimWorkflowService {
         var runs=all.stream().filter(r->allowed.contains(uuid(r,"scope_id"))).toList();
         JsonNode last=runs.stream().filter(r->!Set.of("RECEIVED","DIAGNOSING","EXECUTING").contains(str(r,"status"))).findFirst().orElse(null);
         JsonNode active=runs.stream().filter(r->Set.of("RECEIVED","DIAGNOSING","EXECUTING").contains(str(r,"status"))).findFirst().orElse(null);
-        var targets=new ArrayList<ReclaimCandidate>();
+        var targets=new ArrayList<ReclaimTargetView>();
         for(var t:db.rows("""
-            SELECT to_jsonb(t) FROM reclaim_targets t JOIN access_assignments a ON a.id=t.assignment_id
+            SELECT to_jsonb(t)||jsonb_build_object('employee_name',u.name,'resource_name',r.name)
+            FROM reclaim_targets t JOIN access_assignments a ON a.id=t.assignment_id
             JOIN users u ON u.id=a.user_id JOIN resources r ON r.id=a.resource_id
-            WHERE t.company_id=? AND t.closed_at IS NULL AND EXISTS(SELECT 1 FROM operator_assignments o
+            WHERE t.company_id=? AND (t.closed_at IS NULL OR t.candidate_status='RECLAIMED') AND EXISTS(SELECT 1 FROM operator_assignments o
               WHERE o.user_id=? AND o.company_id=t.company_id AND o.department_id=u.department_id AND o.platform=r.platform
               AND o.capability IN ('RECLAIM_REVIEWER','IT_HEAD')) ORDER BY t.opened_at DESC
             """,uuid(user,"company_id"),actor)) {
             var reports=db.rows("SELECT i.report FROM reclaim_run_items i JOIN reclaim_runs r ON r.id=i.run_id WHERE i.target_id=? ORDER BY r.created_at DESC LIMIT 1",uuid(t,"id"));
-            if(!reports.isEmpty())targets.add(withPersonalRead(db.decode(reports.getFirst(),ReclaimCandidate.class),actor));
+            if(!reports.isEmpty()) {
+                var report=withPersonalRead(db.decode(reports.getFirst(),ReclaimCandidate.class),actor);
+                boolean reclaimed="RECLAIMED".equals(str(t,"candidate_status"));
+                boolean canRevoke=!reclaimed && execution.state(actor,uuid(t,"id")).canRevoke();
+                var current=new ReclaimTargetView(report.assignmentId(),report.targetId(),report.episodeId(),report.platform(),
+                    ReclaimTargetStatus.valueOf(str(t,"candidate_status")),report.candidateReasonCode(),report.exclusionReasonCode(),
+                    reclaimed?null:report.skipReasonCode(),report.reviewRequired(),report.notifiedAt(),report.readAt(),reclaimed?"REVOKED":"NONE",
+                    report.generationMode(),reclaimed?"담당자 확정으로 해당 좌석의 모의 권한 회수를 완료했습니다.":report.explanation().replace("실제 권한 변경 없이 검토 후보로 알립니다.","담당자가 근거를 확인한 뒤 회수할 수 있습니다."),
+                    report.policyEvidence(),report.factEvidence(),report.costImpact(),canRevoke,str(t,"reclaimed_at"),str(t,"employee_name"),str(t,"resource_name"));
+                targets.add(db.checked(current,ReclaimTargetView.class));
+            }
         }
         var out=new LinkedHashMap<String,Object>();out.put("last_run",last==null?null:view(last));out.put("active_run",active==null?null:view(active));out.put("targets",targets);
         if(last==null || !"DONE".equals(str(last,"status")))out.put("summary",null);
         else {
             var sums=new TreeMap<String,java.math.BigDecimal>();int unknown=0;
-            for(var t:targets) {if("UNKNOWN".equals(t.costImpact().status()))unknown++;else sums.merge(t.costImpact().currency(),new java.math.BigDecimal(t.costImpact().monthlyAmount()),java.math.BigDecimal::add);}
+            var pendingTargets=targets.stream().filter(t->t.candidateStatus()==ReclaimTargetStatus.PENDING_REVIEW).toList();
+            for(var t:pendingTargets) {if("UNKNOWN".equals(t.costImpact().status()))unknown++;else sums.merge(t.costImpact().currency(),new java.math.BigDecimal(t.costImpact().monthlyAmount()),java.math.BigDecimal::add);}
             var money=new TreeMap<String,String>();sums.forEach((c,v)->money.put(c,v.setScale(2).toPlainString()));
-            var summary=new LinkedHashMap<String,Object>();summary.put("review_target_count",targets.size());summary.put("new_candidate_count",last.path("new_candidate_count").asInt());
+            var summary=new LinkedHashMap<String,Object>();summary.put("review_target_count",pendingTargets.size());summary.put("new_candidate_count",last.path("new_candidate_count").asInt());
             summary.put("newly_notified_count",db.jdbc.queryForObject("""
                 SELECT count(*) FROM reclaim_run_items i JOIN reclaim_notifications n ON n.target_id=i.target_id
                 WHERE i.run_id=? AND n.recipient_id=? AND n.delivered_at>= (SELECT created_at FROM reclaim_runs WHERE id=?)
