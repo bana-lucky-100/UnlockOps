@@ -28,4 +28,6 @@ MCP는 DB에 직접 접근하지 않습니다. 도구 호출의 employee/resourc
 ```
 
 MCP_TOKEN은 Worker → MCP, INTERNAL_API_TOKEN은 MCP → Spring 인증에 사용합니다. 서버는 세션 없이 서비스 토큰으로 인증합니다.
+로컬 `MCP_HOST` 기본값은 `127.0.0.1`, `MCP_PORT`는 Policy `8001`·Business `8002`입니다. 두 서버의 포트는 프로세스별로 설정하며 공통 `.env`에 활성 `MCP_PORT`를 넣지 않습니다.
+Compose 이미지에서는 `0.0.0.0:8000`을 사용합니다. 백엔드 URL·토큰·라이브러리 설정 적용 범위는 [환경변수 안내](../docs/environment.md)를 참고하세요.
 구 `grant_permission`, `verify_permission`, 파일 기반 `search_policy` 등 구 전용 도구는 등록하지 않습니다.

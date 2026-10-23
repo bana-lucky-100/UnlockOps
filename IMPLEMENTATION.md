@@ -786,3 +786,43 @@ R-04의 '이미 전달한 알림' 시드는 후보와 알림만 준비하고 당
 - 로컬 결과: `test-results/phase2/213c94e9-07b9-43cf-adc7-7d330e192638/report.json`, `existing-seed-repair.json`. 검증은 별도 UUID 스택에서 실행했으며 사용자 실행 중 DB에는 적용하지 않았다. 실제 SaaS·실제 모델 호출·브라우저 클릭은 미검증이다.
 
 기존 시연 DB 적용은 수정 seed 재적용 또는 `DEMO_SEED_PATH`를 사용하는 백엔드 재시작으로 수행한다. 정책 revision 3을 이전 revision으로 되돌릴 필요가 없다. 절차는 `data/phase2/README.md`에 기록했다. 전체 회수 조회 구조 개선과 기존 미해결 CR-03 등은 별도 작업으로 유지한다.
+
+## 환경변수 예제 전수 조사·동기화 — 2026-10-23 · #53
+
+현재 단계: 예제·문서 수정과 정적/Compose 설정 검증 완료. 이슈 #53에서 공유하고 main 대상 PR로 검토한다.
+
+- Python 환경 접근(AST, `project_path` 포함), Spring YAML/Java 주입, Compose/Dockerfile, Vite, VS Code·CI·평가·선택 테스트와 README를 대조했다. 직접 참조 45개 중 자동화/내장 4개를 제외한 41개가 예제에 모두 안내되도록 했다. 설정의 기본값·우선순위·로컬/Compose 적용 범위와 제외 이유는 `docs/environment.md`에 정리했다.
+- 할당 예시 누락 16개를 보완했다. `RECLAIM_SCHEDULE_ENABLED`, `RECLAIM_CRON`, `DEMO_SEED_PATH`, DB·RabbitMQ 연결 변수, `RABBITMQ_URL`, MCP 프로세스 host/port, Vite 모의 모드, 선택 live 검사 설정이 대상이다. 기존 예제에 MCP host/port는 이름 설명만 있었다.
+- 예제의 정식 `RECLAIM_*` 설정을 활성 항목으로 두고 스케줄 기본값 `false`를 유지했다. 이전 `PHASE2_*`와 `DEMO_PHASE2_SEED_PATH`는 주석 별칭으로 보존했다. Compose는 구 스케줄 별칭을 전달하지 않으므로 기존 `.env`의 이름을 옮겨야 한다. Spring도 두 이름이 함께 설정되면 정식 이름이 우선한다.
+- 소비 코드가 없는 `ACCESS_MATRIX_PATH`·`LOG_LEVEL`과 Compose에 전달되지 않는 루트 `TZ`를 예제에서 제거했다. 스케줄 시간대는 코드에서 Asia/Seoul 고정이다. `DATA_DIR`의 현재 미사용 필드와 `EMBEDDING_*`의 유틸 전용 범위, LangSmith의 로컬 라이브러리 설정 범위를 명시했다.
+- 루트·Backend·Worker·MCP·Frontend·RAG·테스트 README와 문서 색인을 갱신했다. 프론트 설정은 `frontend/.env.local`에 두며, 공통 MCP 포트 지정은 두 로컬 프로세스 간 충돌을 일으킬 수 있음을 안내한다. 제품 로직·Compose 전달 정책·DB·외부 계약은 변경하지 않았다.
+
+실제 검증 결과:
+
+- 동일한 일회성 Python AST/placeholder 대조: 변경 전 할당 예시 누락 **16개 → 변경 후 0개**. 예제 활성/주석 할당 **52개**의 중복·공백/cron 인용 검사 통과.
+- `docker compose --env-file .env.example config --format json`: 기본 스케줄 비활성·cron·시연 seed/DB 경로·내부 토큰 일치·Worker MCP URL/체크포인트 경로 확인.
+- 프로세스 환경으로 `RECLAIM_SCHEDULE_ENABLED=true`, `RECLAIM_CRON='0 30 10 * * MON-FRI'`를 전달한 config에서 두 값이 backend에 보간됨을 확인. 구 `PHASE2_*`만 덮어쓰면 정식 예제 기본값이 유지되는 Compose 경계도 확인했다. 최소 프로세스 환경과 예제 파일만 사용해 사용자 `.env`와 분리했다.
+- `docker compose --env-file .env.example -f compose.yaml -f infra/compose.debug.yaml config --format json`: backend 설정 일치와 localhost 공개 포트 확인. 새 문서의 로컬 링크와 추가한 환경변수 안내 링크, `git diff --check` 통과.
+- 문서·예제만 수정하여 Maven/Python/frontend 실행 테스트와 DB·브로커·전체 스택·실제 모델 호출은 수행하지 않았다. Compose 파싱 검증으로 실제 스케줄 실행 성공을 주장하지 않는다. 사용자 `.env`·실행 서비스·DB는 변경하지 않았다.
+
+다음 작업: PR 리뷰 후 병합. 기존 로컬 환경 사용자는 필요한 새 이름을 `.env`에 반영하고 서비스를 재생성한다. 이후 환경변수 변경 시 CONTRIBUTING의 예제·서비스 README 동시 갱신 규칙을 따른다.
+
+## 권한 추가와 라이선스 비용 분리 — 2026-10-23
+
+앞선 E-02 조건 보강은 기존 잘못된 비용 가정을 보존한 평가 개선이었다. 이번 변경은 실제 서버의 비용 판단과 실행 예산 반영을 수정한다.
+
+- `AccessCosting`을 추가했다. 가격표의 참고 단가와 이번 요청의 예산 반영액을 분리하고 PERMISSION_ONLY / PURCHASE_SEAT / USAGE_ALLOCATION으로 판단한다. 기존 라이선스가 확인된 Notion・Tableau 권한 추가는 단가 20/70이어도 0원을 계획한다. 모호한 ROLE+SEAT_MONTHLY를 좌석 구매로 해석하지 않는다.
+- V10은 immutable 정책・권한에 연결된 `access_cost_rules`, 회사・사용자・플랫폼・조직 범위・라이선스 코드별 `saas_license_facts`를 추가한다. 관측 누락・UNKNOWN・만료・미래 시각은 수동 검토다. 권한만 요청했는데 라이선스가 없으면 자동 구매하지 않는다. 좌석 미보유와 신규 구매 필요까지 확인돼야 단가를 적용한다. 미배정 좌석・업그레이드・일할 청구 자동 계산은 지원하지 않는다.
+- 승인 단계와 최종 실행은 계산된 예산 반영액을 사용한다. 실행은 예산・라이선스 사실을 잠그고 최신 계획을 비교한다. 모의 좌석 확보 시 라이선스 관측도 같은 트랜잭션에서 COVERED로 갱신하며 멱등 영수증을 유지한다. 실제 SaaS 결제를 호출하지 않는다.
+- `review_facts.cost_assessment`와 Python 도구 계약・보고서 지침을 보강했다. 참고 단가・이번 추가 비용・내부 예산 배정과 관측 범위를 설명한다. 사용량 예산은 실제 청구액과 구분한다. 공개 상태・사유・계획 계약은 유지한다.
+- 수신 corpus와 배포된 정책 revision 1~3은 보존했다. `scripts/align_access_costs.py`가 회사 정책・가격・승인 경로・회수 규칙 revision 4 및 명시적인 비용 규칙・합성 라이선스 사실을 생성한다. DemoSeed는 누락된 revision 4를 자동 준비하며 현재 예산・기존 관측을 초기화하지 않는다.
+- 현재 평가 원본은 `scenarios-current.json`이다. E-02는 기존 Notion 멤버의 편집 권한 추가(0원), P-05는 기존 Explorer의 프로젝트 권한 추가(0원)로 수정했다. 예산 부족은 Copilot 신규 구매 19 > 잔여 10의 BUDGET-INSUFFICIENT로 분리했다. full 33건・smoke 9건이며 재사용 사례는 가격을 0으로 조작하지 않고 조직 범위 라이선스 보유를 준비한다. 원래 v4는 비교 자료로 남긴다.
+- 검증: Java `mvn -o ... test` **49 tests passed** (Mockito JVM 시작 agent 사용). 실제 planner의 8조건에는 참고 단가 20/70・예산 10・라이선스 보유 시 승인 대기와 plan 0원이 포함된다. Python Agent/MCP/live 검사 **232 passed, 1 skipped**, 평가 준비 오프라인 **6 tests passed**. 업무/HTTP 계약・정책 import・v4 및 비용 생성물 검사와 diff 공백 검사 통과. full 33건・smoke 9건 준비 확인.
+- `AccessCostsIT`에 V10・policy revision 4 import/reapply, Notion/Tableau 승인 후 0원 실행, Copilot 예산 보류와 신규 구매 후 19달러 단일 차감・관측 갱신 검증을 추가했다. 테스트 소스는 컴파일됐으나 Docker 소켓 접근 거부로 실제 PostgreSQL/전체 HTTP 통합 실행은 미검증이다. Docker가 허용되는 환경에서 `cd backend && mvn verify -Pregression -Dit.test=AccessCostsIT` 또는 격리 smoke/full로 확인한다.
+- 실행 중 DB에는 아직 적용하지 않았다. 새 backend/agent 이미지를 함께 빌드・기동해야 V10과 demo revision 4가 준비된다. 기존 승인 계획이 바뀐 비용 기준과 다르면 재분석・재승인이 필요하다.
+
+## 비용 검토 지적 2건 보완 — 2026-10-23
+
+- 비용 규칙 없는 유료 좌석・사용량 예산을 자동 승인 근거로 삼지 않도록 변경했다. 좌석 호환은 V9 기존 조직의 정책 revision 1과 이관 단가 출처에 한정하고, 새 정책은 명시적 규칙을 요구한다. PURCHASE_SEAT 규칙의 조직 범위・라이선스 코드가 없으면 BUDGET_UNAVAILABLE 수동 검토로 처리한다. 명시적인 0원 권한은 유지한다.
+- 평가 준비 SQL에 구매 필요 여부・관측/만료 시각・관측 출처 유효성 검사를 추가했다. 실제 구매 필요가 false/null이거나 라이선스 관측이 누락・미래・만료이면 요청 전 PRECONDITION_FAILED로 분류한다. 시나리오/fixture에도 purchase_required 기대값을 명시했다.
+- 관련 범위만 검증했다. Java AccessCostingTest・AccessPlanningReviewTest 9건, Python 평가 준비의 해당 회귀 검사 3건 통과. 비용 생성물 일치와 diff 공백 검사도 통과했다. 전체 테스트・Docker/LLM 통합 실행은 추가하지 않았다. migration・실행 중 DB・배포된 정책 본문은 변경하지 않았다.

@@ -52,10 +52,10 @@ public class DemoSeed implements ApplicationRunner {
             // Spring owns the transaction so seed and password preparation commit together.
             executeScript(Path.of(seedPath));
             var directory=Path.of(seedPath).toAbsolutePath().getParent().resolve("policies");
-            for(int revision=2;revision<=3;revision++) {
+            for(int revision=2;revision<=4;revision++) {
                 Integer ready=jdbc.queryForObject("SELECT count(DISTINCT p.company_id) FROM policy_revisions p JOIN companies c ON c.id=p.company_id WHERE c.code IN ('P2_A','P2_B') AND p.revision>=?",Integer.class,revision);
                 if(ready!=null && ready==2)continue;
-                executeScript(directory.resolve(revision==2 ? "apply.sql" : "apply-v4.sql"));
+                executeScript(directory.resolve(revision==2 ? "apply.sql" : revision==3 ? "apply-v4.sql" : "apply-costs.sql"));
             }
         } catch (IOException e) {
             throw new IllegalStateException("Cannot read demo seed: " + seedPath,e);

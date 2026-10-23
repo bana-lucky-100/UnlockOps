@@ -32,6 +32,10 @@ Compose 시연 모드에서는 `DEMO_ENABLED=true`, `DEMO_SEED_PATH=/app/data/ph
 현재 설정 이름은 `DEMO_SEED_PATH`, `RECLAIM_SCHEDULE_ENABLED`, `RECLAIM_CRON`입니다.
 정기 점검은 설정과 scope.enabled가 모두 켜져야 하며 기본은 꺼져 있습니다.
 
+새 이름은 이전 별칭보다 우선합니다. Compose는 새 이름만 전달하므로 기존 `.env`의 `PHASE2_RECLAIM_*`를 `RECLAIM_*`로 옮겨야 합니다.
+로컬 DB 연결은 `DB_URL/USER/PASSWORD`, 브로커는 `RABBIT_HOST/USER/PASSWORD`를 지원합니다. Spring의 브로커 포트는 `SPRING_RABBITMQ_PORT`로 설정합니다.
+Spring은 루트 `.env`를 자동으로 읽지 않습니다. 전체 기본값·표준 재정의·Compose 고정값은 [환경변수 안내](../docs/environment.md)를 참고하세요.
+
 구 단일 승인 공개/내부 API와 실행 서비스는 제거했습니다. 모든 로그인 프로필은 현재 화면을 선택하는 workflow_version=2를 반환합니다.
 V9는 LEGACY mock 회사의 기존 사용자·자원 ID를 유지하면서 정책 원문·권한 매핑·가격·승인 경로·계정 사실·보유 권한을 현재 모델로 연결합니다. 보유 권한 이관은 예산을 차감하지 않으며 사용 이력은 UNKNOWN입니다. GitHub는 팀 멤버십, Jira는 역할과 Browse 설정을 함께 확인합니다. 높은 기존 역할의 하위 권한도 유효 권한으로 이관합니다.
 기존 직무·직급 상한은 권한 매핑의 allowed_job_families/allowed_job_grades로 유지합니다. 부서장 → 기존 문서의 SaaS 담당자(song_ops)로 승인하며 담당자 미지정·중복·본인 승인은 수동 검토입니다. 부서별 좌석 단가·통화가 서로 다르면 임의로 가격을 정하지 않고 가격 확인이 필요합니다.

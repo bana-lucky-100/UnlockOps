@@ -129,6 +129,29 @@ class AccessContext(Contract):
         return self
 
 
+class AccessCostFacts(Contract):
+    operation: Literal['PERMISSION_ONLY', 'PURCHASE_SEAT', 'USAGE_ALLOCATION']
+    unit_monthly_amount: Money
+    incremental_monthly_amount: Money | None
+    budget_monthly_amount: Money
+    cost_basis: Literal['NO_ADDITIONAL_COST', 'SEAT_MONTHLY', 'USAGE_ESTIMATE']
+    billing_scope: str | None
+    license_code: str | None
+    license_coverage: Literal['COVERED', 'NOT_COVERED', 'NOT_REQUIRED']
+    license_observed_at: AwareDatetime | None
+    license_source_reference: str | None
+
+    @model_validator(mode='after')
+    def amounts(self):
+        if self.cost_basis == 'NO_ADDITIONAL_COST' and (Decimal(self.budget_monthly_amount) != 0 or self.incremental_monthly_amount != '0.00'):
+            raise ValueError('No additional cost must be zero')
+        if self.operation == 'PERMISSION_ONLY' and self.cost_basis != 'NO_ADDITIONAL_COST':
+            raise ValueError('Permission-only cannot buy a seat')
+        if self.operation == 'USAGE_ALLOCATION' and (self.cost_basis != 'USAGE_ESTIMATE' or self.incremental_monthly_amount is not None):
+            raise ValueError('Usage allocation is not an invoice')
+        return self
+
+
 class AccessReviewFacts(Contract):
     """A server observation, never a price or TF membership inferred from policy text."""
     checked_at: AwareDatetime
@@ -141,6 +164,7 @@ class AccessReviewFacts(Contract):
     currency: Currency
     remaining_budget: Money
     price_source_kind: Literal["SYNTHETIC_CONTRACT", "CONTRACT", "PUBLIC_LIST_PRICE"]
+    cost_assessment: AccessCostFacts | None = None
 
 
 class Assessment(Contract):
@@ -163,6 +187,10 @@ class Assessment(Contract):
         ):
             raise ValueError("Report facts differ from the approved plan")
         if self.review_facts:
+            cost = self.review_facts.cost_assessment
+            if cost and (cost.budget_monthly_amount != self.review_facts.monthly_amount
+                         or self.plan and cost.cost_basis != self.plan.cost_basis):
+                raise ValueError('Cost assessment differs from the approved budget')
             enough = Decimal(self.review_facts.remaining_budget) >= Decimal(self.review_facts.monthly_amount)
             if self.status == Status.WAITING_APPROVAL and (not enough or (
                 self.review_facts.access_scope == "TF" and self.review_facts.tf_member is not True
