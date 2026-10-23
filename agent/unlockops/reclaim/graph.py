@@ -9,7 +9,8 @@ from .state import ReclaimState
 from .context import load_context
 from .policy import retrieve_policy
 from .scan import scan_all_pages, notification_history
-from .reporting import compose_reports, verify_reports, build_failure_event, report_from_event
+from .reporting import compose_reports, build_failure_event, report_from_event
+from .verification import verify_reports
 
 
 def finish(state):
