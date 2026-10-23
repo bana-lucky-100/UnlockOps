@@ -57,6 +57,8 @@ function fixture(t, post, push = async () => {}) {
     '../composables/useProblemSubmission': { useProblemSubmission },
     '../lib/platforms': platforms, '../lib/status': status,
     '../lib/polling': { usePolling: () => ({ restart() {} }) },
+    // 이 테스트는 구 계정(v1) 접수 경로를 본다. v2 접수는 #29의 Submission을 그대로 쓴다(phase2.test.mjs).
+    '../lib/data': { isV2: () => false, listMine: async () => [], submitV2: async () => null },
     '../components/AppShell.vue': {}, '../components/RequestList.vue': {},
   }).default
   function mount() {

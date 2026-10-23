@@ -78,11 +78,28 @@ test('guidance content cannot override pending, rejected, or failed workflow sta
   const waiting = { status: 'WAITING_APPROVAL', requested_role: 'Write' }
   assert.equal(groupOf(waiting), 'waiting')
   assert.equal(needsRefresh(waiting), true)
-  assert.equal(proposalOf(waiting, 'GitHub'), 'GitHub에서 Write 권한을 주면 해결돼요.')
+  assert.equal(proposalOf(waiting, 'GitHub'), 'GitHub Write 권한을 부여하는 판단안이에요.')
   const granted = { status: 'DONE', requested_role: 'Write', verification_ok: true, decided_at: '2026-10-21T05:23:17Z' }
-  assert.equal(statusOf(granted).label, '완료')
+  // 규격 6: 완료는 사유별로 나눈다. 사유 코드가 없던 기존 완료는 승인 결정이 있으면 부여 완료.
+  assert.equal(statusOf(granted).label, '부여 완료')
   assert.equal(groupOf(granted), 'finished')
   assert.equal(needsRefresh(granted), false)
-  assert.match(summaryOf(granted), /권한이 열렸어요/)
+  assert.match(summaryOf(granted), /권한 부여 완료/)
   assert.equal(stagesOf(granted).at(-1).label, '반영 확인')
+})
+
+test('rule rejections and manual reviews tell the requester why and what to do next, without policy ids', () => {
+  const budget = noticeOf({ status: 'REJECTED', reason_code: 'BUDGET_INSUFFICIENT', decided_at: null })
+  assert.equal(budget.title, '부서 예산이 부족해 보류됐어요')
+  assert.match(budget.why, /월 비용/)
+  assert.match(budget.next, /예산 증액/)
+  const held = noticeOf({ status: 'MANUAL_REVIEW', reason_code: 'BUDGET_INSUFFICIENT', decided_at: null })
+  assert.equal(held.title, budget.title)
+  const tf = noticeOf({ status: 'REJECTED', reason_code: 'NOT_TF_MEMBER', decided_at: null })
+  assert.match(tf.next, /TF 리더/)
+  for (const n of [budget, held, tf]) assert.doesNotMatch(`${n.title} ${n.why} ${n.next}`, /POL-|A-ACCESS|제\d+조/)
+  const unknown = noticeOf({ status: 'REJECTED', reason_code: 'SOMETHING_NEW', decided_at: null })
+  assert.equal(unknown.title, '이번 요청은 진행할 수 없어요')
+  const noMemo = noticeOf({ status: 'REJECTED', reason_code: 'ELIGIBLE', decided_at: '2026-10-21T05:23:17Z', decision_reason: '' })
+  assert.match(noMemo.next, /이유를 물어본/)
 })

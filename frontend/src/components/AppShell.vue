@@ -14,13 +14,13 @@ const helpOpen = ref(false)
 const error = ref('')
 
 // 왼쪽 메뉴는 역할마다 다르다. 메뉴를 숨겨도 실제 차단은 서버가 한다.
-const nav = computed(() => currentUser.value?.workflow_version !== 1
+// 회수 점검은 v2 서버가 알려 주는 can_reclaim(권한 담당자)일 때만. v1(구 계정)은 목업 화면이라 승인자 모두에게 보인다.
+const nav = computed(() => currentUser.value?.role === 'APPROVER'
   ? [
-      { to: '/access', label: '권한 요청·승인', icon: 'M6 3h12v18H6zM9 8h6M9 12h6M9 16h4' },
-      ...(currentUser.value?.can_reclaim ? [{ to: '/reclaim', label: '회수 점검·알림', icon: 'M20 11a8 8 0 1 1-3-6M20 3v6h-6M9 12l2 2 4-4' }] : []),
+      { to: '/approvals', label: '승인함', icon: 'M4 13l3-8h10l3 8v6H4zM4 13h5l1 2h4l1-2h5' },
+      ...(currentUser.value.workflow_version === 1 || currentUser.value.can_reclaim
+        ? [{ to: '/revocations', label: '회수 점검', icon: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 8v4l3 2' }] : []),
     ]
-  : currentUser.value?.role === 'APPROVER'
-  ? [{ to: '/approvals', label: '승인함', icon: 'M4 13l3-8h10l3 8v6H4zM4 13h5l1 2h4l1-2h5' }]
   : [
       { to: '/', label: '홈', icon: 'M3 11l9-7 9 7M5 10v10h14V10' },
       { to: '/requests', label: '내 요청', icon: 'M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 8h8M8 12h8M8 16h5' },
@@ -101,7 +101,8 @@ async function signOut() {
 .sh-nav-link:hover, .sh-nav-link:focus-visible { background: var(--uo-primary-soft); color: var(--uo-primary); }
 .sh-nav-link::after { content: attr(aria-label); position: absolute; left: 54px; top: 50%; transform: translate(-4px, -50%); white-space: nowrap; font-size: 13px; font-weight: 600; color: #fff; background: var(--uo-ink); padding: 6px 10px; border-radius: 8px; opacity: 0; pointer-events: none; transition: opacity .15s ease, transform .15s ease; z-index: 30; }
 .sh-nav-link:hover::after, .sh-nav-link:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
-.sh-main { flex: 999 1 560px; min-width: 0; position: relative; overflow: hidden; }
+/* 배경 장식은 잘라 내되 스크롤 영역은 만들지 않는다(clip). hidden이면 안쪽의 position: sticky가 동작하지 않는다. */
+.sh-main { flex: 999 1 560px; min-width: 0; position: relative; overflow: hidden; overflow: clip; }
 .sh-glow { position: absolute; top: -220px; right: -160px; width: 820px; height: 720px; border-radius: 50%; background: radial-gradient(closest-side at 55% 50%, rgba(122,92,240,0.38), rgba(59,75,216,0.22) 45%, rgba(246,247,252,0) 100%); filter: blur(10px); pointer-events: none; }
 .sh-lock { position: absolute; top: 110px; right: 48px; width: 284px; height: 284px; object-fit: contain; mix-blend-mode: multiply; pointer-events: none; }
 .sh-inner { position: relative; max-width: 1180px; margin: 0 auto; padding: 44px 48px 64px; box-sizing: border-box; }

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { api, ApiError, type Platform, type Problem } from '../api'
+import { ApiError, type Platform, type Problem } from '../api'
+import { isV2, listMine, submitV2 } from '../lib/data'
 import AppShell from '../components/AppShell.vue'
 import RequestList from '../components/RequestList.vue'
-import { PLATFORMS, PLATFORM_ORDER } from '../lib/platforms'
+import { PLATFORMS, PLATFORM_ORDER, PLATFORM_ORDER_V2 } from '../lib/platforms'
 import { usePolling } from '../lib/polling'
 import { groupOf, needsRefresh, type StatusGroup } from '../lib/status'
 import { currentUser } from '../session'
@@ -16,12 +17,21 @@ const { submitProblem } = useProblemSubmission()
 const MAX = 500
 // AI는 적힌 이름으로만 자원을 찾는다(이름이 없거나 모호하면 추측하지 않고 담당자 검토로 넘긴다).
 // 그래서 예시에도 이름 자리를 꼭 넣는다.
+// Phase 2: '막힌 증상'이 아니라 '필요한 권한 + 이유(TF·업무)'를 받는다. 이유가 있어야 판단안이 근거 조항을 찾는다.
 const EXAMPLE: Record<Platform, string> = {
-  GITHUB: '[저장소 이름] 저장소에 push하면 권한이 없다고 나와요',
-  JIRA: '[프로젝트 키] 프로젝트가 목록에 안 보여요',
-  SLACK: '[채널 이름] 채널이 검색되지 않아요',
-  NOTION: '[페이지 이름] 페이지를 열면 접근 권한이 없다고 나와요',
+  GITHUB: '[저장소 이름] 저장소 쓰기 권한이 필요해요. [TF·업무 이름] 때문에요',
+  JIRA: '[프로젝트 키] 프로젝트 권한이 필요해요. [TF·업무 이름] 때문에요',
+  SLACK: '[채널 이름] 채널에 들어가야 해요. [TF·업무 이름] 때문에요',
+  NOTION: '[페이지 이름] 페이지 편집 권한이 필요해요. [TF·업무 이름] 때문에요',
+  SNOWFLAKE: '[웨어하우스 이름] 웨어하우스를 써야 해요. [TF·업무 이름] 분석 때문에요',
+  DATABRICKS: '[작업 공간 이름] 노트북 편집 권한이 필요해요. [TF·업무 이름] 때문에요',
+  SALESFORCE: '[담당 고객] 조회 권한이 필요해요. [업무 이름] 때문에요',
+  DATADOG: '[서비스 이름] 로그 · 대시보드를 봐야 해요. [TF·업무 이름] 때문에요',
+  TABLEAU_CLOUD: '[프로젝트 이름] 대시보드를 만들어야 해요. [TF·업무 이름] 때문에요',
+  FIGMA: '[파일 · 프로젝트 이름] 파일 편집 권한이 필요해요. [TF·업무 이름] 때문에요',
 }
+// v2(Phase 2 계정)는 10개 플랫폼, 구 계정은 4개.
+const ORDER = computed(() => isV2() ? PLATFORM_ORDER_V2 : PLATFORM_ORDER)
 
 // 요청 1건 = 플랫폼 1개. 화면에서도 한 번에 하나만 고르게 해서 헷갈리지 않게 한다.
 const selected = ref<Platform | null>(null)
@@ -45,7 +55,7 @@ const loadError = ref('')
 const ready = computed(() => !!selected.value && contents.value.trim().length >= 2)
 const placeholder = computed(() => selected.value
   ? '예: ' + EXAMPLE[selected.value]
-  : '무엇이 안 되나요? 플랫폼을 먼저 골라 주세요')
+  : '어떤 권한이 왜 필요한지 적어 주세요. 플랫폼을 먼저 골라 주세요')
 const rows = computed(() => Math.min(4, Math.max(1, Math.ceil(contents.value.length / 40) + contents.value.split('\n').length - 1)))
 
 const counts = computed(() => {
@@ -54,9 +64,9 @@ const counts = computed(() => {
   return c
 })
 const steps = computed(() => [
-  { key: 'progress' as const, no: '01', name: '진단 중', desc: 'AI가 소속 · 현재 권한 · 사내 규정을 대조하고 있어요', bg: '#EEF0FF', fg: '#2F3DB8' },
-  { key: 'waiting' as const, no: '02', name: '확인 대기', desc: '승인자나 담당자가 확인하고 있어요', bg: '#FDF0E4', fg: '#9A4A08' },
-  { key: 'finished' as const, no: '03', name: '끝난 요청', desc: '완료 · 거절 · 실패 — 결과를 확인해 주세요', bg: '#E6F4EC', fg: '#1A7340' },
+  { key: 'progress' as const, no: '01', name: '판단안 작성 중', desc: 'AI가 규정 근거와 부서 예산 영향을 정리하고 있어요', bg: '#EEF0FF', fg: '#2F3DB8' },
+  { key: 'waiting' as const, no: '02', name: '승인 대기', desc: '부서장 → 최종 승인자 순서로 확인하고 있어요', bg: '#FDF0E4', fg: '#9A4A08' },
+  { key: 'finished' as const, no: '03', name: '끝난 요청', desc: '완료 · 거절 · 실패 — 결과와 이유를 확인해 주세요', bg: '#E6F4EC', fg: '#1A7340' },
 ].map(s => ({ ...s, count: counts.value[s.key] })))
 // 홈에는 최근 5건만. 전체 · 상태별 목록은 '내 요청' 페이지에서 본다.
 const recent = computed(() => items.value.slice(0, 5))
@@ -68,7 +78,7 @@ function toggle(p: Platform) {
 
 async function load() {
   try {
-    items.value = await api<Problem[]>('/problems?mine=true')
+    items.value = await listMine()
     loadError.value = ''
   } catch (e) {
     loadError.value = e instanceof ApiError && e.status === 401 ? '로그인이 끝났어요. 다시 로그인해 주세요.' : '요청 목록을 불러오지 못했어요.'
@@ -84,19 +94,19 @@ const polling = usePolling(load)
 async function send() {
   if (sending.value) return
   formError.value = ''
-  if (!selected.value) { formError.value = '어디에서 막혔는지 플랫폼을 골라 주세요'; return }
-  if (contents.value.trim().length < 2) { formError.value = '증상을 2자 이상 적어 주세요'; return }
+  if (!selected.value) { formError.value = '어떤 플랫폼의 권한인지 골라 주세요'; return }
+  if (contents.value.trim().length < 2) { formError.value = '필요한 권한과 이유를 2자 이상 적어 주세요'; return }
   sending.value = true
   try {
-    const created = await submitProblem({
-      platform: selected.value, contents: contents.value.trim(), simulateJiraFailure: false,
-    })
-    if (!created) return
+    const createdId = isV2()
+      ? await submitV2(selected.value, contents.value.trim())
+      : (await submitProblem({ platform: selected.value, contents: contents.value.trim(), simulateJiraFailure: false }))?.id ?? null
+    if (!createdId) return
     // 보낸 요청의 상세로 바로 간다. 진행 단계가 실시간으로 바뀌는 걸 그 자리에서 볼 수 있다.
     // (홈에 '확인하고 있어요' 안내를 남겨 두면, 끝난 뒤에도 아직 확인 중인 것처럼 보였다.)
     contents.value = ''
     selected.value = null
-    await router.push(`/requests/${created.id}`)
+    await router.push(`/requests/${createdId}`)
   } catch (e) {
     // 실패하면 입력은 그대로 두고 다시 보낼 수 있게 한다.
     formError.value = `요청을 보내지 못했어요. ${(e as Error).message}`
@@ -111,15 +121,16 @@ function onKey(e: KeyboardEvent) {
 
 const help = {
   howto: [
-    { t: '막힌 플랫폼을 고르세요', d: '한 번에 하나씩 보내요. 다른 플랫폼도 막혔다면 이어서 한 번 더 보내 주세요' },
-    { t: '이름과 증상을 적어 주세요', d: '저장소 · 프로젝트 · 채널 · 페이지 이름을 함께 적어야 AI가 정확히 찾아요. 이름이 없으면 담당자가 확인해요' },
-    { t: '승인을 기다리세요', d: 'AI가 찾은 원인과 규정 근거가 승인자에게 올라가고, 승인되면 자동으로 열려요' },
+    { t: '권한이 필요한 플랫폼을 고르세요', d: '한 번에 하나씩 보내요. 다른 플랫폼 권한도 필요하면 이어서 한 번 더 보내 주세요' },
+    { t: '자원 이름과 이유를 적어 주세요', d: '저장소 · 프로젝트 · 채널 · 페이지 이름과 쓰는 이유(TF · 업무)를 함께 적어야 AI가 정확히 찾아요. 이름이 없으면 담당자가 확인해요' },
+    { t: '두 단계 승인을 기다리세요', d: 'AI가 정리한 규정 근거와 예산 영향을 보고 부서장 → 최종 승인자가 결정해요. 승인되면 자동으로 열려요' },
   ],
   faqs: [
     { q: '여러 플랫폼이 다 막혔어요', a: '권한은 플랫폼마다 따로 승인되고 따로 열려요. 플랫폼마다 한 번씩 보내 주세요.' },
     { q: 'Admin 권한은 왜 안 되나요?', a: '관리자 권한은 보안 위험이 커서 이 서비스에서 자동으로 주지 않아요. 보안팀에 따로 요청해 주세요.' },
     { q: '실패하면 어떻게 되나요?', a: '처음 시도를 포함해 총 3번까지 자동으로 시도해요. 그래도 안 되면 실패로 표시되고 운영 담당자가 확인해요. 다른 플랫폼 요청에는 영향이 없어요.' },
     { q: '거절되면 어디서 이유를 보나요?', a: '승인자가 메모를 남겼다면 요청 상세에 그대로 보여요. 메모가 없으면 승인자에게 문의해 주세요.' },
+    { q: '보류는 무슨 뜻인가요?', a: '근거가 부족하거나 부서 잔여 예산이 모자라 바로 승인할 수 없다는 뜻이에요. 요청 상세의 안내대로 부서장에게 예산 증액을 요청한 뒤 다시 보내 주세요.' },
   ],
 }
 </script>
@@ -128,13 +139,13 @@ const help = {
   <AppShell :help="help" show-lock>
     <section class="rh-hero">
       <p class="rh-hello">안녕하세요, {{ currentUser?.name }}님</p>
-      <h1 class="rh-title">막힌 권한, 편리하게<br>근거와 함께 열어드려요</h1>
+      <h1 class="rh-title">필요한 권한, 근거와<br>예산 영향까지 함께 정리해 드려요</h1>
 
       <div class="rh-ask">
         <fieldset class="rh-chips">
-          <legend>어디에서 막혔나요? <span>하나만 골라 주세요</span></legend>
+          <legend>어떤 플랫폼 권한이 필요한가요? <span>하나만 골라 주세요</span></legend>
           <button
-            v-for="p in PLATFORM_ORDER" :key="p" type="button" class="rh-chip"
+            v-for="p in ORDER" :key="p" type="button" class="rh-chip"
             :aria-pressed="selected === p"
             :style="{ '--c': PLATFORMS[p].color, '--s': PLATFORMS[p].soft }"
             @click="toggle(p)"
@@ -145,7 +156,7 @@ const help = {
         </fieldset>
 
         <form class="rh-form" novalidate @submit.prevent="send">
-          <label for="rh-ask" class="rh-sr">무엇이 안 되나요?</label>
+          <label for="rh-ask" class="rh-sr">어떤 권한이 왜 필요한가요?</label>
           <textarea id="rh-ask" v-model="contents" :rows="rows" :maxlength="MAX" :placeholder="placeholder" @keydown="onKey" />
           <span class="rh-count">Enter로 보내기 · {{ contents.length }}/{{ MAX }}</span>
           <button type="submit" class="rh-send" aria-label="요청 보내기" :aria-disabled="!ready || sending" :class="{ on: ready && !sending }">
@@ -154,7 +165,7 @@ const help = {
         </form>
 
         <p v-if="formError" class="rh-err" role="alert">{{ formError }}</p>
-        <p class="rh-tip"><strong>저장소 · 프로젝트 · 채널 · 페이지 이름</strong>을 꼭 적어 주세요. 이름이 없으면 담당자가 직접 확인해야 해서 오래 걸려요</p>
+        <p class="rh-tip"><strong>자원 이름과 쓰는 이유(TF · 업무)</strong>를 꼭 적어 주세요. 이름이 없으면 담당자가 직접 확인해야 해서 오래 걸려요</p>
       </div>
     </section>
 
@@ -181,7 +192,7 @@ const help = {
 
       <RequestList
         class="rh-recent" title="최근 요청" :items="recent" :loaded="loaded" :error="loadError"
-        empty="아직 보낸 요청이 없어요. 위에서 막힌 플랫폼을 고르고 증상을 적어 보세요." @retry="polling.restart()"
+        empty="아직 보낸 요청이 없어요. 위에서 플랫폼을 고르고 필요한 권한과 이유를 적어 보세요." @retry="polling.restart()"
       />
     </section>
   </AppShell>
