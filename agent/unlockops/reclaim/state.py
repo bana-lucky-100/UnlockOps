@@ -6,6 +6,7 @@ class ReclaimState(TypedDict, total=False):
     context: dict
     policy_evidence: list[dict]
     targets: list[dict]
+    verified_targets: list[dict]
     before_report_targets: list[dict]
     report_payload: dict
     history: list[dict]

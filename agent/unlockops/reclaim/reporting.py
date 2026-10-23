@@ -74,7 +74,7 @@ def build_failure_event(job, state, code, *, max_bytes):
     if context.get("snapshot_id") and context.get("as_of"):
         event["result"].update(snapshot_id=context["snapshot_id"], as_of=context["as_of"])
     event["result"]["message"] = "일부만 조회되었거나 점검을 완료하지 못했습니다. 부분 결과는 알림 대상이 아닙니다."
-    rows = state.get("before_report_targets", state.get("targets", []))
+    rows = state.get("verified_targets", state.get("before_report_targets", state.get("targets", [])))
 
     def selected(count):
         event["targets"] = rows[:count] if context.get("snapshot_id") else []

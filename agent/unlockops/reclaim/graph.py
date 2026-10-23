@@ -17,8 +17,13 @@ def finish(state):
     if state.get("skip"):
         return {"result_event": {}}
     job = ReclaimJob.model_validate(state["job"])
-    if state.get("error"):
-        event = build_failure_event(job, state, state["error"]["code"], max_bytes=settings.max_result_bytes)
+    error = state.get("error")
+    context = state.get("context") or {}
+    if not error and (state.get("scan_complete") is not True
+                      or len(state.get("targets", [])) != context.get("expected_count")):
+        error = {"code": "INCOMPLETE_SCAN"}
+    if error:
+        event = build_failure_event(job, state, error["code"], max_bytes=settings.max_result_bytes)
         return {"result_event": event, "report_payload": report_from_event(event)}
     context = state["context"]
     needs_review = sum(c["review_required"] for c in state["targets"])

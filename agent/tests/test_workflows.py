@@ -196,6 +196,7 @@ class ReclaimTools:
             row = deepcopy(CANDIDATE)
             if args['cursor'] and not self.duplicate:
                 row.update(assignment_id=str(uuid4()), candidate_status=None, review_required=True)
+                row['fact_evidence'][0]['record_id'] = row['assignment_id']
             return {'run_id': str(self.job.run_id), 'snapshot_id': self.snapshot, 'as_of': CATALOG['as_of'], 'expected_count': 2,
                     'next_cursor': 'page-2' if args['cursor'] is None else None, 'items': [row]}
         if name == 'get_reclaim_notification_history': return {'items': []}
