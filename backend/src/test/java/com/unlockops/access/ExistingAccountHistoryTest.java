@@ -8,6 +8,8 @@ import com.unlockops.contracts.v2.WorkflowTypes.*;
 import com.unlockops.messaging.workflow.WorkflowJobs;
 import java.util.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import static org.junit.jupiter.api.Assertions.*;
@@ -28,13 +30,34 @@ class ExistingAccountHistoryTest {
     }
     private WorkflowStore store() { return new WorkflowStore(mock(JdbcTemplate.class),new Jsons(mapper)); }
 
-    @Test void waitingHistoryOffersReanalysisWithoutAnActionableOldApproval() {
-        var p=record("WAITING_APPROVAL");p.set("plan",mapper.createObjectNode().put("requested_role","Write"));
+    @ParameterizedTest
+    @ValueSource(strings={"RECEIVED","DIAGNOSING","WAITING_APPROVAL","ON_HOLD","EXECUTING","MANUAL_REVIEW","LEGACY_PENDING"})
+    void nonTerminalHistoryOffersReanalysisWithoutRequiringACurrentEnum(String originalStatus) {
+        var p=record(originalStatus);p.set("plan",mapper.createObjectNode().put("requested_role","Write"));
         var view=HistoricalAccess.view(store(),p);
         assertEquals(Status.MANUAL_REVIEW,view.status());assertEquals("PLAN_REVIEW_REQUIRED",view.reasonCode());
         assertTrue(view.approvalSteps().isEmpty());assertNull(view.planHash());assertNull(view.planVersion());
         assertTrue(view.message().contains("이전 계획과 승인은 재사용하지 않습니다"));
-        assertEquals("WAITING_APPROVAL",p.path("status").asText()); // Reading cannot mutate the record.
+        assertEquals(originalStatus,p.path("status").asText()); // Reading cannot mutate the record.
+    }
+    @Test void anUnknownHistoricalPendingStatusDoesNotBreakTheUsersList() {
+        var oldPending=record("LEGACY_PENDING");
+        var rejected=record("REJECTED").put("id",UUID.randomUUID().toString());
+        var db=new WorkflowStore(mock(JdbcTemplate.class),new Jsons(mapper)) {
+            @Override public List<JsonNode> rows(String sql,Object...args) {
+                if(sql.contains("FROM problems p")) return List.of(oldPending,rejected);
+                throw new AssertionError(sql);
+            }
+        };
+        var acl=mock(WorkflowAccessControl.class);
+        when(acl.actor(requester)).thenReturn(mapper.createObjectNode().put("company_id",company.toString()));
+        var service=new AccessWorkflowService(db,acl,mock(AccessPlanningService.class),mock(WorkflowJobs.class));
+        var views=service.list(requester);
+        assertEquals(2,views.size());
+        assertEquals(Status.MANUAL_REVIEW,views.getFirst().status());
+        assertEquals("PLAN_REVIEW_REQUIRED",views.getFirst().reasonCode());
+        assertEquals(Status.REJECTED,views.getLast().status());
+        verifyNoInteractions(db.jdbc);
     }
     @Test void verifiedHistoryUsesOnlyTheRecordedApprovalAndNeverExposesOldExecutionIdentity() {
         var p=record("DONE").put("result_type","ACCESS_VERIFIED").put("verification_ok",true)

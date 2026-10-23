@@ -18,11 +18,13 @@ final class HistoricalAccess {
             +"\n"+Objects.toString(str(p,"diagnosis"),"");
     }
     static AccessView view(WorkflowStore db,JsonNode p) {
-        Status status=Status.valueOf(str(p,"status"));String reason=str(p,"reason_code");
+        boolean needsReanalysis=pending(p);
+        Status status=needsReanalysis?Status.MANUAL_REVIEW:Status.valueOf(str(p,"status"));
+        String reason=str(p,"reason_code");
         String message="이전 요청의 처리 기록입니다.\n"+Objects.toString(str(p,"proposal"),summary(p));
         String result=null;Boolean verified=null;List<ApprovalStep> steps=List.of();
-        if(pending(p)) {
-            status=Status.MANUAL_REVIEW;reason="PLAN_REVIEW_REQUIRED";
+        if(needsReanalysis) {
+            reason="PLAN_REVIEW_REQUIRED";
             message+="\n재개하면 현재 정책으로 다시 분석하고 새로운 승인 절차를 시작합니다. 이전 계획과 승인은 재사용하지 않습니다.";
         } else if(status==Status.DONE) {
             String actor=str(p,"decided_by"),acted=str(p,"decided_at");
