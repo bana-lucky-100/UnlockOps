@@ -638,7 +638,7 @@ P1은 우선 수정할 승인 정확성 문제, P2는 후속 수정할 조회·�
 
 - `V8__reclaim_v4_completion.sql`: 회수 CHECK 제약과 기존 MANUAL_REVIEW 실행 이력 변환, SaaS 추가 사실 필드. V1~V7 파일은 수정하지 않았습니다.
 - `scripts/align_phase2_v4.py`: `data/phase2/policies/company-*-policy-v3.md`, `apply-v4.sql`, `data/phase2/scenarios-v4.json` 생성. 가격의 공식/가정 구분은 수신 문서 기준이며 공식 웹 원문을 재검증하지 않았습니다.
-- 새 시연 DB: 백엔드 V8 적용 → `data/phase2/seed.sql` → `data/phase2/policies/apply.sql` → `data/phase2/policies/apply-v4.sql`. 이미 revision 2가 있으면 마지막 SQL만 적용합니다. revision 3 이후 이전 apply.sql을 다시 실행하지 않습니다.
+- 새 시연 DB: 백엔드 V8 적용 → `data/phase2/seed.sql` → `data/phase2/policies/apply.sql` → `data/phase2/policies/apply-v4.sql`. 이미 revision 2가 있으면 마지막 SQL만 적용합니다. revision 3 이후 이전 apply.sql을 다시 실행하지 않습니다. 자동/수동 구분과 확인 쿼리는 [정책 적용 안내](data/phase2/policies/README.md#시연-db-적용-절차와-확인)를 따릅니다.
 - 서버·Worker/MCP·프론트 계약을 함께 배포해야 합니다. 새 요청/재분석/새 점검부터 새 revision을 사용합니다. 과거 계획은 최신 조건 검사에 따라 재검토가 필요할 수 있습니다.
 - 자동 점검은 기본 비활성을 유지합니다. 시연은 DEMO_ENABLED 수동 실행이며, 정기 실행하려면 PHASE2_RECLAIM_SCHEDULE_ENABLED와 대상 reclaim_scopes.enabled를 모두 켭니다. 실제 회수와 외부 Slack/메일 발송은 수행하지 않습니다.
 - 핵심 평가 20건은 `scenarios-v4.json`, 추가 검증 8건은 fixtures입니다. X-08b-USAGE/COST, X-03으로 ID를 맞추고 X-07/X-08/X-12를 추가했습니다. 기존 catalog/seed는 baseline-v1 비교용으로 보존합니다.
