@@ -1,5 +1,7 @@
 # Phase 2 mock 데이터
 
+현재 Compose 시연 시작은 baseline과 누락된 정책 revision 2·3을 한 트랜잭션으로 준비한다. 아래 파일 경로와 baseline은 비교·이력 보존용이며 별도 실행기를 뜻하지 않는다. 수동 SQL 적용도 계속 지원한다.
+
 **실제 가격/회사 정책이 아닌 baseline-v1 합성 데이터**다. 고정 기준 시각은 2026-10-22 09:00 Asia/Seoul.
 기존 활성 `data/policy_corpus.md`, 권한표, 기존 사용자·권한·예산을 변경하지 않는다.
 실제 참조 문서는 전체 베이스라인을 구현한 뒤 교체한다. 이후 교체도 새 revision으로 저장한다.
@@ -21,7 +23,7 @@
 
 ## 안전한 적용
 
-Compose 시연 환경은 `DEMO_ENABLED=true`와 `DEMO_PHASE2_SEED_PATH=/app/data/phase2/seed.sql`을 사용한다.
+Compose 시연 환경은 `DEMO_ENABLED=true`와 `DEMO_SEED_PATH=/app/data/phase2/seed.sql`을 사용한다.
 backend는 Flyway 마이그레이션 후 seed와 계정 비밀번호 준비를 한 트랜잭션으로 수행한다. 기존 행은 보존하고,
 지정된 A/B사 합성 시연 계정 12개의 비밀번호만 현재 DEMO_PASSWORD에 맞춘다. 재시작할 때 요청·승인·예산을 초기화하지 않는다.
 카드 또는 담당 역할을 선택하면 비밀번호 입력 없이 바로 로그인한다. 빠른 로그인은 시연 모드와 지정된 mock 계정에서만 가능하다.
@@ -66,8 +68,7 @@ python3 scripts/evaluate_phase2.py --run --suite full
 결과는 `test-results/phase2/<run_id>/report.json`에 남긴다. Docker/설치 실패는 BLOCKED, 미실행 사례는 NOT_RUN이며 성공으로 집계하지 않는다.
 화면 클릭·모바일·세션 만료는 별도 수동 확인 대상으로 남으며 자동 API 평가와 구분한다. 세부 시연 순서는 루트 `IMPLEMENTATION.md`를 참고한다.
 
-기존 permissions/GitHub 팀/Jira 스킴은 v1의 현재 데이터 원천이다. access_assignments에는 v2 mock만 넣는다.
-v1 데이터를 조용히 복사해 최신 할당처럼 읽는 방식은 사용하지 않는다. 실제 전환 시 잠금·이관·단일 writer를 2단계에서 구현한다.
+현재 신규 쓰기는 access_assignments와 모의 제공자 상태를 사용한다. 기존 permissions/GitHub 팀/Jira 스킴은 과거 데이터로 보존하며 새 할당으로 자동 복사하지 않는다. 구 실행기는 제거했다.
 
 ## v4 시나리오 실행 기준
 

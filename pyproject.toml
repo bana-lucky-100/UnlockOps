@@ -26,6 +26,9 @@ test = ["pytest>=8,<10", "pytest-asyncio>=0.25,<2"]
 where = ["agent", "rag", "mcp", "worker"]
 include = ["unlockops*"]
 
+[tool.setuptools.package-data]
+"unlockops.access" = ["*.md"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["agent/tests", "mcp/tests", "tests"]

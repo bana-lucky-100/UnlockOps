@@ -3,10 +3,10 @@ import json
 from functools import partial
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
-from ..common.phase2 import ReclaimJob, ReclaimEvent, ReclaimRunView, ReclaimCandidate, CandidatePage
-from ..common.phase2_tools import ReclaimContext, PolicyResult, NotificationHistory
-from ..common.phase2_runtime import Phase2Tools, guarded, event_id, failure_event
-from ..common.phase2_reporting import report
+from ..common.workflow_contracts import ReclaimJob, ReclaimEvent, ReclaimRunView, ReclaimCandidate, CandidatePage
+from ..common.tool_contracts import ReclaimContext, PolicyResult, NotificationHistory
+from ..common.runtime import WorkflowTools, guarded, event_id, failure_event
+from ..common.reporting import report
 from ..common.models import ToolFailure
 from ..common.settings import settings
 
@@ -32,7 +32,7 @@ async def load_context(state, *, tools):
         raise ToolFailure("RUN_SCOPE", "Unexpected run")
     if context.job_event_id != job.event_id:
         return {"skip": True}
-    if context.expected_count > settings.phase2_max_candidates:
+    if context.expected_count > settings.max_reclaim_candidates:
         raise ToolFailure("SCAN_LIMIT", "Snapshot exceeds baseline scan limit")
     return {"context": context.model_dump(mode="json")}
 
@@ -74,7 +74,7 @@ async def scan_all_pages(state, *, tools):
                         raise ToolFailure("POLICY_SOURCE_UNAVAILABLE", "Candidate policy differs from snapshot")
                 ids.add(item.assignment_id)
                 items.append(item.model_dump(mode="json"))
-            if len(items) > context.expected_count or len(items) > settings.phase2_max_candidates:
+            if len(items) > context.expected_count or len(items) > settings.max_reclaim_candidates:
                 raise ToolFailure("SCAN_LIMIT", "Candidate count exceeds the declared bound")
             if page.next_cursor is None:
                 break
@@ -84,7 +84,7 @@ async def scan_all_pages(state, *, tools):
             cursor = page.next_cursor
         if len(items) != context.expected_count:
             raise ToolFailure("INCOMPLETE_SCAN", "Missing snapshot rows")
-        if len(json.dumps(items, ensure_ascii=False).encode()) > settings.phase2_max_result_bytes - 10_000:
+        if len(json.dumps(items, ensure_ascii=False).encode()) > settings.max_result_bytes - 10_000:
             raise ToolFailure("SCAN_LIMIT", "Result exceeds baseline message limit")
     except (ToolFailure, ValueError, KeyError, TypeError) as error:
         code = error.code if isinstance(error, ToolFailure) else "INVALID_TOOL_OUTPUT"
@@ -138,7 +138,7 @@ def finish(state):
             # Bound failed responses retain only checked rows and never trigger notifications.
             event['targets'] = state.get('targets', [])
             event['result']['message'] = '일부만 조회되었거나 점검을 완료하지 못했습니다. 부분 결과는 알림 대상이 아닙니다.'
-            if len(json.dumps(event, ensure_ascii=False).encode()) > settings.phase2_max_result_bytes:
+            if len(json.dumps(event, ensure_ascii=False).encode()) > settings.max_result_bytes:
                 event['targets'] = []
         return {"result_event": ReclaimEvent.model_validate(event).model_dump(mode='json')}
     context = state["context"]
@@ -149,13 +149,13 @@ def finish(state):
         snapshot_id=context["snapshot_id"], as_of=context["as_of"], scan_complete=True, needs_review_count=needs_review)
     event = ReclaimEvent(schema_version=2, event_id=event_id(job), job_event_id=job.event_id,
         run_id=job.run_id, event_type="RECLAIM_CHECKED", result=result, targets=state["targets"]).model_dump(mode="json")
-    if len(json.dumps(event, ensure_ascii=False).encode()) > settings.phase2_max_result_bytes:
+    if len(json.dumps(event, ensure_ascii=False).encode()) > settings.max_result_bytes:
         event = failure_event(job, "SCAN_LIMIT")
     return {"result_event": event}
 
 
 def build_graph(tools, job, checkpointer=None):
-    scoped = Phase2Tools(tools, job)
+    scoped = WorkflowTools(tools, job)
     graph = StateGraph(ReclaimState)
     nodes = [("context", partial(load_context, tools=scoped)), ("policy", partial(retrieve_policy, tools=scoped)),
              ("scan", partial(scan_all_pages, tools=scoped)), ("history", partial(notification_history, tools=scoped)), ("report", compose_reports)]

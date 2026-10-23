@@ -1,26 +1,19 @@
-# 평가표 대응과 확인할 증거
+# 평가 항목별 현재 구현 위치
 
-아래는 구현 위치 매핑입니다. 검증 범위와 미완료 항목은 verification.md에 기록합니다.
-수업에서 정한 Harness 필수 목록이 별도로 있다면 이 목록과 대조해야 합니다.
+| 평가 영역 | 현재 구현과 확인 위치 |
+|---|---|
+| 요청·업무 설계 | `access/graph.py`, `access/execution.py`, `reclaim/graph.py`의 StateGraph·분기 |
+| RAG 근거 | 회사별 immutable revision, `rag/unlockops_rag/revisions.py`, `approval.py` |
+| 문서 기반 안내 | `access/answering.py`, `response_context.py`; 인용 ID·원문·내용 검토와 근거 부족 처리 |
+| 승인 보고서 | `access/review.py`, 검토 지침, 서버 review_facts, `common/reporting.py` |
+| MCP | 두 서버의 현재 9개 도구, `common/tool_contracts.py`, `mcp/contracts.py` |
+| 실행 통제 | `common/runtime.py`의 도구·작업·계획 범위, 한도·재시도; Worker checkpoint 결과 재사용 |
+| 사람 승인 | 서버 AccessWorkflowService의 순차 승인·본인 승인 금지·보류/재개·계획 해시/버전 |
+| 실행·검증 | AccessExecutionService의 예산·할당·영수증 트랜잭션과 독립 제공자 재조회 |
+| 회수 | ReclaimSnapshot/Policy/Result/WorkflowService의 전체 조회·UNKNOWN·후보/알림 중복 방지 |
+| 메시지 신뢰성 | WorkflowJobs/Results, outbox/inbox, 발행 확인, 현재 job_event_id와 중복 event_id 검사 |
+| 인증·조직 범위 | 세션·CSRF·서비스 토큰, WorkflowAccessControl의 회사·부서·플랫폼 담당 범위 |
+| 검증 | 현재 Python·MCP HTTP·Java 검사, 시나리오 v4 격리 smoke/full 실행기 |
 
-| 평가 항목 | 구현 위치 | 시연·검증 증거 |
-|---|---|---|
-| Biz 아이템 10 | README, 담당자 승인 UI | 사내 SaaS 접근 지원 B2B: 개별 요청의 근거·승인·실행 기록 연결 |
-| 아키텍처 10 | architecture.md, compose.yaml, docs/contracts | 화면·API·비동기 워커·MCP·저장소의 책임 구분 |
-| Agent 설계 15 | graph.py, models.py | 실제 StateGraph 노드, 조건 분기, 재시도 루프, 승인 interrupt |
-| Agent 구현 15 | planner.py, tools.py, worker/unlockops_worker/__main__.py | **LLM 모드** 도구 선택, 두 MCP 호출, 소스 근거, 진행 이벤트, 프로세스 재시작 후 체크포인트 재개 |
-| MCP 20 | mcp/unlockops_mcp/policy.py, mcp/unlockops_mcp/business.py | 실제 MCP list_tools/call_tool, 설명·입력 스키마, 조회·변경 분리, 오류 출력 |
-| Harness 20 | ScopedTools, rules.py, repository.py, tests | 도구 범위·횟수·시간 제한, 구조화 출력, 승인 게이트, 계획 결합, 멱등·진행 기록, 실패 주입 |
-| 인증 10 | SecurityConfig, AuthController, GrantRules | 세션·BCrypt·CSRF, 요청자 ID 서버 확정, 결과 접근 제어, 지정 승인자·본인 승인 차단 |
-| 큐 가산점 10 | OutboxPublisher, AgentResults, worker/unlockops_worker/__main__.py | 지속 큐, confirm/ack, 중복 전달 처리, 장애 후 재전달, Jira 총 3회 실행 시도 |
-
-ISO/IEC 25010을 고려한 품질 목표는 다음처럼 실제 동작에 연결합니다. 표준 준수 인증이나 전체 항목 충족을 주장하지 않습니다.
-
-- 기능 적합성: S1-a~d, S2/S4/S6~S10 판정과 실제 권한 재조회.
-- 신뢰성: 체크포인트, DB outbox/inbox, 제한 재시도, 멱등 영수증.
-- 보안성: 인증·CSRF·최소 권한·지정 승인자·금지 역할·직원 범위 제한.
-- 성능: 도구·모델 단계 한도, 페이지 최대 100건, 브로커 prefetch와 단일 실행.
-- 유지보수성: 화면/API/Graph/MCP/규정 로직 분리, 명시적 메시지 계약.
-- 사용성: 상태 한글 표시, 담당자 근거 카드, 입력 label, 키보드 폼, 모바일 레이아웃.
-
-기본 데모 모드는 경로 재현용입니다. 모델이 실제로 도구를 선택하는 평가에는 LLM 모드 실행 기록이 필요합니다.
+프론트는 기존 코드·공개 응답을 유지합니다. 현재 구현 검증과 DB·RabbitMQ 전체 통합 실행 여부는 [검증 기록](verification.md)을 따릅니다.
+구 버전 전용 테스트 수를 현재 기능의 검증 완료 근거로 사용하지 않습니다.

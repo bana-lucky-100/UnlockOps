@@ -3,7 +3,7 @@ import copy
 import json
 from pathlib import Path
 from uuid import uuid5,NAMESPACE_URL
-from unlockops.common.phase2 import GrantPlanV2
+from unlockops.common.workflow_contracts import GrantPlanV2
 ROOT=Path(__file__).resolve().parents[1]
 def uid(s): return str(uuid5(NAMESPACE_URL,'unlockops:phase2:'+s))
 catalog=json.loads((ROOT/'data/phase2/catalog.json').read_text())

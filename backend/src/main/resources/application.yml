@@ -32,10 +32,9 @@ spring:
           initial-interval: 1000ms
           multiplier: 2
 app:
-  access-matrix-path: ${ACCESS_MATRIX_PATH:}
   internal-api-token: ${INTERNAL_API_TOKEN:replace-this-local-internal-api-token}
   demo-enabled: ${DEMO_ENABLED:false}
   demo-password: ${DEMO_PASSWORD:}
-  demo-phase2-seed-path: ${DEMO_PHASE2_SEED_PATH:}
-  phase2-reclaim-schedule-enabled: ${PHASE2_RECLAIM_SCHEDULE_ENABLED:false}
-  phase2-reclaim-cron: ${PHASE2_RECLAIM_CRON:0 0 9 * * *}
+  demo-seed-path: ${DEMO_SEED_PATH:${DEMO_PHASE2_SEED_PATH:}}
+  reclaim-schedule-enabled: ${RECLAIM_SCHEDULE_ENABLED:${PHASE2_RECLAIM_SCHEDULE_ENABLED:false}}
+  reclaim-cron: ${RECLAIM_CRON:${PHASE2_RECLAIM_CRON:0 0 9 * * *}}

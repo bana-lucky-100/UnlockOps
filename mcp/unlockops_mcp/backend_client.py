@@ -1,39 +1,13 @@
-"""Business MCP의 업무 조회·변경을 Spring 내부 API로 전달한다. DB에 연결하지 않는다."""
-
-from __future__ import annotations
-
+"""Shared authenticated HTTP transport for workflow tools."""
 import httpx
-from pydantic import BaseModel, ConfigDict, ValidationError
-
-from unlockops.common.contracts import (
-    Budget, CurrentPermissions, EmployeeProfile, ErrorDetail, ErrorResult,
-    Membership, TrueFlag, UUIDString, validate_output,
-)
+from pydantic import ValidationError
+from unlockops.common.contracts import ErrorResult, ErrorDetail
 from unlockops.common.models import ToolFailure
 from unlockops.common.settings import settings
 
 
-class ContextResponse(BaseModel):
-    model_config = ConfigDict(extra="allow", strict=True)
-    profile: EmployeeProfile
-    resource_id: UUIDString | None = None
-    membership: Membership | None = None
-    current: CurrentPermissions | None = None
-    maximum_role: str | None = None
-    budget: Budget | None = None
-    rule_source: str | None = None
-    source_hashes: dict[str, str] = {}
-
-
-class VerificationResponse(BaseModel):
-    model_config = ConfigDict(extra="allow", strict=True)
-    ok: TrueFlag
-    verified: bool
-    current: CurrentPermissions
-
-
 class BackendClient:
-    """기존 MCP 도구 입력을 Spring DTO로 변환한다. 실행·검증 응답은 캐시하지 않는다."""
+    """Spring HTTP 인증·응답·오류 처리를 공유한다. 실행·검증 응답은 캐시하지 않는다."""
 
     def __init__(self, client: httpx.Client | None = None, *, base_url=None, token=None):
         self.client = client
@@ -96,60 +70,3 @@ class BackendClient:
         if retryable:
             code = "UPSTREAM_UNAVAILABLE"
         raise ToolFailure(code, "Spring internal API request failed", retryable)
-
-    def _context(self, employee_id, resource_id=None, *, include_budget=False):
-        payload = {"employeeId": employee_id}
-        if resource_id is not None:
-            payload["resourceId"] = resource_id
-        if include_budget:
-            payload["includeBudget"] = True
-        data = self._post("/internal/access-context", payload)
-        try:
-            parsed = ContextResponse.model_validate(data)
-        except ValidationError:
-            raise ToolFailure("INVALID_TOOL_OUTPUT", "Internal access context is invalid") from None
-        if parsed.profile.id != employee_id:
-            raise ToolFailure("EMPLOYEE_SCOPE", "Internal API returned another employee")
-        if resource_id is not None:
-            if parsed.resource_id != resource_id:
-                raise ToolFailure("RESOURCE_SCOPE", "Internal API returned another resource")
-            if parsed.membership is None or parsed.current is None or parsed.maximum_role is None:
-                raise ToolFailure("INVALID_TOOL_OUTPUT", "Required access facts are missing")
-        return data
-
-    def profile(self, employee_id):
-        return self._context(employee_id)["profile"]
-
-    def resolve(self, platform, hint):
-        result = validate_output("resolve_resource", self._post("/internal/resources/resolve", {"platform": platform, "hint": hint}))
-        if any(resource["platform"] != platform for resource in result["matches"]):
-            raise ToolFailure("PLATFORM_SCOPE", "Internal API returned another platform")
-        return result
-
-    def membership(self, employee_id, resource_id):
-        return self._context(employee_id, resource_id)["membership"]
-
-    def current(self, employee_id, resource_id):
-        return self._context(employee_id, resource_id)["current"]
-
-    def budget(self, employee_id):
-        data = self._context(employee_id, include_budget=True)
-        if "budget" not in data:
-            raise ToolFailure("INVALID_TOOL_OUTPUT", "Budget lookup result is missing")
-        return data["budget"]
-
-    def access_rules(self, employee_id, resource_id):
-        return self._context(employee_id, resource_id)
-
-    def grant(self, problem_id, idempotency_key):
-        return validate_output("grant_permission", self._post(f"/internal/problems/{problem_id}/grant",
-            {"idempotencyKey": idempotency_key}))
-
-    def verify(self, employee_id, resource_id, requested_role):
-        result = self._post("/internal/access-verifications", {"employeeId": employee_id,
-            "resourceId": resource_id, "requestedRole": requested_role})
-        try:
-            VerificationResponse.model_validate(result)
-        except ValidationError:
-            raise ToolFailure("INVALID_TOOL_OUTPUT", "Internal verification response is invalid") from None
-        return validate_output("verify_permission", result)

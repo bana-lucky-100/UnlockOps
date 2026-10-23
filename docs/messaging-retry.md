@@ -1,5 +1,7 @@
 # 결과 메시지 오류 분류와 재시도
 
+> 이 문서는 구 단일 승인 경로의 과거 검증 기록입니다. 현재 구조에서는 `MessageFailureClassifierTest`, `WorkflowListenerTest`, `WorkflowTest`와 격리 평가를 사용합니다. 구 `MessageRetryIT`와 캡처 스크립트는 제거했습니다.
+
 Backend는 `unlockops.results` 소비 시점에 예외를 분류합니다. DLQ에 도착한 뒤 `x-death`만으로 원인을 추측하지 않습니다.
 `FAILED`라는 업무 결과는 유효한 메시지일 수 있으며, 결과가 FAILED라는 이유만으로 DLQ에 보내지 않습니다.
 

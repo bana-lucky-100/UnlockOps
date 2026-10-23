@@ -11,11 +11,8 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.support.EncodedResource;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.init.ScriptUtils;
 
 @Component
 public class DemoSeed implements ApplicationRunner {
@@ -24,17 +21,17 @@ public class DemoSeed implements ApplicationRunner {
     private final boolean enabled;
     private final String password;
     private final JdbcTemplate jdbc;
-    private final String phase2SeedPath;
+    private final String seedPath;
 
     public DemoSeed(UserRepository users, PasswordEncoder encoder, @Value("${app.demo-enabled}") boolean enabled,
                     @Value("${app.demo-password}") String password, JdbcTemplate jdbc,
-                    @Value("${app.demo-phase2-seed-path:}") String phase2SeedPath) {
+                    @Value("${app.demo-seed-path:}") String seedPath) {
         this.users = users;
         this.encoder = encoder;
         this.enabled = enabled;
         this.password = password;
         this.jdbc = jdbc;
-        this.phase2SeedPath = phase2SeedPath;
+        this.seedPath = seedPath;
     }
 
     @Override
@@ -42,26 +39,36 @@ public class DemoSeed implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         if (!enabled) return;
         if (password.length() < 8) throw new IllegalStateException("DEMO_PASSWORD must contain at least eight characters");
-        if (!phase2SeedPath.isBlank()) preparePhase2();
+        if (!seedPath.isBlank()) prepareData();
         for (var id : users.findWithoutPassword()) users.setPassword(id, encoder.encode(password));
         // Only the twelve synthetic login accounts follow the current demo password on restart.
-        for (var user : users.phase2DemoAccounts()) {
+        for (var user : users.demoAccounts()) {
             if (!encoder.matches(password,user.passwordHash())) users.setPassword(user.id(),encoder.encode(password));
         }
     }
 
-    private void preparePhase2() {
+    private void prepareData() {
         try {
             // Spring owns the transaction so seed and password preparation commit together.
-            String sql=Files.readString(Path.of(phase2SeedPath),StandardCharsets.UTF_8)
-                .replaceAll("(?m)^(BEGIN|COMMIT);[\\t ]*\\r?$","");
-            var script=new EncodedResource(new ByteArrayResource(sql.getBytes(StandardCharsets.UTF_8)),StandardCharsets.UTF_8);
-            jdbc.execute((ConnectionCallback<Void>) connection -> {
-                ScriptUtils.executeSqlScript(connection,script);
-                return null;
-            });
+            executeScript(Path.of(seedPath));
+            var directory=Path.of(seedPath).toAbsolutePath().getParent().resolve("policies");
+            for(int revision=2;revision<=3;revision++) {
+                Integer ready=jdbc.queryForObject("SELECT count(DISTINCT p.company_id) FROM policy_revisions p JOIN companies c ON c.id=p.company_id WHERE c.code IN ('P2_A','P2_B') AND p.revision>=?",Integer.class,revision);
+                if(ready!=null && ready==2)continue;
+                executeScript(directory.resolve(revision==2 ? "apply.sql" : "apply-v4.sql"));
+            }
         } catch (IOException e) {
-            throw new IllegalStateException("Cannot read demo seed: " + phase2SeedPath,e);
+            throw new IllegalStateException("Cannot read demo seed: " + seedPath,e);
         }
+    }
+    private void executeScript(Path path) throws IOException {
+        String sql=Files.readString(path,StandardCharsets.UTF_8)
+            .replaceAll("(?m)^(BEGIN|COMMIT);[\\t ]*\\r?$","");
+        jdbc.execute((ConnectionCallback<Void>) connection -> {
+            // PostgreSQL parses the entire script, including dollar-quoted DO blocks.
+            // Splitting on semicolons would corrupt immutable revision imports.
+            try(var statement=connection.createStatement()) { statement.execute(sql); }
+            return null;
+        });
     }
 }

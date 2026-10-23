@@ -33,7 +33,7 @@ class DemoAuthTest {
     private class Accounts extends UserRepository {
         List<AppUser> accounts=List.of(user);
         Accounts() { super(null); }
-        @Override public List<AppUser> phase2DemoAccounts() { return accounts; }
+        @Override public List<AppUser> demoAccounts() { return accounts; }
         @Override public UserProfileResponse profile(UUID id) {
             return new UserProfileResponse(id,user.loginId(),"P2-A-0","김개발",UserRole.REQUESTER,null,null,"업무팀",2,false);
         }
