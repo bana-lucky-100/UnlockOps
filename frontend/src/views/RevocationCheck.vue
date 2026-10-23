@@ -79,7 +79,9 @@ const confirming = ref<RevocationCandidate | null>(null)
 const revoking = ref(false)
 const revokeError = ref('')
 const done = ref('')
-const canRevokeAny = computed(() => all.value.some(c => c.can_revoke))
+// 버튼과 안내 문구는 같은 조건을 쓴다: 서버가 허용 · 아직 판단 대기 · 회수 대상 id가 있는 후보만.
+function revocable(c: RevocationCandidate) { return !!c.can_revoke && c.candidate_status === 'PENDING_REVIEW' && !!c.target_id }
+const canRevokeAny = computed(() => all.value.some(revocable))
 // 확인 창: 열 때 창 안으로 초점을 옮기고, 열린 동안 Tab을 창 안에 가두고, 닫을 때 원래 버튼으로 돌려준다.
 const modalBox = ref<HTMLElement | null>(null)
 let opener: HTMLElement | null = null
@@ -106,10 +108,11 @@ async function doRevoke() {
   if (!c || revoking.value) return
   revoking.value = true; revokeError.value = ''
   try {
-    await revoke(c.id)
+    await revoke(c.target_id!)
     done.value = `${c.user_name || '대상자'}님의 ${c.platform} 권한을 회수했어요${c.cost_known !== false ? ` · 월 ${usd(c.monthly_cost)} 절감` : ''}`
     revoking.value = false; closeRevoke()
     await load()
+    tab.value = 'ALL' // 회수된 후보는 '전체'에만 남으므로, 완료 배지가 보이는 탭으로 옮긴다
   } catch (e) {
     if (e instanceof ApiError && e.status === 409) {
       // 창을 닫으므로 안내는 창 밖(하단 안내)에 남긴다.
@@ -256,7 +259,7 @@ const help = {
                 <span v-else-if="isNewInRun(c, run)" class="rv-badge new">신규</span>
                 <span v-else-if="c.notified_at" class="rv-badge sent">알림 {{ when(c.notified_at) }}</span>
                 <span v-else class="rv-badge kept">알림 전</span>
-                <button v-if="c.can_revoke && c.candidate_status === 'PENDING_REVIEW'" type="button" class="rv-revoke" @click="askRevoke(c)">회수</button>
+                <button v-if="revocable(c)" type="button" class="rv-revoke" @click="askRevoke(c)">회수</button>
               </td>
             </tr>
           </tbody>

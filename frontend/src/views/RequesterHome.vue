@@ -58,10 +58,10 @@ const loadError = ref('')
 const ready = computed(() => !!selected.value && contents.value.trim().length >= 2)
 // 휴대폰에서는 예시가 두 줄을 넘어 잘리므로 첫 문장(무엇이 필요한지)만 보여 준다. 이유는 입력창 아래 안내가 맡는다.
 const narrow = ref(typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 720px)').matches)
-if (typeof window !== 'undefined' && window.matchMedia) {
-  const mq = window.matchMedia('(max-width: 720px)')
-  mq.addEventListener?.('change', e => { narrow.value = e.matches })
-}
+const narrowMq = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 720px)') : null
+const onNarrow = (e: MediaQueryListEvent) => { narrow.value = e.matches }
+narrowMq?.addEventListener?.('change', onNarrow)
+onBeforeUnmount(() => narrowMq?.removeEventListener?.('change', onNarrow))
 const placeholder = computed(() => {
   const full = selected.value ? EXAMPLE[selected.value] : '분석용 Snowflake 웨어하우스 이용 권한이 필요해요. 추천 모델 TF 때문에요'
   return '예: ' + (narrow.value ? full.split('. ')[0] : full)

@@ -57,7 +57,11 @@ const stages = computed(() => p.value ? stagesOf(p.value) : [])
 const summary = computed(() => !p.value ? '' : isRequester.value ? summaryOf(p.value) : approverSummaryOf(p.value))
 // 안내 성공은 요청자도 진단을 본다. 실제 검토 필요 · 거절의 판단 근거는 승인자에게만 표시한다.
 // 판단 문장은 reason_code로 만든다(서버 문장은 모르는 사유 코드일 때만). 요청자 · 승인자 문장이 다르다.
-const aiMessage = computed(() => !p.value ? null : isRequester.value ? aiMessageOf(p.value) : judgmentOf(p.value, true))
+// 승인 대기인데 지금 내 차례가 아니면(이미 내 단계를 승인했거나 아직 앞 단계) '승인하면 …'이 아니라 진행 상황을 말한다.
+const aiMessage = computed(() => !p.value ? null : isRequester.value ? aiMessageOf(p.value)
+  : p.value.status === 'WAITING_APPROVAL' && p.value.reason_code === 'ELIGIBLE' && isV2() && !myTurn(p.value)
+    ? '규정과 예산 조건을 모두 충족해요. 다른 단계 승인을 기다리고 있어요.'
+    : judgmentOf(p.value, true))
 // 승인자는 plan의 자원 이름(resource_key)까지 받는다. 요청자 응답에는 plan이 없다.
 const resourceName = computed(() => (!isRequester.value && p.value?.plan?.resource_key) || '')
 const proposal = computed(() => {
