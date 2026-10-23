@@ -35,7 +35,8 @@ export function decisionSummaryOf(p: Problem, title: string, cost: CostImpact | 
   const hold = p.status === 'ON_HOLD'
   if (!ok && !hold) return null
   const ev = (p.evidence ?? []).find(e => typeof e.doc_id === 'string')
-  const ref = (label: string) => (ev?.doc_id ? { id: String(ev.doc_id), label } : undefined)
+  // 원문 버튼은 서버가 준 규정 문서로 내려간다. 조항 번호를 화면에서 지어내지 않도록 이름은 '규정 원문'으로 둔다.
+  const ref = (_topic: string) => (ev?.doc_id ? { id: String(ev.doc_id), label: '규정 원문' } : undefined)
   const names = new Map((p.approvers ?? []).map(a => [a.id, a.name]))
   const steps: SummaryStep[] = (p.approval_steps ?? []).map(s => ({
     label: `${s.step}단계 · ${STEP_WORD[s.status] ?? s.status}`,

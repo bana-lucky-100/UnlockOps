@@ -77,7 +77,8 @@ function costOf(platform: string, plan: NonNullable<AccessReport['plan']>, messa
     budget_before: budget?.before ?? null, budget_after: budget?.after ?? null,
     // 금액 · 기준 · 가격표 버전은 서버 계획(plan) 값만 쓴다. 자원 설명(what)만 화면 표에서 붙인다.
     basis: [what, COST_BASIS_TEXT[plan.cost_basis], `가격표 rev ${plan.pricing_revision}`, plan.currency !== 'USD' ? plan.currency : null].filter(Boolean).join(' · ') + ' (가상 회사 가정 금액)',
-    rule: ev ? `${ev.doc_id} ${ev.article} · 예상 월 비용이 부서 잔여 예산 이하일 때만 승인 대기로 올려요` : null,
+    // 서버가 판정에 쓴 규정 문서 · 조항을 그대로 적는다(조항 내용을 화면에서 추측해 붙이지 않는다).
+    rule: ev ? `판정에 쓴 규정 ${ev.doc_id} · ${ev.article}` : null,
   }
 }
 

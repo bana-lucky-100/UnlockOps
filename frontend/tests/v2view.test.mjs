@@ -112,7 +112,7 @@ test('[임시] 판정 메시지에서 부서 잔여 예산 전후 값을 읽고,
   assert.equal(p.cost_impact?.budget_before, 500)
   assert.equal(p.cost_impact?.budget_after, 380)
   assert.match(p.cost_impact?.basis ?? '', /분석용 웨어하우스 월 사용/)
-  assert.match(p.cost_impact?.rule ?? '', /^POL-06 제2조/)
+  assert.match(p.cost_impact?.rule ?? '', /^판정에 쓴 규정 POL-06/)
 })
 
 import { decisionSummaryOf, objectJosa } from '../src/lib/decisionSummary.ts'

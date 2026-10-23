@@ -29,10 +29,13 @@ const TITLES: Record<string, string> = {
   'SL-OFF-01': 'Slack 채널 멤버 추가 방법',
   'SL-OFF-02': 'Slack 게스트 계정 유형 구분',
   'NT-OFF-01': 'Notion 페이지 공유 및 권한 수준',
+  'P2-A-POLICY': 'A사 SaaS 권한 규정 (POL-06 · 승인 경로)',
+  'P2-B-POLICY': 'B사 SaaS 권한 규정 (POL-06 · 승인 경로)',
 }
 export const GROUP_LABEL: Record<EvidenceGroup, string> = { MATRIX: '회사 권한표', POLICY: '사내 규정', OFFICIAL: 'SaaS 공식 도움말' }
 
-const groupOf = (id: string): EvidenceGroup => id.startsWith('A-ACCESS') ? 'MATRIX' : id.startsWith('POL') ? 'POLICY' : 'OFFICIAL'
+// v2(Phase 2)는 회사별 규정 묶음(P2-A-POLICY 등)으로 온다. 사내 규정으로 분류한다.
+const groupOf = (id: string): EvidenceGroup => id.startsWith('A-ACCESS') ? 'MATRIX' : id.startsWith('POL') || /^P2-[A-Z]+-POLICY$/.test(id) ? 'POLICY' : 'OFFICIAL'
 const clean = (s: string) => s.replace(/\*\*/g, '').replace(/`/g, '').trim()
 
 /** 요청자 직무 · 직급으로 상한표의 열 이름을 고른다. */
