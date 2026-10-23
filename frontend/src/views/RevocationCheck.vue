@@ -183,7 +183,7 @@ const help = {
           <div class="rv-kpi" :class="{ hero: monthly > 0 }">
             <div class="kh"><p class="k">월 절감 예상</p><span class="ki" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6" /></svg></span></div>
             <p class="v"><span class="rv-num">{{ usd(monthly) }}</span></p>
-            <p class="d">회수하면 매달 줄어드는 금액</p>
+            <p class="d">{{ fresh.length + notified.length > 1 ? `아직 회수 안 된 후보 ${fresh.length + notified.length}건을 모두 회수하면` : '회수하면 매달 줄어드는 금액' }}</p>
           </div>
           <div class="rv-kpi">
             <div class="kh"><p class="k">연간 환산</p><span class="ki" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg></span></div>

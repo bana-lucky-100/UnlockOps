@@ -200,3 +200,15 @@ test('헤더 프로필은 로그인 카드와 같은 이니셜 · 색을 쓴다'
   assert.equal(personaAvatar({ login_id: 'p2_b_requester', name: '박요청(B)' }).initial, '요')
   assert.equal(personaAvatar({ name: '😀' }).initial, '😀')
 })
+
+test('이미 내 단계를 승인했으면 요약은 승인했어요 · 다음 승인자로 바뀐다', async () => {
+  const { decisionSummaryOf } = await import('../src/lib/decisionSummary.ts')
+  const p = { status: 'WAITING_APPROVAL', requester_name: '김지성', current_step: 2, total_steps: 2, requested_role: 'ANALYST', evidence: [],
+    approvers: [{ id: 'h', name: '김동빈' }, { id: 'o', name: '신형철' }],
+    approval_steps: [{ step: 1, approver_id: 'h', status: 'APPROVED' }, { step: 2, approver_id: 'o', status: 'WAITING' }] }
+  const mine = decisionSummaryOf(p, 'Snowflake 권한', null, 'h')
+  assert.equal(mine.tone, 'done')
+  assert.match(mine.sub, /다음 단계\(2\/2\)/)
+  assert.doesNotMatch(mine.sub, /신형철/)
+  assert.equal(decisionSummaryOf(p, 'Snowflake 권한', null, 'o').tone, 'ok')
+})

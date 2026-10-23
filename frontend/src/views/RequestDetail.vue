@@ -136,7 +136,9 @@ const costLine = computed(() => {
   return { big: `월 −${usd(c.monthly_cost)}`, sub: c.budget_before !== null && c.budget_after !== null ? `부서 잔여 ${usd(c.budget_before)} → ${usd(c.budget_after)}` : '' }
 })
 // 승인자 화면 맨 위 한 장 요약(결론 → 숫자 → 왜 괜찮은지 → 승인 순서). 승인 대기 · 보류일 때만.
-const decision = computed(() => !isRequester.value && p.value ? decisionSummaryOf(p.value, titleText.value, cost.value?.impact ?? null) : null)
+const decision = computed(() => !isRequester.value && p.value ? decisionSummaryOf(p.value, titleText.value, cost.value?.impact ?? null, currentUser.value?.id) : null)
+// 한 장 요약이 있으면 아래 카드는 같은 조건을 반복하지 않고 규정 원문만 둔다(못 맞춘 조건이 있을 때만 목록을 보인다).
+const showChecks = computed(() => !decision.value || checks.value.some(c => !c.ok && !c.info))
 function jumpCost() {
   const el = document.getElementById('cost-card')
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -178,6 +180,9 @@ const rejReason = computed(() => [rejPick.value, rejText.value.trim()].filter(Bo
 function pickChip(t: string) { rejPick.value = rejPick.value === t ? '' : t; rejErr.value = false }
 function cancelReject() { rejecting.value = false; rejErr.value = false }
 
+const toast = ref('')
+let toastTimer: number | undefined
+function flash(msg: string) { toast.value = msg; window.clearTimeout(toastTimer); toastTimer = window.setTimeout(() => { toast.value = '' }, 4500) }
 async function decide(approved: boolean, hold = false) {
   const x = p.value
   if (!x || deciding.value) return
@@ -188,6 +193,9 @@ async function decide(approved: boolean, hold = false) {
     // 승인 카드에 보이는 계획(plan_hash)에 대해서만 결정한다. 그사이 계획이 바뀌면 서버가 409로 막는다.
     await sendDecision(x, approved ? 'APPROVE' : hold ? 'HOLD' : 'REJECT', approved ? memo.value.trim() : rejReason.value)
     rejecting.value = false
+    const lastStep = (x.total_steps ?? 1) <= (x.current_step ?? 1)
+    flash(approved ? (lastStep ? '승인했어요 · 권한을 부여하고 다시 조회해 확인할게요' : `${x.current_step ?? 1}단계 승인했어요 · 다음 승인자에게 넘어갔어요`)
+      : hold ? '보류했어요 · 요청자에게 사유를 보냈어요' : '거절했어요 · 요청자에게 사유를 보냈어요')
   } catch (e) {
     const status = e instanceof ApiError ? e.status : 0
     decideError.value = status === 409 ? '그사이 이미 처리됐거나 승인 내용이 바뀌었어요. 최신 내용을 다시 불러왔어요. 확인하고 다시 결정해 주세요.'
@@ -311,12 +319,12 @@ const requesterHelp = {
 
 
           <section v-if="evidence.facts.length || docs.length" id="ev-top" class="rd-card" aria-labelledby="rd-bs">
-            <h2 id="rd-bs">판단 근거 <span class="rd-only">승인자에게만 보여요</span></h2>
-            <p v-if="who && checks.length" class="rd-who">요청자 <b>{{ who }}</b></p>
+            <h2 id="rd-bs">{{ showChecks ? '판단 근거' : '규정 원문' }} <span class="rd-only">승인자에게만 보여요</span></h2>
+            <p v-if="who && checks.length && showChecks" class="rd-who">요청자 <b>{{ who }}</b></p>
             <dl v-if="evidence.facts.length && !checks.length" class="rd-facts-dl">
               <template v-for="f in evidence.facts" :key="f.k"><dt>{{ f.k }}</dt><dd>{{ f.v }}</dd></template>
             </dl>
-            <ul v-if="checks.length" class="rd-checks" aria-label="규칙이 확인한 조건">
+            <ul v-if="checks.length && showChecks" class="rd-checks" aria-label="규칙이 확인한 조건">
               <li v-for="c in checks" :key="c.text" :class="c.info ? 'ck-info' : c.ok ? 'ck-ok' : 'ck-no'">
                 <span class="rd-ck-ic" aria-hidden="true">{{ c.info ? '' : c.ok ? '✓' : '✕' }}</span>
                 <span class="rd-ck-t"><span class="sr-only">{{ c.info ? '참고' : c.ok ? '충족' : '미충족' }}: </span>{{ c.text }}<span v-if="c.detail" class="rd-ck-d rd-en">{{ c.detail }}</span></span>
@@ -325,7 +333,8 @@ const requesterHelp = {
             </ul>
             <!-- 규정 원문: 기본은 접어 둔다. 회사 권한표 → 사내 규정 → 공식 도움말 순. -->
             <div v-if="docs.length" class="rd-docs">
-              <p class="rd-docs-k">규정 원문 <span>{{ docs.length }}건</span><em>필요할 때만 펼쳐 보세요</em></p>
+              <p v-if="showChecks" class="rd-docs-k">규정 원문 <span>{{ docs.length }}건</span><em>필요할 때만 펼쳐 보세요</em></p>
+              <p v-else class="rd-docs-k"><span>{{ docs.length }}건</span><em>요약의 근거예요. 필요할 때만 펼쳐 보세요</em></p>
               <template v-for="(d, di) in docs" :key="d.id">
                 <p v-if="di === 0 || docs[di - 1].group !== d.group" class="rd-grp">{{ GROUP_LABEL[d.group] }}</p>
                 <details :id="`ev-${d.id}`" class="rd-doc" :class="{ flash: flashDoc === d.id }" :open="openDocs.has(d.id)"
@@ -498,6 +507,7 @@ const requesterHelp = {
         </aside>
       </div>
     </template>
+    <p v-if="toast" class="rd-toast" role="status">{{ toast }}</p>
   </AppShell>
 </template>
 
@@ -565,6 +575,10 @@ const requesterHelp = {
 .rd-anchor { scroll-margin-top: 24px; }
 .rd-sum { border-left: 6px solid var(--uo-ok, #1A7340); display: flex; flex-direction: column; gap: 8px; }
 .rd-sum.review { border-left-color: var(--uo-review); }
+.rd-sum.done { border-left-color: var(--uo-primary); }
+.rd-sum.done .rd-sum-badge { background: var(--uo-primary-soft); color: var(--uo-primary-ink); }
+.rd-sum.done .rd-sum-h { color: var(--uo-ink); }
+.rd-toast { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); margin: 0; padding: 12px 20px; border-radius: 12px; background: var(--uo-ink); color: #fff; font-size: 14px; font-weight: 600; z-index: 40; max-width: calc(100% - 32px); }
 .rd-sum-badge { align-self: flex-start; font-size: 13px; font-weight: 700; border-radius: 999px; padding: 3px 12px; background: var(--uo-ok-bg, #E6F4EC); color: var(--uo-ok, #1A7340); }
 .rd-sum.review .rd-sum-badge { background: var(--uo-review-bg); color: var(--uo-review); }
 .rd-sum-h { margin: 4px 0 0; font-size: 22px; font-weight: 800; line-height: 1.4; letter-spacing: -0.01em; }

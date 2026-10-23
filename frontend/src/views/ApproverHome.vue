@@ -56,10 +56,20 @@ function toggleAll() {
   selected.value = allOn.value ? [] : pending.value.map(p => p.id)
 }
 
+// v2 승인함 목록에는 권한 항목이 없어, 카드 제목을 상세와 같은 권한 이름으로 맞추려고 대기 건만 한 번씩 상세를 받아 둔다.
+const roles = ref<Record<string, string>>({})
+function fillRoles() {
+  for (const it of pending.value.slice(0, 10)) {
+    if (it.requested_role || it.id in roles.value) continue
+    roles.value = { ...roles.value, [it.id]: '' }
+    getProblem(it.id).then(d => { roles.value = { ...roles.value, [it.id]: d.requested_role ?? '' } }).catch(() => {})
+  }
+}
 async function load() {
   try {
     const list = await listForApprover()
     items.value = list
+    fillRoles()
     summary.value = await approvalSummary(list)
     loadError.value = ''
     const waiting = new Set(pending.value.map(p => p.id))
@@ -238,7 +248,7 @@ const help = {
             </div>
             <!-- 목록 응답에는 자원 이름이 없어서 권한만 보여 준다. 자원은 상세(승인 카드)에서 확인한다. -->
             <!-- v2 목록 요약에는 권한 항목이 없어서, 있으면 쉬운 이름 · 없으면 플랫폼 이름으로 쓴다. -->
-            <p class="ah-req-title"><span class="ah-role">{{ roleText(p.platform, p.requested_role) ?? p.requested_role ?? platformOf(p.platform).label }}</span> 권한 요청</p>
+            <p class="ah-req-title"><span class="ah-role">{{ roleText(p.platform, p.requested_role || roles[p.id]) ? `${platformOf(p.platform).label} ${roleText(p.platform, p.requested_role || roles[p.id])}` : (p.requested_role || roles[p.id] || platformOf(p.platform).label) }}</span> 권한 요청</p>
             <p class="ah-req-quote">“{{ p.contents }}”</p>
           </div>
           <div v-if="judgmentOf(p, true) || p.diagnosis" class="ah-ai">
