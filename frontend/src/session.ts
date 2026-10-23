@@ -52,5 +52,6 @@ export async function logout() {
 
 /** 역할별 첫 화면: 요청자는 홈, 승인자는 승인함. */
 export function homeOf(user: User) {
+  if (user.workflow_version === 2) return '/access'
   return user.role === 'APPROVER' ? '/approvals' : '/'
 }

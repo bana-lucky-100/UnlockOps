@@ -1,7 +1,7 @@
 export type Platform = 'GITHUB' | 'JIRA' | 'SLACK' | 'NOTION'
 export type Status = 'RECEIVED' | 'DIAGNOSING' | 'WAITING_APPROVAL' | 'EXECUTING' | 'DONE' | 'REJECTED' | 'MANUAL_REVIEW' | 'FAILED'
 export type ResultType = 'GUIDANCE' | 'ACCESS_VERIFIED'
-export interface User { id: string; login_id: string; employee_no: string; name: string; role: 'REQUESTER'|'APPROVER'; job_grade: string; job_family: string; department: string }
+export interface User { id: string; login_id: string; employee_no: string; name: string; role: 'REQUESTER'|'APPROVER'; job_grade: string; job_family: string; department: string; workflow_version?: 1|2; can_reclaim?: boolean }
 export interface ApprovalSummary { department: string; memberCount: number; weekRequests: number; approved: number; rejected: number; failed: number }
 export interface Evidence { doc_id?: string; article?: string; text?: string; source?: string; version?: string; kind?: string; [key: string]: unknown }
 export interface Problem {

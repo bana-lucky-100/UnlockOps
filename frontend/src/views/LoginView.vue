@@ -14,6 +14,15 @@ const accounts = [
   { key: 'APPROVER', loginId: 'park_lead', title: '승인자 · 박리더', desc: '개발팀 차장 · 결제 개편 TF 리더 · 승인·거절', initial: '박', tag: '승인자', tone: 'green', cta: '승인자로 로그인' },
 ] as const
 
+const phase2Accounts = ['a', 'b'].flatMap(company => [
+  { role: 'requester', label: '직원' }, { role: 'team_lead', label: '팀장' },
+  { role: 'head', label: '부서장' }, { role: 'operator', label: '권한 담당자' },
+  { role: 'it_head', label: 'IT 총괄' }, { role: 'figma_operator', label: 'Figma 담당자' },
+].map(item => ({ id: `p2_${company}_${item.role}`, label: `${company.toUpperCase()}사 · ${item.label}` })))
+function pickPhase2(value: string) {
+  if (!phase2Accounts.some(x => x.id === value)) return
+  loginId.value = value; password.value = DEMO_PASSWORD; error.value = ''
+}
 const loginId = ref<string>(accounts[0].loginId)
 const password = ref(DEMO_PASSWORD)
 const error = ref('')
@@ -91,6 +100,15 @@ async function submit() {
           </button>
         </fieldset>
 
+        <details style="margin:0 0 20px">
+          <summary>승인·회수 확장 시나리오 계정</summary>
+          <label class="lg-field" style="margin-top:12px">시연 계정 선택
+            <select :value="phase2Accounts.some(x => x.id === loginId) ? loginId : ''" @change="pickPhase2(($event.target as HTMLSelectElement).value)">
+              <option value="" disabled>회사와 담당 역할 선택</option>
+              <option v-for="account in phase2Accounts" :key="account.id" :value="account.id">{{ account.label }}</option>
+            </select>
+          </label>
+        </details>
         <label class="lg-field">
           <span>아이디</span>
           <input v-model="loginId" type="text" autocomplete="username" placeholder="예: kim_dev" :aria-invalid="!!error">

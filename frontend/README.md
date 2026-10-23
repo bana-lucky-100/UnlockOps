@@ -40,3 +40,31 @@ Docker 화면은 localhost:8088, Vite 개발 화면은 localhost:5173입니다.
 권한 부여 단계 대신 접수 → 진단 → 안내 제공을 보여줍니다.
 권한 반영 완료는 `DONE / result_type=ACCESS_VERIFIED / verification_ok=true`로 구분합니다. 구 감사 이벤트만 호환 표시하며, 현재 요청의 완료 여부는 새 계약만 사용합니다.
 `guidanceCompletion.test.mjs`는 이 응답의 완료 분류·본문 표시·진행 기록과 실제 검토 필요 상태의 구분을 검증합니다.
+
+## Phase 2 화면
+
+새 회사 계정은 서버의 `workflow_version=2` 응답에 따라 `/access`로 진입합니다. 기존 LEGACY 계정의 화면은 유지합니다.
+화면은 `src/views/phase2`, 공통 컴포넌트는 `src/components/phase2`, API·표시 규칙·접수 키는 `src/phase2`에 있습니다.
+
+| 경로 | 기능 |
+|---|---|
+| /access | 내 요청·내 승인 차례·허용된 전체 목록 |
+| /access/new | 10개 플랫폼·자원/권한 선택·분석 요청 |
+| /access/:id | 보고서·정책·비용·단계별 승인/반려/보류·재분석 |
+| /reclaim | 범위별 점검·후보·본인 알림 읽음 |
+| /reclaim/runs/:id | 실행 상태·전체/유지/제외/미확인 판정 |
+| /reclaim/targets/:id | 후보 근거·비용 상세 |
+
+회수 메뉴 표시에는 서버의 can_reclaim을 사용하며 API ACL을 대신하지 않습니다.
+현재 지정 승인자만 버튼을 볼 수 있고 승인·반려·보류에는 조회한 plan_hash와 plan_version을 expected_plan_hash와 expected_plan_version으로 함께 보냅니다.
+승인 대기 응답에 유효한 버전이 없으면 결정을 허용하지 않습니다. 보류·재개 후에는 해시가 같아도 이전 회차의 결정이 409로 거절됩니다.
+409·응답 유실 후에는 서버를 다시 조회하며 승인을 자동 재전송하지 않습니다.
+회수 DONE은 점검 완료이고, 비용 UNKNOWN은 미확인입니다. 실제 권한 말소·환입은 하지 않습니다.
+요청·점검 시작의 재시도 키는 사용자와 작업별로 분리하여 보관하며 원문은 sessionStorage에 저장하지 않습니다.
+
+로그인 화면의 확장 시나리오 계정 선택을 이용할 수 있습니다. 먼저 [mock seed 안내](../data/phase2/README.md)에 따라
+계정과 초기 데이터를 준비해야 합니다. A사 승인 경로는 p2_a_requester → p2_a_head → p2_a_operator이며,
+B사 통합 회수 점검 계정은 p2_b_it_head입니다. 계정 선택은 실제 로그인 성공이나 seed 적용을 대신하지 않습니다.
+
+신규 핵심 테스트는 phase2.test.mjs 3건입니다. 지정 버전 의존성 설치·브라우저·전체 스택 검증의 제한과 대체 검증 결과는
+[IMPLEMENTATION.md](../IMPLEMENTATION.md)의 4단계 검증 범위를 확인하세요. 이번 작업에서는 package.json/lockfile을 변경하지 않았습니다.
