@@ -138,7 +138,7 @@ const help = {
   howto: [
     { t: '[지금 다시 점검]으로 점검해요', d: 'TF가 끝났거나 오래 쓰지 않은 유료 권한을 찾아요. 자동 점검(매일 09:00)은 담당 범위를 켜야 돌아가요(기본은 꺼짐)' },
     { t: '새로 찾은 후보만 먼저 보여 줘요', d: '이미 알린 후보는 다시 알리지 않아요. "이미 알린 후보" 탭에서 따로 볼 수 있어요' },
-    { t: '회수는 사람이 결정해요', d: '후보와 근거, 줄일 수 있는 금액을 보고 [회수]를 누르면 확인 창에서 한 번 더 확인한 뒤 회수해요. 회수 버튼은 실행 권한이 있는 담당자에게, 아직 처리되지 않은 후보에만 보여요' },
+    { t: '회수는 사람이 결정해요', d: '후보와 근거, 줄일 수 있는 금액을 보고 [회수하기]를 누르면 확인 창에서 한 번 더 확인한 뒤 회수해요. 회수 버튼은 실행 권한이 있는 담당자에게, 아직 처리되지 않은 후보에만 보여요' },
   ],
   faqs: [
     { q: '어떤 기준으로 후보가 되나요?', a: 'TF가 끝난 뒤 30일 넘게 쓰지 않았고, 다른 TF 소속이나 유지 승인이 없는 유료 권한이에요 (시연용 가정 기준).' },
@@ -216,7 +216,7 @@ const help = {
           <p class="rv-note">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
             <template v-if="mock">실제 회수는 하지 않아요. 기존 절차로 진행해 주세요</template>
-            <template v-else-if="canRevokeAny">[회수]를 누르면 확인 후 바로 권한을 회수해요</template>
+            <template v-else-if="canRevokeAny">[회수하기]를 누르면 확인 후 바로 권한을 회수해요</template>
             <template v-else>현재 회수 가능한 후보가 없어요</template>
           </p>
         </div>
@@ -232,7 +232,7 @@ const help = {
 
         <table v-else class="rv-table">
           <thead>
-            <tr><th>대상자</th><th>SaaS · 권한</th><th>마지막 사용</th><th class="num">월 비용</th><th>사유와 근거</th><th>상태</th></tr>
+            <tr><th>대상자</th><th>SaaS · 권한</th><th>마지막 사용</th><th class="num">월 비용</th><th>사유와 근거</th><th>상태</th><th v-if="canRevokeAny" class="rv-act-h"><span class="sr-only">처리</span></th></tr>
           </thead>
           <tbody>
             <tr v-for="c in rows" :key="c.id">
@@ -264,7 +264,13 @@ const help = {
                 <span v-else-if="isNewInRun(c, run)" class="rv-badge new">신규</span>
                 <span v-else-if="c.notified_at" class="rv-badge sent">알림 {{ when(c.notified_at) }}</span>
                 <span v-else class="rv-badge kept">알림 전</span>
-                <button v-if="revocable(c)" type="button" class="rv-revoke" @click="askRevoke(c)">회수</button>
+              </td>
+              <!-- 상태(배지)와 동작(버튼)을 다른 칸에 둔다. 배지는 읽는 것, 버튼은 누르는 것이라 모양도 다르게. -->
+              <td v-if="canRevokeAny" class="rv-act">
+                <button v-if="revocable(c)" type="button" class="rv-revoke" :aria-label="`${c.user_name || '대상자'} ${c.platform} 권한 회수`" @click="askRevoke(c)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 9.6-2M5 11h14v10H5z" /></svg>
+                  회수하기
+                </button>
               </td>
             </tr>
           </tbody>
@@ -381,8 +387,12 @@ const help = {
 .rv-badge.new { background: var(--uo-primary-soft); color: var(--uo-primary-ink); }
 .rv-badge.sent { background: #F0F2F8; color: var(--uo-muted); }
 .rv-badge.done { background: #FDECEC; color: #B42318; }
-.rv-revoke { display: block; margin-top: 8px; height: 30px; padding: 0 14px; border: 1px solid #E4A4A4; border-radius: 999px; background: #fff; color: #B42318; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
-.rv-revoke:hover, .rv-revoke:focus-visible { background: #FDECEC; }
+.rv-act-h { width: 1%; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.rv-act { text-align: right; white-space: nowrap; }
+.rv-revoke { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 0; border-radius: 10px; background: #B42318; color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 6px rgba(180,35,24,0.25); }
+.rv-revoke:hover, .rv-revoke:focus-visible { background: #912018; }
+.rv-revoke:focus-visible { outline: 2px solid #B42318; outline-offset: 2px; }
 .rv-done { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); margin: 0; padding: 12px 20px; border-radius: 12px; background: var(--uo-ink); color: #fff; font-size: 14px; font-weight: 600; z-index: 40; }
 .rv-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .rv-scrim { position: absolute; inset: 0; border: 0; padding: 0; background: rgba(20,26,51,0.4); cursor: pointer; }
