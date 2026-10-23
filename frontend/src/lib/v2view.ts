@@ -1,4 +1,5 @@
 import type { Platform, Problem } from '../api'
+import { shortArticle } from './policyRef.ts'
 import type { AccessReport, AccessSummary } from '../phase2/api'
 import { personaName } from './persona.ts'
 import { SAAS_MONTHLY_COST, type CostImpact } from './costImpact.ts'
@@ -78,7 +79,8 @@ function costOf(platform: string, plan: NonNullable<AccessReport['plan']>, messa
     // 금액 · 기준 · 가격표 버전은 서버 계획(plan) 값만 쓴다. 자원 설명(what)만 화면 표에서 붙인다.
     basis: [what, COST_BASIS_TEXT[plan.cost_basis], `가격표 rev ${plan.pricing_revision}`, plan.currency !== 'USD' ? plan.currency : null].filter(Boolean).join(' · ') + ' (가상 회사 가정 금액)',
     // 서버가 판정에 쓴 규정 문서 · 조항을 그대로 적는다(조항 내용을 화면에서 추측해 붙이지 않는다).
-    rule: ev ? `판정에 쓴 규정 ${ev.doc_id} · ${ev.article}` : null,
+    // 실제 article은 'POL-09 | SNOWFLAKE | v1.0 | 제2조(…)'처럼 원문 ID를 품는다. ID가 없는 형식이면 문서 ID를 앞에 붙인다.
+    rule: ev ? `판정에 쓴 규정 ${ev.article.includes('|') ? shortArticle(ev.article) : `${ev.doc_id} ${ev.article}`}` : null,
   }
 }
 

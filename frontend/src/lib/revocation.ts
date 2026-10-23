@@ -1,3 +1,4 @@
+import { policyRefs } from './policyRef.ts'
 // api는 화면에서 부를 때만 불러온다(이 파일의 계산 함수를 node 테스트에서 바로 쓰기 위해).
 const api = async <T>(path: string, init?: RequestInit) => (await import('../api.ts')).api<T>(path, init)
 import { MOCK } from './mock.ts'
@@ -30,6 +31,7 @@ export interface RevocationCandidate {
   notified_at: string | null               // 알림 성공 시각. 저장 · 전송 시도만으로는 채우지 않는다
   already_notified?: boolean               // v2: 이번 점검에서 ALREADY_NOTIFIED로 건너뛴 후보
   cost_known?: boolean                     // v2: 비용 미확인이면 false. 0원으로 계산하지 않는다
+  usage_known?: boolean                    // v2: 서버가 마지막 사용일을 주지 않으면 false. '기록 없음'(미사용)과 구분한다
 }
 export interface ScanRun {
   id: string; task_type: 'RECLAIM_SCAN'; trigger: 'SCHEDULE' | 'MANUAL' | 'UNKNOWN'
@@ -152,9 +154,10 @@ export function fromOverview(o: {
       const cost = t.cost_impact?.status === 'ESTIMATED' && t.cost_impact.currency === 'USD' ? money(t.cost_impact.monthly_amount) : null
       const already = t.skip_reason_code === 'ALREADY_NOTIFIED'
       return {
-        id: t.target_id ?? t.assignment_id, user_id: '', user_name: '대상자', platform: label(t.platform), resource: '',
-        tf_id: null, last_used_at: null, monthly_cost: cost ?? 0, cost_known: cost !== null,
-        reason: t.explanation, policy_ref: (t.policy_evidence ?? []).map((e: any) => `${e.doc_id} ${e.article}`).join(' · '),
+        // 개요 응답에 이름 · 자원 · 마지막 사용일이 아직 없다. 들어오면 그대로 쓰고, 없으면 빈 값으로 두어 화면이 '정보 없음'으로 표시한다.
+        id: t.target_id ?? t.assignment_id, user_id: '', user_name: t.employee_name ?? t.user_name ?? '', platform: label(t.platform), resource: t.resource_name ?? '',
+        tf_id: null, last_used_at: t.last_used_at ?? null, usage_known: 'last_used_at' in t, monthly_cost: cost ?? 0, cost_known: cost !== null,
+        reason: t.explanation, policy_ref: policyRefs(t.policy_evidence ?? []),
         candidate_status: t.candidate_status ?? 'PENDING_REVIEW', candidate_reason_code: t.candidate_reason_code ?? '',
         exclusion_reason_code: t.exclusion_reason_code ?? null,
         notified_at: t.notified_at ?? null,
@@ -197,8 +200,7 @@ export async function runNow(): Promise<{ report: RevocationReport; mock: boolea
     const [{ phase2 }, { currentUser }] = await Promise.all([import('../phase2/api.ts'), import('../session.ts')])
     const owner = currentUser.value?.id
     const scopes = await phase2.scopes()
-    // 자동 점검이 꺼진 범위도 수동 점검은 된다(#29 화면과 같은 기준: 허용된 범위 중 첫 번째).
-    const scope = scopes.find(s => s.enabled) ?? scopes[0]
+    const scope = pickScope(scopes)
     if (!owner || !scope) throw new Error('점검할 담당 범위가 없어요.')
     await phase2.start(owner, scope.id)
     for (let i = 0; i < 30; i++) {
@@ -210,6 +212,15 @@ export async function runNow(): Promise<{ report: RevocationReport; mock: boolea
   }
   await api<{ run_id: string }>('/revocation-checks', { method: 'POST' })
   return latestReport()
+}
+
+/**
+ * 수동 점검할 범위 고르기. 켜진 범위 → 기본 유료 좌석 범위(scope_key …:paid-seats) → 첫 범위 순서.
+ * 시드에는 평가용 범위(R-02 · X-11 · MISSING_USAGE 등)가 함께 있고 목록이 scope_key 순이라,
+ * '첫 범위'만 고르면 대문자 키인 평가용 범위가 먼저 잡혀 R-01(기본 점검) 대신 다른 시나리오가 돌았다.
+ */
+export function pickScope<T extends { scope_key: string; enabled: boolean }>(scopes: T[]): T | undefined {
+  return scopes.find(s => s.enabled) ?? scopes.find(s => s.scope_key.endsWith(':paid-seats')) ?? scopes[0]
 }
 
 export function daysSince(iso: string | null): number | null {
