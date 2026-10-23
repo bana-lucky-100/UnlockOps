@@ -244,8 +244,10 @@ const help = {
               <td class="num"><template v-if="c.cost_known !== false"><b class="rv-num">{{ usd(c.monthly_cost) }}</b><span class="rv-meta">/ 월</span></template><span v-else class="rv-meta">비용 미확인</span></td>
               <td class="rv-why">
                 <p>{{ c.reason }}</p>
-                <span v-if="CANDIDATE_REASON_TEXT[c.candidate_reason_code]" class="rv-ref">{{ CANDIDATE_REASON_TEXT[c.candidate_reason_code] }}</span>
-                <span class="rv-ref">{{ c.policy_ref }}</span>
+                <div class="rv-refs">
+                  <span v-if="CANDIDATE_REASON_TEXT[c.candidate_reason_code]" class="rv-ref">{{ CANDIDATE_REASON_TEXT[c.candidate_reason_code] }}</span>
+                  <span v-if="c.policy_ref" class="rv-ref law">{{ c.policy_ref }}</span>
+                </div>
               </td>
               <td>
                 <span v-if="c.candidate_status === 'RECLAIMED'" class="rv-badge done">회수 완료<template v-if="c.reclaimed_at"> · {{ when(c.reclaimed_at) }}</template></span>
@@ -364,7 +366,9 @@ const help = {
 .rv-idle.l1 { color: var(--uo-ink-2); } .rv-idle.l2 { color: var(--uo-review); } .rv-idle.l3 { color: var(--uo-bad); }
 .rv-why { max-width: 420px; }
 .rv-why p { margin: 0; line-height: 1.5; color: var(--uo-ink-2); }
-.rv-ref { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 600; color: var(--uo-primary-ink); background: var(--uo-primary-soft); border-radius: 6px; padding: 2px 8px; }
+.rv-refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rv-ref { display: inline-block; font-size: 11px; font-weight: 600; color: var(--uo-primary-ink); background: var(--uo-primary-soft); border-radius: 6px; padding: 3px 8px; }
+.rv-ref.law { color: var(--uo-ink-2); background: #fff; border: 1px solid var(--uo-line); }
 .rv-badge { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .rv-badge.new { background: var(--uo-primary-soft); color: var(--uo-primary-ink); }
 .rv-badge.sent { background: #F0F2F8; color: var(--uo-muted); }
