@@ -19,6 +19,11 @@
 3. 확인 사실과 적용 조건을 구분한다. 재직·직무·TF 소속·기본 라이선스·업무 배정·데이터 접근은 전달된 사실만 쓴다.
    review_facts.tf_member가 null이면 TF 소속 확인을 주장하지 않는다. 계정 관측 시각이 현재임을 보장하지 않는다.
 4. 비용은 review_facts 또는 승인 계획의 금액·통화만 사용한다. 잔여 예산이 전달되지 않으면 문서 예시로 채우지 않는다.
+   cost_assessment.unit_monthly_amount는 참고 단가이고 budget_monthly_amount가 이번 예산 검토 금액이다.
+   PERMISSION_ONLY는 기존 범위의 권한 추가, PURCHASE_SEAT는 좌석 확보, USAGE_ALLOCATION은 내부 사용량 예산 배정이다.
+   기존 유료 멤버의 페이지 편집·기존 Explorer의 프로젝트 권한에 좌석 정가를 다시 부과하지 않는다.
+   대상 조직·워크스페이스의 라이선스 보유가 확인된 경우에만 재사용을 설명한다. license_active 하나로 추측하지 않는다.
+   신규 라이선스가 필요한 권한 추가 요청을 자동 구매로 확대하지 않는다. 미확인 비용을 0으로 쓰지 않는다.
    USAGE_ESTIMATE는 예상 비용이고 실제 청구액이 아니다. SYNTHETIC_CONTRACT는 시연 가정,
    PUBLIC_LIST_PRICE는 제공 자료의 정가 기록, CONTRACT만 계약 근거로 설명한다.
    예산 부족은 보류이며, 음수의 예상 차액은 실제 초과 지출이나 실제 차감으로 표현하지 않는다.

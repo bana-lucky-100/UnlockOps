@@ -1,12 +1,12 @@
 # Phase 2 mock 데이터
 
-현재 Compose 시연 시작은 baseline과 누락된 정책 revision 2·3을 한 트랜잭션으로 준비한다. 아래 파일 경로와 baseline은 비교·이력 보존용이며 별도 실행기를 뜻하지 않는다. 수동 SQL 적용도 계속 지원한다.
+현재 Compose 시연 시작은 baseline과 누락된 정책 revision 2·3·4을 한 트랜잭션으로 준비한다. 아래 파일 경로와 baseline은 비교·이력 보존용이며 별도 실행기를 뜻하지 않는다. 수동 SQL 적용도 계속 지원한다.
 
 **실제 가격/회사 정책이 아닌 baseline-v1 합성 데이터**다. 고정 기준 시각은 2026-10-22 09:00 Asia/Seoul.
 기존 활성 `data/policy_corpus.md`, 권한표, 기존 사용자·권한·예산을 변경하지 않는다.
 실제 참조 문서는 전체 베이스라인을 구현한 뒤 교체한다. 이후 교체도 새 revision으로 저장한다.
 
-현재 v4 적용 절차는 [policies/README.md](policies/README.md)에 있습니다. 아래 seed는 revision 1 기준선이며, 수신 RAG revision 2와 v4 정합화 revision 3을 순서대로 추가합니다.
+현재 v4 적용 절차는 [policies/README.md](policies/README.md)에 있습니다. 아래 seed는 revision 1 기준선이며, 수신 RAG revision 2와 v4 정합화 revision 3, 비용 정합화 revision 4를 순서대로 추가합니다.
 
 ## 파일
 
@@ -72,7 +72,7 @@ python3 scripts/evaluate_phase2.py --run --suite full
 
 기본은 데이터 준비만 수행한다. `--run`은 별도 Docker 프로젝트/DB/큐/체크포인트를 만들고 종료 시 해당 프로젝트만 정리한다.
 평가마다, 그리고 시나리오마다 회사·사용자·자원을 복사하며 고정 기준일을 실행일로 이동한다.
-기존 시연 DB에 overrides를 덮어쓰지 않는다. full은 원본 20건과 플랫폼별 담당자·미조회·4단계 승인·퇴사자·비용 UNKNOWN 5건, 총 25건이다.
+기존 시연 DB에 overrides를 덮어쓰지 않는다. full은 핵심 20건 + 추가 9건 + 비용 경계 4건, 총 33건이며 smoke는 9건이다.
 결과는 `test-results/phase2/<run_id>/report.json`에 남긴다. Docker/설치 실패는 BLOCKED, 미실행 사례는 NOT_RUN이며 성공으로 집계하지 않는다.
 화면 클릭·모바일·세션 만료는 별도 수동 확인 대상으로 남으며 자동 API 평가와 구분한다. 세부 시연 순서는 루트 `IMPLEMENTATION.md`를 참고한다.
 
@@ -80,9 +80,9 @@ python3 scripts/evaluate_phase2.py --run --suite full
 
 ## v4 시나리오 실행 기준
 
-기존 `catalog.json`·`seed.sql`은 baseline-v1 이력으로 보존한다. 현재 평가 기준은 `scenarios-v4.json`이며, seed 이후 `policies/apply.sql`(revision 2), `policies/apply-v4.sql`(revision 3)을 적용한다. Figma 16달러와 최신 근거·Run as 사실은 revision 3 적용 기준이다. 실행 절차는 [정책 적용 안내](policies/README.md#최종-시나리오-v4-적용-앞선-revision-2-설명-이후)를 따른다.
+기존 `catalog.json`·`seed.sql`은 baseline-v1 이력으로 보존한다. 변경 전 v4 비교 기준은 `scenarios-v4.json`이며, seed 이후 `policies/apply.sql`(revision 2), `policies/apply-v4.sql`(revision 3)을 적용한다. Figma 16달러와 최신 근거·Run as 사실은 revision 3 적용 기준이다. 실행 절차는 [정책 적용 안내](policies/README.md#최종-시나리오-v4-적용-앞선-revision-2-설명-이후)를 따른다.
 
-평가 full은 핵심 20건 + 추가 9건이다. X-UNKNOWN→X-08b-USAGE, X-COST→X-08b-COST, X-4STEP→X-03으로 맞췄으며 X-07(입력 마스킹), X-08(후보·추가 확인 없음), X-12(첫 플랫폼만 처리), X-06(담당자 부재)을 추가했다. X-01/X-02는 P-01/P-06, X-04는 정상 승인 후 검증 단계에서 함께 확인한다. X-05는 에이전트 검증 실패 회귀 검사, X-09의 불완전 조회는 회수 그래프 회귀 검사로 확인한다. X-10 외부 알림 실패의 실환경 장애 주입은 통합 실행에서 별도 확인해야 한다. 케이스별 검증 위치는 아래 대응표에 정리했다.
+현재 평가는 `scenarios-current.json`(정책 revision 4)을 사용하며 full은 핵심 20건 + 추가 9건 + 비용 경계 4건이다. X-UNKNOWN→X-08b-USAGE, X-COST→X-08b-COST, X-4STEP→X-03으로 맞췄으며 X-07(입력 마스킹), X-08(후보·추가 확인 없음), X-12(첫 플랫폼만 처리), X-06(담당자 부재)을 추가했다. X-01/X-02는 P-01/P-06, X-04는 정상 승인 후 검증 단계에서 함께 확인한다. X-05는 에이전트 검증 실패 회귀 검사, X-09의 불완전 조회는 회수 그래프 회귀 검사로 확인한다. X-10 외부 알림 실패의 실환경 장애 주입은 통합 실행에서 별도 확인해야 한다. 케이스별 검증 위치는 아래 대응표에 정리했다.
 
 ## 시나리오 X ID ↔ 테스트 이름 대응표
 
@@ -94,3 +94,11 @@ python3 scripts/evaluate_phase2.py --run --suite full
 | X-05 | FAILED / VERIFICATION_FAILED | `agent/tests/test_phase2_workflows.py::test_execution_requires_fresh_verification_and_preserves_mismatch`(verified=False → FAILED, `verification_ok=False`) | 사유 코드 문자열은 v1 그래프 테스트(`agent/tests/test_scenarios.py::test_verification_retry_policy_never_reexecutes_grant`)에서만 확인됨. 평가 실행기에는 검증 단계 실패 주입이 필요해 없음 |
 | X-06 | MANUAL_REVIEW / APPROVER_UNAVAILABLE | 평가 실행기 케이스 `X-06`(`scripts/phase2/fixtures.py` EXTRA) | 격리 회사 복사본에서 A사 담당자(operator)를 `employment_status='LEFT'`로 바꿔 승인자를 지정할 수 없게 함. 분석 단계에서 MANUAL_REVIEW로 끝나 승인·실행·예산 차감이 없어야 함 |
 | X-09 | FAILED / SCAN_FAILED | `agent/tests/test_phase2_workflows.py::test_reclaim_requires_all_unique_rows_and_never_claims_done`(중복 행 → FAILED, `scan_complete=False`) | 서버가 사유 코드를 SCAN_FAILED로 기록하는 부분(`ReclaimResultService`)은 테스트 없음. 시나리오의 불완전 조회 조건은 데이터만으로 재현 불가라 평가 실행기에 없음 |
+
+## 승인 판단 조건과 준비 검증
+
+현재 비용 기준은 `scenarios-current.json`이며 `scripts/align_access_costs.py`가 revision 3 비교 자료에서 생성한다. 기존 baseline과 정책 revision을 덮어쓰지 않는다. V10 migration 후 `policies/apply-costs.sql`이 정책・가격・경로・회수 규칙 revision 4와 비용 규칙・대상 조직의 라이선스 관측을 추가한다. Compose 시연은 누락된 revision 4를 자동 준비한다.
+
+Notion E-02・Tableau P-05는 기존 라이선스로 가능한 권한 추가이며 추가 비용 0이다. 가격표의 20・70달러는 참고 단가로 남긴다. `BUDGET-INSUFFICIENT`는 Copilot 신규 구매 19 > 잔여 10으로 예산 보류를 검증한다. 경계 4건은 부족・일치・충분・기존 좌석 재사용이다. 기존 좌석 재사용은 Copilot 라이선스 관측을 COVERED로 준비하며 가짜 가격 0원을 삽입하지 않는다.
+
+`preconditions`・`decision_rule`・기대 상태를 분리한다. `--run`은 요청 접수 전에 실제 DB의 가격・비용 규칙・조직 범위의 라이선스・예산 조건을 검사한다. 다르면 해당 건은 `PRECONDITION_FAILED`, 전체는 `BLOCKED`로 중단한다. 나머지 요청은 실행하지 않는다. `--plan`은 DB 검증을 하지 않으며 상태는 `NOT_RUN`이다. 세부 조건과 결과 해석은 [승인 판단 조건](../../docs/approval-decision-conditions.md)을 따른다.
