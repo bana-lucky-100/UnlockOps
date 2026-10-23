@@ -4,7 +4,7 @@ from functools import lru_cache
 import hashlib
 import math
 import re
-from unlockops.common.phase2 import PolicyEvidence
+from unlockops.common.workflow_contracts import PolicyEvidence
 from unlockops.common.models import ToolFailure
 from .search import features, cosine
 

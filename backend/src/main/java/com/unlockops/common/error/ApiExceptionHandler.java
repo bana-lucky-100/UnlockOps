@@ -13,6 +13,11 @@ public class ApiExceptionHandler {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ApiExceptionHandler.class);
     public record CodedError(String message, String code, boolean retryable) {}
 
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ApiError> notFound() {
+        return ResponseEntity.status(404).body(new ApiError("요청한 API를 찾을 수 없습니다."));
+    }
+
     @ExceptionHandler(PolicySourceUnavailableException.class)
     public ResponseEntity<CodedError> policySource(PolicySourceUnavailableException e) {
         return ResponseEntity.status(503).body(new CodedError(e.getReason(), "POLICY_SOURCE_UNAVAILABLE", false));

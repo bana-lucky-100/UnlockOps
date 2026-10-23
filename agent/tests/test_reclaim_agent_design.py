@@ -5,11 +5,11 @@ from uuid import uuid4
 import pytest
 
 from unlockops.common.models import ToolFailure
-from unlockops.common.phase2 import ReclaimJob
+from unlockops.common.workflow_contracts import ReclaimJob
 from unlockops.reclaim import graph, reporting, policy as reclaim_policy
 
 # These fixtures are the same frozen policy/contract rows used by the existing v4 flow tests.
-from test_phase2_workflows import CANDIDATE, CATALOG, policy, policy_reply
+from test_workflows import CANDIDATE, CATALOG, policy, policy_reply
 
 
 def candidate(**changes):
@@ -251,8 +251,8 @@ async def test_composition_and_verification_allow_only_explanation_and_generatio
 
 async def test_report_api_replays_without_model_calls_or_changing_server_wire(monkeypatch):
     from langgraph.checkpoint.memory import InMemorySaver
-    from unlockops.common.phase2 import ReclaimEvent
-    from unlockops_worker.phase2 import run_reclaim_report, read_reclaim_report, run_job
+    from unlockops.common.workflow_contracts import ReclaimEvent
+    from unlockops_worker.runtime import run_reclaim_report, read_reclaim_report, run_job
 
     calls = []
     async def narrate(facts, evidence, template):
@@ -348,7 +348,7 @@ async def test_report_callback_cannot_mutate_frozen_nested_facts_or_citations(mo
 
 async def test_reclaim_redelivery_reuses_durable_result_without_another_scan(monkeypatch):
     from langgraph.checkpoint.memory import InMemorySaver
-    from unlockops_worker.phase2 import run_job
+    from unlockops_worker.runtime import run_job
     calls = []
     async def narrative(facts, evidence, template):
         calls.append(facts)
@@ -369,7 +369,7 @@ async def test_worker_owns_mcp_cancel_scope_and_replay_does_not_reopen(monkeypat
     import asyncio
     import anyio
     from langgraph.checkpoint.memory import InMemorySaver
-    from unlockops_worker import phase2 as worker
+    from unlockops_worker import runtime as worker
 
     tools = SnapshotTools([[needs_review()]])
     owner = asyncio.current_task()

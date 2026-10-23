@@ -1,8 +1,8 @@
 """Retrieve and verify the frozen POL-06 article 5 and supporting RAG sources."""
 import re
-from ..common.phase2 import ReclaimJob
-from ..common.phase2_tools import PolicyResult
-from ..common.phase2_runtime import guarded
+from ..common.workflow_contracts import ReclaimJob
+from ..common.tool_contracts import PolicyResult
+from ..common.runtime import guarded
 from ..common.models import ToolFailure
 
 def _policy_sections(content):

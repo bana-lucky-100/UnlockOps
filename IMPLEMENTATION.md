@@ -4,9 +4,11 @@
 이후 작업도 새 정리 파일을 만들지 않고 이 파일의 현재 상태와 작업 이력을 갱신합니다.
 
 - 위치: 바탕화면 `UnlockOps/IMPLEMENTATION.md`
-- 기준일: 2026-10-22
-- 현재 범위: **Phase 2 베이스라인 5단계 — 격리 평가 실행기·전체 시나리오·시연 검증 절차**
+- 기준일: 2026-10-23
+- 현재 범위: **승인·회수 실행 구조 통합 — 프론트·공개 계약·DB 이력 보존**
 - 실제 권한 말소, 외부 SaaS 호출, 실제 가격 적용은 이번 범위가 아닙니다.
+
+최신 통합 구조와 검증 결과는 아래 **승인·회수 실행 구조 통합** 절을 따른다. 초기 단계별 표와 과거 리뷰는 당시 구현 기록이다.
 
 ## 단계별 현황
 
@@ -638,7 +640,7 @@ P1은 우선 수정할 승인 정확성 문제, P2는 후속 수정할 조회·�
 
 - `V8__reclaim_v4_completion.sql`: 회수 CHECK 제약과 기존 MANUAL_REVIEW 실행 이력 변환, SaaS 추가 사실 필드. V1~V7 파일은 수정하지 않았습니다.
 - `scripts/align_phase2_v4.py`: `data/phase2/policies/company-*-policy-v3.md`, `apply-v4.sql`, `data/phase2/scenarios-v4.json` 생성. 가격의 공식/가정 구분은 수신 문서 기준이며 공식 웹 원문을 재검증하지 않았습니다.
-- 새 시연 DB: 백엔드 V8 적용 → `data/phase2/seed.sql` → `data/phase2/policies/apply.sql` → `data/phase2/policies/apply-v4.sql`. 이미 revision 2가 있으면 마지막 SQL만 적용합니다. revision 3 이후 이전 apply.sql을 다시 실행하지 않습니다.
+- 새 시연 DB: 백엔드 V8 적용 → `data/phase2/seed.sql` → `data/phase2/policies/apply.sql` → `data/phase2/policies/apply-v4.sql`. 이미 revision 2가 있으면 마지막 SQL만 적용합니다. revision 3 이후 이전 apply.sql을 다시 실행하지 않습니다. 자동/수동 구분과 확인 쿼리는 [정책 적용 안내](data/phase2/policies/README.md#시연-db-적용-절차와-확인)를 따릅니다.
 - 서버·Worker/MCP·프론트 계약을 함께 배포해야 합니다. 새 요청/재분석/새 점검부터 새 revision을 사용합니다. 과거 계획은 최신 조건 검사에 따라 재검토가 필요할 수 있습니다.
 - 자동 점검은 기본 비활성을 유지합니다. 시연은 DEMO_ENABLED 수동 실행이며, 정기 실행하려면 PHASE2_RECLAIM_SCHEDULE_ENABLED와 대상 reclaim_scopes.enabled를 모두 켭니다. 실제 회수와 외부 Slack/메일 발송은 수행하지 않습니다.
 - 핵심 평가 20건은 `scenarios-v4.json`, 추가 검증 8건은 fixtures입니다. X-08b-USAGE/COST, X-03으로 ID를 맞추고 X-07/X-08/X-12를 추가했습니다. 기존 catalog/seed는 baseline-v1 비교용으로 보존합니다.
@@ -684,3 +686,83 @@ P1은 우선 수정할 승인 정확성 문제, P2는 후속 수정할 조회·�
 - 부분 실패는 `FAILED / SCAN_FAILED`와 검증된 부분 결과를 보존합니다. 모델은 설명만 보완하며, 실패하면 정형 문구를 유지합니다. 판정·금액·근거·대상 식별자가 바뀌면 차단합니다. Agent는 DONE이나 실제 회수를 확정하지 않습니다.
 - 현재 MCP에 없는 이름·마지막 사용일·상세 누락 항목은 추측하지 않습니다. 신뢰할 수 있는 별도 사실 메타데이터가 제공될 때 보고서에 보완할 수 있습니다.
 - 검증: 전체 Python 테스트 **392건 통과·1건 건너뜀**, 공통 계약 생성물 일치 확인 통과. 실제 DB·브로커·LLM·프론트 통합 실행은 수행하지 않았습니다.
+
+## 승인 RAG 문서 점검과 보고서 근거 보강 — 2026-10-23
+
+- 수신 POL 14개·공식 요약 14개, 회사별 정책 묶음 revision 3, 검색·승인 보고서 연결을 대조하고 `docs/rag-approval-review.md`에 역할·지원 차이를 정리했다. 정책·가격·승인 경로의 immutable revision은 보존했다.
+- `approval-review-guide.md`를 추가해 생성·내용 검토 양쪽에 연결했다. 규정·공식 제품 참고·회사 승인 경로·시연 가정의 역할, 승인자별 검토 항목, 정보 부족·최소 권한·비용 표현과 지원 한계를 명시했다. 지침은 회사 규정 검색 원문에 섞지 않고 Python 패키지에 포함한다.
+- 승인 근거에서 회수 조항을 제외하고 GitHub 좌석/저장소 및 TF 적용 범위를 구분한다. article 제목과 실제 원문, 플랫폼, 회사 묶음 해시·버전, 승인 계획의 정책 ID·revision을 대조한다.
+- 내부 assessment 응답에 선택적 `review_facts`를 추가했다. 정상 계획과 예산 부족 시 자원·권한·TF 확인·금액·통화·잔여 예산·단가 출처·조회 시각을 전달한다. 공개 workflow 계약·계획 해시·승인 순서·실행 권한은 바꾸지 않는다. 새 응답 필드를 이해하도록 Backend·Business MCP·Agent를 함께 갱신한다.
+- 보고서는 서버 사실로 예산 영향을 계산하며 누락된 값을 문서 예시로 채우지 않는다. 직원 ID·이름·로그인·이메일·요청 원문·제공자 내부 참조는 모델 facts에서 제외한다. 모델·인용·검토 실패 시 같은 사실로 만든 템플릿을 사용한다.
+- 검증: 전체 Python **378 passed, 1 skipped**. 이후 예산·TF 모순 응답 음성 검사 3건을 추가해 승인 관련 **25건 통과**. 원문 import/v4 생성 결과 검사와 `git diff --check` 통과. Java main/test 컴파일 및 신규 planning 1건·기존 workflow 5건·공통 계약 2건을 로컬 직접 실행기로 실행해 **8건 통과**했다. 기본 Maven test는 캐시의 Surefire 3.5.4 의존성 부족으로 실행되지 않았다. 깨끗한 임시 소스에서 wheel을 빌드하고 지침·검색 모듈 포함을 확인했다.
+- 실제 모델·SaaS·DB·브로커 통합 실행과 서비스 재배포는 하지 않았다. 단계별 최신 보고서 재생성, 문서의 세부 자격 조건과 서버 검사 전체 정합화, 공식 제품 문서·가격의 최신성 재검증은 점검 문서에 남은 범위로 구분했다.
+
+## 승인·회수 실행 구조 통합 — 2026-10-23
+
+### 범위와 결과
+
+사용자 요청에 따라 프론트 소스·공개 API/응답 계약은 유지하고 서버·에이전트·Worker·MCP를 현재 업무 흐름으로 통합했다.
+기존 단일 승인 실행기와 Phase 2 실행기를 함께 유지하던 구조를 제거했다. 승인 분석·승인 후 실행·회수의 업무 구분은 유지한다.
+진행 중이던 승인 RAG 보고서 보강(review_facts, 검토 지침, 근거 선택·인용 검증)도 보존했다.
+
+| 이전 위치·구현 | 현재 위치·처리 |
+|---|---|
+| 구 access/graph.py와 phase2_graph.py 병존 | access/graph.py 하나로 분석·문서 안내 통합 |
+| phase2_execution.py | access/execution.py |
+| phase2_intent/selection/review.py | access/intent.py, selection.py, review.py |
+| common/phase2.py와 구 Job/Plan/Result | common/workflow_contracts.py. Intent·ToolFailure는 공통 models 유지 |
+| phase2_tools/runtime/reporting.py | common/tool_contracts.py, runtime.py, reporting.py |
+| planner의 모델 설정 | common/llm.py를 해석·선택·안내·보고서에서 공유 |
+| backend phase2/access·reclaim | backend access·reclaim 업무 패키지 |
+| Phase2Store/AccessControl/Jobs/Results | common/workflow와 messaging/workflow의 Workflow* |
+| Phase2Types/Codec | contracts/v2의 WorkflowTypes/WorkflowCodec |
+| worker의 v1 interrupt/resume와 phase2.py | runtime.py와 단일 소비·발행 경로 |
+| 구/신 MCP 도구·어댑터 병존 | 현재 business_tools/policy_tools와 WorkflowBackend, 공유 BackendClient |
+
+### 유지한 기능과 제거한 실행 경로
+
+- 규정·공식 제품 요약·진단 힌트로 권한/접근 문의를 안내하는 기능을 현재 분석 그래프에 연결했다. 기존 answering의 인용·원문·내용 검토를 재사용하고 response_context를 현 서버 사실·회사별 정책에 맞췄다. 문서에 없는 SSH/remote·제품 테마 절차는 안내하지 않는다.
+- GUIDE는 승인·권한 변경 없이 DONE/GUIDANCE로 완료한다. 필요한 권한을 이미 가진 TROUBLESHOOT도 안내로 연결한다. 직접 권한 신청의 기존 권한 보유 응답은 간단한 안내를 유지한다. 안내 근거 부족·모델 장애는 수동 검토다.
+- 구 그래프·역할 규칙·권한 제안 구현, 구 서버 접수/단일 승인/부여/내부 API와 관련 DTO·repository, 구 MCP 도구·도구 계약을 제거했다.
+- 공통 MCP 연결·HTTP 인증/오류 처리·검색 유틸·입출력 검증·작업 범위/실행 허가·호출 한도·재시도·checkpoint 결과 재사용·outbox/inbox를 유지했다.
+- Worker는 기존 이름의 v2.analysis/v2.execution만 소비한다. 서버 outbox도 현재 경로만 발행한다. 구 메시지·체크포인트·DB 이력을 삭제하거나 새 계획으로 재해석하지 않는다.
+- 모든 로그인 프로필은 workflow_version=2로 현재 화면을 선택한다. 시연 A/B사 계정과 ID를 유지한다. 구 회사의 권한 데이터를 새 할당 모델로 자동 복사하지 않으며 과거 대기 업무는 최신 조건으로 재접수한다.
+- 공개 /api/v2/problems·/api/reclaim, schema_version=2, frontend/src/contracts/phase2.ts, 계획 hash·승인 버전·정책 revision은 보존했다. 기존 생성기·계약/데이터 fixture 경로도 호환을 위해 유지한다.
+- Compose 시연 데이터 준비를 baseline → 누락된 정책 revision 2 → revision 3으로 통일했다. Spring 트랜잭션 내에서 PostgreSQL에 전체 SQL을 전달해 dollar-quoted DO 블록을 보존한다. 이미 설치된 revision은 덮어쓰지 않는다. 시연 밖에서는 준비하지 않는다.
+- 적용된 Flyway V1~V8·원문·생성 정책 SQL·과거 승인/회수 이력은 수정하지 않았다. 실제 실행 DB·큐·서비스 재배포도 수행하지 않았다.
+
+### 검증과 남은 확인
+
+- Python Agent/MCP/live 선택 검사/평가 준비 **194 passed, 1 skipped**. 안내 생성·지원 범위·인용/내용 검토·모델 실패·도구 범위/한도·실행 식별자·재전달·실제 MCP HTTP 경계를 현재 흐름으로 검사했다.
+- 업무/HTTP 계약·정책 import·v4 생성물 일치 검사 통과. 프론트·migration 파일 변경 없음.
+- Java main 49개/test 10개 소스 독립 컴파일과 JUnit **28건 통과**. 계약·승인/회수·보고서·시연 인증·SQL 블록 보존/재시작·메시지 경계·HTTP 보안 포함. IDE 출력 폴더와 분리한 javac/JUnit 실행으로 확인했다.
+- 기본 Maven test와 캐시된 Surefire 3.5.6 실행은 필요한 플러그인/provider 캐시 부족으로 실행 불가했다. JUnit 직접 실행을 표준 Maven 실행 성공으로 기록하지 않는다.
+- 기존 프론트 npm test는 19건 통과했고 requesterHome 검사는 @vue/compiler-sfc 미설치로 시작 실패했다. 프론트 소스·의존성 파일은 변경하지 않았다.
+- Docker 소켓 접근 거부로 실제 PostgreSQL·RabbitMQ 스택·smoke/full·브라우저 시연은 미실행이다. 실제 SaaS·유료 모델 호출도 하지 않았다.
+- 기존 CR-03/04/05와 세부 정책 정합화는 별도 결함/업무로 유지한다. 구조 이동으로 해결됐다고 간주하지 않는다.
+
+현재 구조는 docs/architecture.md, API는 docs/api-spec.md·contracts/phase2/http.json, 실행 검증은 docs/verification.md를 따른다.
+
+## 기존 계정·과거 요청 연결 — 2026-10-23
+
+통합 리뷰의 첫 번째 결함을 수정했다. 화면만 현재 흐름으로 바뀌고 기존 조직의 정책·권한·보유 내역이 비어 있던 문제와 과거 요청 조회 누락이 대상이다.
+
+- Flyway V9를 추가했다. 기존 LEGACY mock 조직의 원래 네 플랫폼(GitHub/Jira/Slack/Notion)에 정책 원문·권한/가격 revision·현재 순차 승인 경로·담당자 매핑·계정 사실을 준비한다. A/B사 데이터·적용된 V1~V8은 수정하지 않는다.
+- 계정·자원 ID, 비밀번호, 잔여 예산, 원래 permissions·팀 멤버십·과거 요청/영수증을 보존한다. 현재 보유 권한은 access_assignments와 현재 mock 제공자 상태로 이관한다. 이관 시 예산을 재차 차감하지 않으며 사용량은 UNKNOWN이다. GitHub 팀 연결과 Jira Browse 조건을 원래 조회 기준대로 확인한다.
+- 기존 직무·직급 상한은 immutable mapping의 allowed_job_families/allowed_job_grades/grantable로 유지한다. NON_DEV를 OPS 등으로 임의 변환하지 않고, 이관 매핑이 명시한 네 플랫폼에서 기존 job_family로 판정한다. 다른 회사의 UNKNOWN 처리 기준은 유지한다.
+- 부서장과 문서에 명시된 기존 SaaS 담당자(song_ops)를 연결한다. 본인 승인·중복 승인자·담당자 미지정은 수동 검토한다. 기존 좌석 단가·통화가 부서별로 상충하면 단가를 추측하지 않고 가격 확인이 필요하다.
+- 현재 목록·상세 API에서 허용된 과거 요청을 읽는다. 과거 지정 승인자/기록된 결정자도 같은 회사의 해당 기록만 읽는다. 과거 plan과 evidence는 historical_record와 감사 이력으로 보존하며 현재 실행 계약으로 해석하지 않는다.
+- 과거 대기 건은 재분석 필요로 표시한다. 재개 시 같은 ID의 원본을 감사 이력에 저장하고, 이전 승인·해시·실행 키를 제거한 뒤 contract_version=2의 새 ANALYZE를 발행한다. 완료·반려·실패 기록은 재실행하지 않는다. Worker와 내부 실행 API는 계속 현재 계약만 처리한다.
+- 프론트 소스·생성 계약·기존 migration은 변경하지 않았다. 기존 Notion 보기 요청은 이관된 VIEWER 코드로 해석하도록 alias를 연결했다. 리뷰의 안내 생성·스케줄 설정 문제는 이번 수정 범위에 포함하지 않는다.
+
+검증: Python **199 passed, 1 skipped**, Java 소스 독립 컴파일 및 JUnit **36 passed**, 계약/정책/v4 생성물 검사와 diff 공백 검사 통과. Flyway PostgreSQL 파서가 V9 전체를 13개 문장으로 정상 분리했다. 이는 PostgreSQL 실행 검증을 뜻하지 않는다.
+
+실제 DB 업그레이드·이력·신규 순차 승인·중복 좌석·동일 실행 재전달 시 예산 1회 차감을 검사하는 ExistingAccountsMigrationIT를 추가했다. Docker 소켓 접근 거부와 로컬 PostgreSQL shared memory 생성 권한 제한으로 실제 DB 통합 실행은 미검증이다. 배포 DB에는 적용하지 않았다. 실행 가능 환경에서는 `cd backend && mvn verify -Pregression -Dit.test=ExistingAccountsMigrationIT`로 확인한다.
+
+## 회수 Agent 변경과 실행 구조 통합 병합 — 2026-10-23
+
+- main의 `workflow_contracts`, `tool_contracts`, `runtime`, `reporting`, `WorkflowTools`와 `max_reclaim_candidates`/`max_result_bytes` 이름으로 회수 모듈·Worker·테스트를 연결했다. 삭제된 phase2 실행기를 복원하지 않았다.
+- 회수의 `context → policy_review → candidate_review → report_writer → finish` 역할 구조, POL-06 제5조 필수 조회·원문 검증, `candidates`/`needs_review` 별도 보고서, 부분 실패 시 검증된 결과 보존을 유지했다. 서버 큐의 `result/targets`와 최종 DONE·알림 결정 경계도 그대로다.
+- Worker를 `unlockops_worker/runtime.py`로 통합하면서 MCP cancel scope를 부모 Worker 작업에서 열고 닫는 수정과, 완료 체크포인트 재전달 시 MCP를 다시 열지 않는 동작을 보존했다. 문서는 main의 최신 설명에 회수 역할·응답 계약을 합쳤고 양쪽 구현 이력을 유지했다.
+- 병합 후 검증: 회수·공통 워크플로 **37 passed**, 전체 Python 및 평가 준비 **224 passed, 1 skipped**. main에서 이전 실행기·테스트가 제거돼 병합 전 393건과 전체 검사 수가 다르며, 회수 설계 테스트는 모두 유지했다. 공통 계약·HTTP 계약·정책 import·v4 생성물 검사와 diff 공백 검사 통과.
+- 이번 병합에서 Docker 서비스를 다시 빌드하거나 실제 LLM을 호출하지 않았다. 현재 실행 중인 컨테이너는 병합 전 빌드이므로 병합 후 실행 검증 결과로 간주하지 않는다. 병합 커밋·원격 푸시는 수행하지 않았다.

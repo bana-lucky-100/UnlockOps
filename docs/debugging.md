@@ -62,7 +62,7 @@ MCP 두 서버가 준비되면 `UnlockOps: Agent worker`를 F5로 시작합니�
 - 실제 모의 권한 변경: `backend/src/main/java/com/unlockops/grant/service/GrantExecutionService.java`
 - 메시지 소비·승인 재개: `worker/unlockops_worker/__main__.py`
 
-승인 대기는 오류가 아니라 LangGraph interrupt입니다. 승인 후 같은 요청 ID의 체크포인트를 재개합니다.
+승인 대기는 서버의 단계별 승인 상태입니다. 최종 승인 후 별도 EXECUTE 작업을 발행하고, Worker는 작업 event_id별 체크포인트를 재사용합니다.
 CHECKPOINT_PATH를 바꾸거나 파일을 지우면 기존 승인 대기 작업을 재개할 수 없습니다.
 
 ## DB 없이 에이전트부터 디버깅

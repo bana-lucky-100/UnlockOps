@@ -1,8 +1,8 @@
 """Validate all candidate pages and read notification history; never reclaim seats."""
 import json
-from ..common.phase2 import ReclaimJob, CandidatePage
-from ..common.phase2_tools import ReclaimContext, NotificationHistory
-from ..common.phase2_runtime import guarded
+from ..common.workflow_contracts import ReclaimJob, CandidatePage
+from ..common.tool_contracts import ReclaimContext, NotificationHistory
+from ..common.runtime import guarded
 from ..common.models import ToolFailure
 from ..common.settings import settings
 from .policy import _policy_sections
@@ -33,7 +33,7 @@ async def scan_all_pages(state, *, tools):
                         raise ToolFailure("POLICY_SOURCE_UNAVAILABLE", "Candidate policy differs from snapshot")
                 ids.add(item.assignment_id)
                 items.append(item.model_dump(mode="json"))
-            if len(items) > context.expected_count or len(items) > settings.phase2_max_candidates:
+            if len(items) > context.expected_count or len(items) > settings.max_reclaim_candidates:
                 raise ToolFailure("SCAN_LIMIT", "Candidate count exceeds the declared bound")
             if page.next_cursor is None:
                 break
@@ -43,7 +43,7 @@ async def scan_all_pages(state, *, tools):
             cursor = page.next_cursor
         if len(items) != context.expected_count:
             raise ToolFailure("INCOMPLETE_SCAN", "Missing snapshot rows")
-        if len(json.dumps(items, ensure_ascii=False).encode()) > settings.phase2_max_result_bytes - 10_000:
+        if len(json.dumps(items, ensure_ascii=False).encode()) > settings.max_result_bytes - 10_000:
             raise ToolFailure("SCAN_LIMIT", "Result exceeds the reclaim message limit")
     except (ToolFailure, ValueError, KeyError, TypeError) as error:
         code = error.code if isinstance(error, ToolFailure) else "INVALID_TOOL_OUTPUT"

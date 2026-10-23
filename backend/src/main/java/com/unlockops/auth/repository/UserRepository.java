@@ -20,24 +20,24 @@ public class UserRepository {
             .stream().findFirst();
     }
 
-    public static boolean isPhase2DemoLogin(String login) {
+    public static boolean isDemoLogin(String login) {
         return login != null && login.matches("p2_[ab]_(requester|team_lead|head|operator|it_head|figma_operator)");
     }
 
-    public List<AppUser> phase2DemoAccounts() {
+    public List<AppUser> demoAccounts() {
         return jdbc.query("""
             SELECT u.id,u.login_id,u.password_hash,u.role FROM users u JOIN companies c ON c.id=u.company_id
             WHERE c.is_mock=TRUE AND c.code IN ('P2_A','P2_B') AND u.employment_status='ACTIVE'
               AND c.code='P2_' || upper(substring(u.login_id from 4 for 1))
             """, (rs,n) -> new AppUser(rs.getObject("id",UUID.class),rs.getString("login_id"),
                 rs.getString("password_hash"),UserRole.valueOf(rs.getString("role"))))
-            .stream().filter(user -> isPhase2DemoLogin(user.loginId())).toList();
+            .stream().filter(user -> isDemoLogin(user.loginId())).toList();
     }
 
     public UserProfileResponse profile(UUID id) {
         return jdbc.queryForObject("""
             SELECT u.id,u.login_id,u.employee_no,u.name,u.role,u.job_grade,u.job_family,d.name department,
-              CASE WHEN c.code='LEGACY' THEN 1 ELSE 2 END workflow_version,
+              2 AS workflow_version,
               (u.role='APPROVER' AND u.employment_status='ACTIVE' AND EXISTS(SELECT 1 FROM operator_assignments o
                 WHERE o.user_id=u.id AND o.company_id=u.company_id AND o.capability IN ('RECLAIM_REVIEWER','IT_HEAD'))) can_reclaim
             FROM users u JOIN departments d ON d.id=u.department_id JOIN companies c ON c.id=u.company_id WHERE u.id=?
@@ -45,20 +45,6 @@ public class UserRepository {
                 rs.getString("employee_no"), rs.getString("name"), UserRole.valueOf(rs.getString("role")),
                 JobGrade.from(rs.getString("job_grade")), JobFamily.valueOf(rs.getString("job_family")),
                 rs.getString("department"), rs.getInt("workflow_version"), rs.getBoolean("can_reclaim")), id);
-    }
-
-    public EmployeeProfile employee(UUID id) {
-        return jdbc.queryForObject("""
-            SELECT u.id,u.role,u.department_id,u.job_grade,u.job_family,d.head_id
-            FROM users u JOIN departments d ON d.id=u.department_id WHERE u.id=?
-            """, (rs, n) -> new EmployeeProfile(rs.getObject("id", UUID.class),
-                UserRole.valueOf(rs.getString("role")), rs.getObject("department_id", UUID.class),
-                JobGrade.from(rs.getString("job_grade")), JobFamily.valueOf(rs.getString("job_family")),
-                rs.getObject("head_id", UUID.class)), id);
-    }
-
-    public UUID operationsUserId() {
-        return jdbc.queryForObject("SELECT id FROM users WHERE login_id='song_ops'", UUID.class);
     }
 
     public List<UUID> findWithoutPassword() {

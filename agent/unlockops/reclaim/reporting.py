@@ -3,9 +3,9 @@ import json
 from collections.abc import Mapping
 from copy import deepcopy
 
-from ..common.phase2 import ReclaimCandidate, ReclaimEvent
-from ..common.phase2_runtime import guarded, failure_event
-from ..common.phase2_reporting import report
+from ..common.workflow_contracts import ReclaimCandidate, ReclaimEvent
+from ..common.runtime import guarded, failure_event
+from ..common.reporting import report
 from ..common.models import ToolFailure
 from ..common.settings import settings
 

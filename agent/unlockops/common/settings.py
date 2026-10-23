@@ -34,11 +34,10 @@ class Settings:
     rabbit_url: str = os.getenv("RABBIT_URL") or os.getenv("RABBITMQ_URL", "")
     tool_timeout: float = 15
     max_tools: int = 30
-    max_optional_tools: int = 10
     max_model_steps: int = 4
     max_execution_attempts: int = 3  # 최초 1회 + 재시도 2회
-    phase2_max_candidates: int = 500
-    phase2_max_result_bytes: int = 2_000_000
+    max_reclaim_candidates: int = 500
+    max_result_bytes: int = 2_000_000
     max_verification_attempts: int = 3
 
 

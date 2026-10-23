@@ -1,7 +1,7 @@
 """Load the immutable reclaim scope and reject stale jobs before scanning."""
-from ..common.phase2 import ReclaimJob
-from ..common.phase2_tools import ReclaimContext
-from ..common.phase2_runtime import guarded
+from ..common.workflow_contracts import ReclaimJob
+from ..common.tool_contracts import ReclaimContext
+from ..common.runtime import guarded
 from ..common.models import ToolFailure
 from ..common.settings import settings
 
@@ -13,7 +13,7 @@ async def load_context(state, *, tools):
         raise ToolFailure("RUN_SCOPE", "Unexpected run")
     if context.job_event_id != job.event_id:
         return {"skip": True}
-    if context.expected_count > settings.phase2_max_candidates:
+    if context.expected_count > settings.max_reclaim_candidates:
         return {"context": context.model_dump(mode="json"), "scan_complete": False,
                 "error": {"code": "SCAN_LIMIT"}}
     return {"context": context.model_dump(mode="json")}

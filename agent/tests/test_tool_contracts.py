@@ -10,8 +10,11 @@ from unlockops.common.models import ToolFailure
 from unlockops.common.tools import MCPTools
 
 
-IDS = {"employee_id": "10000000-0000-0000-0000-000000000001",
-       "resource_id": "20000000-0000-0000-0000-000000000001", "requested_role": "Write"}
+IDS = {"problem_id": "10000000-0000-0000-0000-000000000001",
+       "job_event_id": "20000000-0000-0000-0000-000000000001",
+       "plan_hash": "a" * 64, "idempotency_key": "approved-key"}
+VALID = {"schema_version": 2, "problem_id": IDS["problem_id"], "receipt_exists": True,
+         "verification_ok": False, "source": "mock_entitlement_memberships"}
 
 
 class Session:
@@ -31,19 +34,19 @@ def client(result):
     """검증 도구를 모의 세션에 연결한 MCP 클라이언트를 만든다."""
     tools = MCPTools()
     session = Session(result)
-    tools.sessions["verify_permission"] = session
+    tools.sessions["verify_access_plan"] = session
     return tools, session
 
 
 @pytest.mark.parametrize("structured", [True, False])
 async def test_valid_verification_preserves_false_and_json_text_fallback(structured):
     """검증의 false 값을 유지하고 구조화 응답이 없으면 JSON 텍스트를 읽는다."""
-    data = {"verified": False}
+    data = VALID
     tools, _ = client(CallToolResult(
         content=[TextContent(type="text", text=json.dumps(data))],
         structuredContent=data if structured else None,
     ))
-    assert await tools.call("verify_permission", IDS) == data
+    assert await tools.call("verify_access_plan", IDS) == data
 
 
 @pytest.mark.parametrize("data", [
@@ -55,7 +58,7 @@ async def test_invalid_verification_is_not_success_or_retryable(data):
     response = CallToolResult(content=[TextContent(type="text", text=json.dumps(data))])
     tools, _ = client(response)
     with pytest.raises(ToolFailure) as caught:
-        await tools.call("verify_permission", IDS)
+        await tools.call("verify_access_plan", IDS)
     assert caught.value.code == "INVALID_TOOL_OUTPUT"
     assert caught.value.retryable is False
 
@@ -63,26 +66,26 @@ async def test_invalid_verification_is_not_success_or_retryable(data):
 @pytest.mark.parametrize("data,is_error,code,retryable", [
     ({"ok": False, "error": {"code": "UPSTREAM_UNAVAILABLE", "message": "Try later", "retryable": True}}, True, "UPSTREAM_UNAVAILABLE", True),
     ({"ok": False, "error": {"code": "APPROVAL_REQUIRED", "message": "Approval required", "retryable": False}}, True, "APPROVAL_REQUIRED", False),
-    ({"ok": False, "error_code": "MOCK_JIRA_UNAVAILABLE", "retryable": True}, False, "MOCK_JIRA_UNAVAILABLE", True),
+    ({"ok": False, "error_code": "MOCK_JIRA_UNAVAILABLE", "retryable": True}, False, "INVALID_TOOL_OUTPUT", False),
     ({"ok": False, "error_code": "BROKEN", "retryable": "false"}, False, "INVALID_TOOL_OUTPUT", False),
     ({"verified": True}, True, "INVALID_TOOL_OUTPUT", False),
 ])
-async def test_structured_and_legacy_errors_retain_retryability(data, is_error, code, retryable):
-    """현재·이전 오류 형식의 코드와 재시도 여부를 일관되게 해석한다."""
+async def test_typed_errors_retain_retryability_and_untyped_errors_are_rejected(data, is_error, code, retryable):
+    """현재 오류 형식의 코드·재시도 여부를 보존하고 구 비정형 오류는 거부한다."""
     tools, _ = client(CallToolResult(content=[], structuredContent=data, isError=is_error))
     with pytest.raises(ToolFailure) as caught:
-        await tools.call("verify_permission", IDS)
+        await tools.call("verify_access_plan", IDS)
     assert (caught.value.code, caught.value.retryable) == (code, retryable)
 
 
 @pytest.mark.parametrize("patch", [
-    {"employee_id": "invalid-id"}, {"requested_role": "Admin"}, {"unexpected": True},
+    {"problem_id": "invalid-id"}, {"plan_hash": "invalid"}, {"unexpected": True},
 ])
 async def test_invalid_inputs_do_not_reach_transport(patch):
     """UUID·권한·추가 필드가 잘못된 입력은 세션 호출 전에 차단한다."""
     tools, session = client(CallToolResult(content=[], structuredContent={"verified": True}))
     with pytest.raises(ToolFailure) as caught:
-        await tools.call("verify_permission", {**IDS, **patch})
+        await tools.call("verify_access_plan", {**IDS, **patch})
     assert caught.value.code == "INVALID_TOOL_INPUT"
     assert session.calls == []
 
@@ -98,7 +101,7 @@ async def test_transport_protocol_and_contract_failures_are_distinct(error, code
     """통신·프로토콜·응답 오류를 구분하고 내부 예외 내용을 노출하지 않는다."""
     tools, _ = client(error)
     with pytest.raises(ToolFailure) as caught:
-        await tools.call("verify_permission", IDS)
+        await tools.call("verify_access_plan", IDS)
     assert (caught.value.code, caught.value.retryable) == (code, retryable)
     assert "private" not in str(caught.value)
 
@@ -109,6 +112,6 @@ async def test_http_authentication_errors_are_not_retried(status, retryable):
     response = httpx.Response(status, request=httpx.Request("POST", "http://mcp.test"))
     tools, _ = client(httpx.HTTPStatusError("private response body", request=response.request, response=response))
     with pytest.raises(ToolFailure) as caught:
-        await tools.call("verify_permission", IDS)
+        await tools.call("verify_access_plan", IDS)
     assert caught.value.retryable == retryable
     assert "private" not in str(caught.value)

@@ -39,7 +39,7 @@ class CompletionMigrationIT {
                 assertTrue(rows.next()); assertEquals("MANUAL_REVIEW", rows.getString(1)); assertNull(rows.getString(2));
                 assertTrue(rows.next()); assertEquals("DONE", rows.getString(1)); assertEquals("ACCESS_VERIFIED", rows.getString(2));
             }
-            try (var audit = sql.executeQuery("SELECT payload->'result'->>'status' FROM problem_events")) {
+            try (var audit = sql.executeQuery("SELECT payload->'result'->>'status' FROM problem_events WHERE kind='ANALYZED'")) {
                 assertTrue(audit.next()); assertEquals("MANUAL_REVIEW", audit.getString(1));
             }
             assertThrows(java.sql.SQLException.class, () -> sql.executeUpdate(

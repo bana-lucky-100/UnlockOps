@@ -31,9 +31,9 @@ public class AuthService {
 
     public Authentication authenticateDemo(String loginId) {
         if (!demoEnabled) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"시연 로그인을 사용할 수 없습니다.");
-        if (!UserRepository.isPhase2DemoLogin(loginId))
+        if (!UserRepository.isDemoLogin(loginId))
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,"시연용 계정만 선택할 수 있습니다.");
-        if (users.phase2DemoAccounts().stream().noneMatch(user -> user.loginId().equals(loginId)))
+        if (users.demoAccounts().stream().noneMatch(user -> user.loginId().equals(loginId)))
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"시연 계정이 준비되지 않았습니다. 시연 데이터 설정 후 백엔드를 다시 시작해 주세요.");
         return authenticate(new Login(loginId,demoPassword));
     }

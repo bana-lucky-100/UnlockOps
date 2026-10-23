@@ -2,8 +2,8 @@
 import json
 from functools import partial
 from langgraph.graph import StateGraph, START, END
-from ..common.phase2 import ReclaimJob, ReclaimEvent, ReclaimRunView
-from ..common.phase2_runtime import Phase2Tools, event_id
+from ..common.workflow_contracts import ReclaimJob, ReclaimEvent, ReclaimRunView
+from ..common.runtime import WorkflowTools, event_id
 from ..common.settings import settings
 from .state import ReclaimState
 from .context import load_context
@@ -17,7 +17,7 @@ def finish(state):
         return {"result_event": {}}
     job = ReclaimJob.model_validate(state["job"])
     if state.get("error"):
-        event = build_failure_event(job, state, state["error"]["code"], max_bytes=settings.phase2_max_result_bytes)
+        event = build_failure_event(job, state, state["error"]["code"], max_bytes=settings.max_result_bytes)
         return {"result_event": event, "report_payload": report_from_event(event)}
     context = state["context"]
     needs_review = sum(c["review_required"] for c in state["targets"])
@@ -27,13 +27,13 @@ def finish(state):
         snapshot_id=context["snapshot_id"], as_of=context["as_of"], scan_complete=True, needs_review_count=needs_review)
     event = ReclaimEvent(schema_version=2, event_id=event_id(job), job_event_id=job.event_id,
         run_id=job.run_id, event_type="RECLAIM_CHECKED", result=result, targets=state["targets"]).model_dump(mode="json")
-    if len(json.dumps(event, ensure_ascii=False).encode()) > settings.phase2_max_result_bytes:
-        event = build_failure_event(job, state, "SCAN_LIMIT", max_bytes=settings.phase2_max_result_bytes)
+    if len(json.dumps(event, ensure_ascii=False).encode()) > settings.max_result_bytes:
+        event = build_failure_event(job, state, "SCAN_LIMIT", max_bytes=settings.max_result_bytes)
     return {"result_event": event, "report_payload": report_from_event(event)}
 
 
 def build_graph(tools, job, checkpointer=None):
-    scoped = Phase2Tools(tools, job)
+    scoped = WorkflowTools(tools, job)
     graph = StateGraph(ReclaimState)
 
     def role(nodes):

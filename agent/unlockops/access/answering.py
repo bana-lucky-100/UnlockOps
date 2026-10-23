@@ -6,7 +6,7 @@ import re
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..common.models import ToolFailure
-from .planner import model
+from ..common.llm import model
 from .response_context import build_response_context, select_sources
 from ..common.settings import settings
 
@@ -72,6 +72,12 @@ async def generate_answer(state):
     context = state.get("response_context") or build_response_context(state)
     sources = context["sources"]
     if not sources:
+        return None, "ANSWER_SOURCE_UNAVAILABLE"
+    question = context["question"].casefold()
+    if not any(term in question for term in (
+        "권한", "접근", "공유", "역할", "초대", "멤버", "라이선스", "좌석", "프로젝트", "채널", "페이지",
+        "신청", "승인", "규정", "정책", "예산", "read", "write", "push", "usage", "permission", "access",
+    )):
         return None, "ANSWER_SOURCE_UNAVAILABLE"
     if settings.mode == "demo":
         if context["decision"].get("handling") in {"APPROVAL", "REJECT", "MANUAL_REVIEW"}:
