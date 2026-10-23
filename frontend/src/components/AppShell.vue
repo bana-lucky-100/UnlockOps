@@ -58,7 +58,7 @@ async function signOut() {
         <!-- 자물쇠는 화면 전체가 아니라 본문 폭(최대 1180px) 안에서 오른쪽에 붙인다. 넓은 화면에서 로그아웃 버튼 바깥으로 나가지 않게. -->
         <img v-if="props.showLock" class="sh-lock" :src="lockImg" alt="" aria-hidden="true">
         <header class="sh-head">
-          <div class="sh-brand">UnlockOps <span>SaaS 권한 승인 · 회수 Agent</span></div>
+          <div class="sh-brand">Unlock<em class="sh-ops">Ops</em> <span>SaaS 권한 승인 · 회수 Agent</span></div>
           <div class="sh-me">
             <button type="button" class="sh-pill" @click="openHelp">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 0 1 4.9.7c0 1.7-2.4 2.1-2.4 3.6M12 17h.01" /></svg>도움말
@@ -110,6 +110,7 @@ async function signOut() {
 .sh-inner { position: relative; max-width: 1180px; margin: 0 auto; padding: 44px 48px 64px; box-sizing: border-box; }
 .sh-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .sh-brand { font-family: var(--uo-font-en); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; }
+.sh-ops { font-style: normal; color: #5B4BE0; }
 .sh-brand span { font-family: var(--uo-font); font-weight: 500; font-size: 14px; color: var(--uo-muted); letter-spacing: 0; }
 .sh-me { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--uo-muted); flex-wrap: wrap; }
 .sh-pill { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 12px; border: 1px solid #D5D9EA; border-radius: 999px; background: #fff; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
