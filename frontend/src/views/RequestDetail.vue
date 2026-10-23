@@ -141,7 +141,8 @@ const costLine = computed(() => {
 })
 // 승인자 화면 맨 위 한 장 요약(결론 → 숫자 → 왜 괜찮은지 → 승인 순서). 승인 대기 · 보류일 때만.
 const decision = computed(() => !isRequester.value && p.value ? decisionSummaryOf(p.value, titleText.value, cost.value?.impact ?? null, currentUser.value?.id) : null)
-// 한 장 요약이 있으면 아래 카드는 같은 조건을 반복하지 않고 규정 원문만 둔다(못 맞춘 조건이 있을 때만 목록을 보인다).
+// 한 장 요약이 있고 조건을 모두 맞췄으면 조건 목록은 접어 둔다(요약은 역할·비용·승인 순서만 담으므로 나머지 근거는 펼쳐서 확인).
+// 못 맞춘 조건이 있으면 처음부터 펼쳐 보인다.
 const showChecks = computed(() => !decision.value || checks.value.some(c => !c.ok && !c.info))
 function jumpCost() {
   const el = document.getElementById('cost-card')
@@ -324,7 +325,7 @@ const requesterHelp = {
 
           <section v-if="evidence.facts.length || docs.length" id="ev-top" class="rd-card" aria-labelledby="rd-bs">
             <h2 id="rd-bs">{{ showChecks ? '판단 근거' : '규정 원문' }} <span class="rd-only">승인자에게만 보여요</span></h2>
-            <p v-if="who && checks.length && showChecks" class="rd-who">요청자 <b>{{ who }}</b></p>
+            <p v-if="who && checks.length" class="rd-who">요청자 <b>{{ who }}</b></p>
             <dl v-if="evidence.facts.length && !checks.length" class="rd-facts-dl">
               <template v-for="f in evidence.facts" :key="f.k"><dt>{{ f.k }}</dt><dd>{{ f.v }}</dd></template>
             </dl>
@@ -335,6 +336,16 @@ const requesterHelp = {
                 <button v-if="c.ref" type="button" class="rd-ck-ref" @click="jumpTo(c.ref)">원문 <span class="rd-en">{{ c.ref }}</span></button>
               </li>
             </ul>
+            <details v-if="checks.length && !showChecks" class="rd-checks-fold">
+              <summary>충족한 조건 {{ checks.filter(c => c.ok && !c.info).length }}개 <em>펼쳐 보기</em><svg class="rd-doc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
+              <ul class="rd-checks" aria-label="규칙이 확인한 조건">
+                <li v-for="c in checks" :key="c.text" :class="c.info ? 'ck-info' : c.ok ? 'ck-ok' : 'ck-no'">
+                  <span class="rd-ck-ic" aria-hidden="true">{{ c.info ? '' : c.ok ? '✓' : '✕' }}</span>
+                  <span class="rd-ck-t"><span class="sr-only">{{ c.info ? '참고' : c.ok ? '충족' : '미충족' }}: </span>{{ c.text }}<span v-if="c.detail" class="rd-ck-d rd-en">{{ c.detail }}</span></span>
+                  <button v-if="c.ref" type="button" class="rd-ck-ref" @click="jumpTo(c.ref)">원문 <span class="rd-en">{{ c.ref }}</span></button>
+                </li>
+              </ul>
+            </details>
             <!-- 규정 원문: 기본은 접어 둔다. 회사 권한표 → 사내 규정 → 공식 도움말 순. -->
             <div v-if="docs.length" class="rd-docs">
               <p v-if="showChecks" class="rd-docs-k">규정 원문 <span>{{ docs.length }}건</span><em>필요할 때만 펼쳐 보세요</em></p>
@@ -651,6 +662,13 @@ const requesterHelp = {
 .rd-ck-ref:hover { color: var(--uo-primary-ink); text-decoration: underline; }
 .rd-ck-ref:focus-visible { outline: 2px solid var(--uo-primary); outline-offset: 2px; border-radius: 4px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.rd-checks-fold { margin: 0 0 14px; border: 1px solid var(--uo-line); border-radius: 12px; }
+.rd-checks-fold > summary { display: flex; align-items: center; gap: 8px; padding: 12px 14px; font-size: 14px; font-weight: 700; color: var(--uo-ink); cursor: pointer; list-style: none; }
+.rd-checks-fold > summary::-webkit-details-marker { display: none; }
+.rd-checks-fold > summary em { font-style: normal; font-weight: 400; color: var(--uo-muted); }
+.rd-checks-fold > summary .rd-doc-chev { margin-left: auto; transition: transform .15s; }
+.rd-checks-fold[open] > summary .rd-doc-chev { transform: rotate(180deg); }
+.rd-checks-fold > .rd-checks { margin: 0; border: 0; border-top: 1px solid var(--uo-line); border-radius: 0 0 12px 12px; }
 .rd-docs-k { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: var(--uo-muted); }
 .rd-docs-k em { margin-left: 8px; font-style: normal; font-weight: 400; }
 .rd-docs-k span { margin-left: 4px; font-weight: 600; color: var(--uo-ink-2); }

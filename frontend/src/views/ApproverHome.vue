@@ -57,12 +57,28 @@ function toggleAll() {
 }
 
 // v2 승인함 목록에는 권한 항목이 없어, 카드 제목을 상세와 같은 권한 이름으로 맞추려고 대기 건만 한 번씩 상세를 받아 둔다.
+// 건수 제한 없이 모두 조회하되, 서버에 한꺼번에 몰리지 않게 동시에 ROLE_FETCH_LIMIT건씩만 보낸다.
+// 실패한 건은 조회 표시를 지워 다음 갱신(load) 때 다시 시도한다.
+const ROLE_FETCH_LIMIT = 4
 const roles = ref<Record<string, string>>({})
+const roleQueue: string[] = []
+let roleInFlight = 0
 function fillRoles() {
-  for (const it of pending.value.slice(0, 10)) {
+  for (const it of pending.value) {
     if (it.requested_role || it.id in roles.value) continue
     roles.value = { ...roles.value, [it.id]: '' }
-    getProblem(it.id).then(d => { roles.value = { ...roles.value, [it.id]: d.requested_role ?? '' } }).catch(() => {})
+    roleQueue.push(it.id)
+  }
+  pumpRoles()
+}
+function pumpRoles() {
+  while (roleInFlight < ROLE_FETCH_LIMIT && roleQueue.length) {
+    const id = roleQueue.shift()!
+    roleInFlight++
+    getProblem(id)
+      .then(d => { roles.value = { ...roles.value, [id]: d.requested_role ?? '' } })
+      .catch(() => { const next = { ...roles.value }; delete next[id]; roles.value = next })
+      .finally(() => { roleInFlight--; pumpRoles() })
   }
 }
 async function load() {
