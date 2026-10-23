@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SaasMark from '../components/SaasMark.vue'
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ApiError, type ApprovalSummary, type Problem } from '../api'
@@ -205,7 +206,7 @@ const help = {
         <h3 id="ah-cf-h">이 {{ targets.length }}건을 승인할까요? <span>승인하면 바로 권한이 부여돼요</span></h3>
         <ul>
           <li v-for="t in targets" :key="t.id">
-            <span class="ah-tag" :style="{ '--c': platformOf(t.platform).color, '--s': platformOf(t.platform).soft }">{{ platformOf(t.platform).label }}</span>
+            <span class="ah-tag" :style="{ '--c': platformOf(t.platform).color, '--s': platformOf(t.platform).soft }"><SaasMark :platform="t.platform" :size="14" />{{ platformOf(t.platform).label }}</span>
             <strong class="ah-en">{{ t.resource }}</strong>
             <span class="ah-role">{{ t.role }}</span>
             <span class="ah-cf-who">{{ t.requester }}</span>
@@ -231,7 +232,7 @@ const help = {
           >{{ selected.includes(p.id) ? '✓' : '' }}</button>
           <div class="ah-req-main">
             <div class="ah-req-meta">
-              <span class="ah-tag">{{ platformOf(p.platform).label }}</span>
+              <span class="ah-tag"><SaasMark :platform="p.platform" :size="14" />{{ platformOf(p.platform).label }}</span>
               <strong>{{ p.requester_name }}</strong>
               <span class="ah-en">{{ p.employee_no }}</span> · {{ ago(p.updated_at) }} 대기
             </div>
@@ -329,7 +330,7 @@ const help = {
 .ah-req-main { flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .ah-req-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--uo-muted); }
 .ah-req-meta strong { font-size: 14px; color: var(--uo-ink); }
-.ah-tag { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--s); color: var(--c); }
+.ah-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 3px 9px 3px 6px; border-radius: 999px; background: var(--s); color: var(--c); }
 .ah-req-title { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.4; }
 .ah-role { color: var(--uo-primary-ink); }
 .ah-req-quote { margin: 0; font-size: 14px; line-height: 1.5; color: var(--uo-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

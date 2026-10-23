@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SaasMark from '../components/SaasMark.vue'
 import { computed, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { ApiError, type Problem } from '../api'
@@ -273,7 +274,7 @@ const requesterHelp = {
             <article class="rd-perm" :style="{ '--tc': platform.color }">
               <div class="rd-perm-head">
                 <span class="rd-ptag" :style="{ background: platform.soft, color: platform.color }">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="platform.icon" /></svg>{{ platform.label }}
+                  <SaasMark :platform="p.platform" :size="16" />{{ platform.label }}
                 </span>
                 <span class="rd-pstate" :class="perm.tone">{{ perm.label }}</span>
               </div>
@@ -288,7 +289,7 @@ const requesterHelp = {
               <h2 id="rd-dg">{{ guidanceComplete && !isRequester ? '요청 내용과 안내' : aiMessage || proposal ? '요청 내용과 판단안' : '요청 내용' }}</h2>
               <div class="rd-facts" aria-label="요청 정보">
                 <span class="rd-ptag" :style="{ background: platform.soft, color: platform.color }">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="platform.icon" /></svg>{{ platform.label }}
+                  <SaasMark :platform="p.platform" :size="15" />{{ platform.label }}
                 </span>
                 <span v-if="resourceName" class="rd-fact rd-en">{{ resourceName }}</span>
                 <span v-if="p.requested_role" class="rd-fact">{{ p.requested_role }}</span>

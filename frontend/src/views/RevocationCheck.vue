@@ -6,7 +6,7 @@ import { CANDIDATE_REASON_TEXT, daysSince, EXCLUSION_TEXT, isAlreadyNotified, is
 import { DONE_TEXT } from '../lib/status.ts'
 import { REASONS } from '../lib/requestView.ts'
 import { usd } from '../lib/costImpact.ts'
-import { saasBadge } from '../lib/saasBadge.ts'
+import SaasMark from '../components/SaasMark.vue'
 
 // S-04 오늘의 회수 점검 (IT 권한 관리 · 최종 승인자).
 // 읽는 순서: 언제 점검했나 → 얼마나 줄일 수 있나(요약 숫자) → 누구의 어떤 권한인가(표) → 왜(사유 · 근거).
@@ -236,7 +236,7 @@ const help = {
               </td>
               <td>
                 <div class="rv-saas">
-                  <span class="rv-logo" :style="{ background: saasBadge(c.platform).bg, color: saasBadge(c.platform).fg }" aria-hidden="true">{{ saasBadge(c.platform).mono }}</span>
+                  <SaasMark :name="c.platform" :size="34" tile />
                   <div><b>{{ c.platform }}</b><span class="rv-meta">{{ c.resource }}</span></div>
                 </div>
               </td>
