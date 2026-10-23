@@ -75,7 +75,8 @@ function costOf(platform: string, plan: NonNullable<AccessReport['plan']>, messa
   return {
     kind: COST_KIND[plan.cost_basis], monthly_cost: Number(plan.monthly_amount),
     budget_before: budget?.before ?? null, budget_after: budget?.after ?? null,
-    basis: [what, COST_BASIS_TEXT[plan.cost_basis], plan.currency !== 'USD' ? plan.currency : null].filter(Boolean).join(' · ') + ' (가상 회사 A사 가정 금액)',
+    // 금액 · 기준 · 가격표 버전은 서버 계획(plan) 값만 쓴다. 자원 설명(what)만 화면 표에서 붙인다.
+    basis: [what, COST_BASIS_TEXT[plan.cost_basis], `가격표 rev ${plan.pricing_revision}`, plan.currency !== 'USD' ? plan.currency : null].filter(Boolean).join(' · ') + ' (가상 회사 가정 금액)',
     rule: ev ? `${ev.doc_id} ${ev.article} · 예상 월 비용이 부서 잔여 예산 이하일 때만 승인 대기로 올려요` : null,
   }
 }

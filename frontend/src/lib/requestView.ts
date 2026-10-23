@@ -152,6 +152,9 @@ export const REASONS: Record<string, Reason> = {
   CONFIDENTIAL_DEPARTMENT:  { tone: 'bad', title: '지정된 부서만 볼 수 있는 문서예요', why: '기밀 문서는 지정 부서 구성원만 열 수 있어요.', next: '필요하면 부서장에게 문의해 주세요' },
   DEPARTMENT_MISMATCH:      { tone: 'bad', title: '다른 부서 전용 문서예요', why: '이 문서는 해당 부서 구성원만 볼 수 있어요.', next: '문서를 관리하는 부서에 공유를 요청해 주세요' },
   // 담당자 검토
+  // 코드(#29)에만 있던 사유 2개. 둘 다 MANUAL_REVIEW로 오고, 최신 조건으로 다시 분석하면 풀린다.
+  PLAN_REVIEW_REQUIRED:     { tone: 'review', title: '승인 조건이 바뀌어 다시 분석해야 해요', why: '판단안을 만든 뒤 규정 · 예산 · 승인자 조건이 바뀌어, 이전 판단안으로는 승인하지 않아요.', next: '담당자가 최신 조건으로 다시 분석하면 새 판단안이 올라와요', wait: true },
+  ANALYSIS_CONFLICT:        { tone: 'review', title: 'AI 분석과 규칙 판정이 달라 담당자가 확인해요', why: 'AI가 정리한 내용과 서버 규칙의 판정이 일치하지 않아 자동으로 진행하지 않았어요.', next: WAIT, wait: true },
   MISSING_SOURCE_EVIDENCE:  { tone: 'review', title: '규정 근거를 다시 확인하고 있어요', why: '판단에 필요한 규정 근거를 찾지 못해 자동으로 진행하지 않았어요.', next: WAIT, wait: true },
   APPROVER_UNAVAILABLE:     { tone: 'review', title: '승인자를 정하지 못했어요', why: '지정할 수 있는 승인자가 없거나 요청자 본인이 승인자예요. 승인자를 추측해 정하지 않아요.', next: WAIT, wait: true },
   OUT_OF_SCOPE:             { tone: 'review', title: '자동 처리 범위 밖의 요청이에요', why: '이 서비스가 자동으로 처리하는 권한 요청이 아니어서 담당자에게 넘겼어요.', next: '담당자가 확인해 안내해 드릴게요', wait: true },

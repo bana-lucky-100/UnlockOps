@@ -74,6 +74,8 @@ const recent = computed(() => items.value.slice(0, 5))
 
 // 플랫폼은 문장에서 찾아 제안하고(하나만 걸리면 자동 선택), 틀리면 직접 고른다. 직접 고른 값은 문장이 바뀌어도 유지한다.
 const manual = ref(false)
+const pfOpen = ref(false)
+const guessLabels = computed(() => guesses.value.map(g => PLATFORMS[g].label).join(' · '))
 const guesses = computed(() => guessPlatforms(contents.value).filter(p => ORDER.value.includes(p)))
 watch(guesses, g => {
   if (manual.value) return
@@ -103,7 +105,7 @@ const polling = usePolling(load)
 async function send() {
   if (sending.value) return
   formError.value = ''
-  if (!selected.value) { formError.value = '어떤 플랫폼 권한인지 문장에 적거나 아래에서 골라 주세요'; return }
+  if (!selected.value) { formError.value = '어떤 플랫폼 권한인지 문장에 적거나 왼쪽 플랫폼 버튼에서 골라 주세요'; return }
   if (contents.value.trim().length < 2) { formError.value = '필요한 권한과 이유를 2자 이상 적어 주세요'; return }
   sending.value = true
   try {
@@ -131,7 +133,7 @@ function onKey(e: KeyboardEvent) {
 
 const help = {
   howto: [
-    { t: '필요한 권한을 한 문장으로 적으세요', d: '플랫폼 이름(Snowflake, GitHub …)을 쓰면 자동으로 골라요. 틀리면 아래에서 직접 바꿔 주세요. 한 번에 한 플랫폼씩 보내요' },
+    { t: '필요한 권한을 한 문장으로 적으세요', d: '플랫폼 이름(Snowflake, GitHub …)을 쓰면 자동으로 골라요. 틀리면 입력창 왼쪽 버튼에서 바꿔 주세요. 한 번에 한 플랫폼씩 보내요' },
     { t: '자원 이름과 이유를 적어 주세요', d: '저장소 · 프로젝트 · 채널 · 페이지 이름과 쓰는 이유(TF · 업무)를 함께 적어야 AI가 정확히 찾아요. 이름이 없으면 담당자가 확인해요' },
     { t: '두 단계 승인을 기다리세요', d: 'AI가 정리한 규정 근거와 예산 영향을 보고 부서장 → 최종 승인자가 결정해요. 승인되면 자동으로 열려요' },
   ],
@@ -154,32 +156,33 @@ const help = {
       <div class="rh-ask">
 
         <form class="rh-form" novalidate @submit.prevent="send">
+          <div class="rh-pf">
+            <button type="button" class="rh-pf-btn" :class="{ on: !!selected }" :style="selected ? { '--c': PLATFORMS[selected].color, '--s': PLATFORMS[selected].soft } : {}"
+              aria-haspopup="true" :aria-expanded="pfOpen" @click="pfOpen = !pfOpen">
+              <svg v-if="selected" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="PLATFORMS[selected].icon" /></svg>
+              {{ selected ? PLATFORMS[selected].label : '플랫폼' }}<span aria-hidden="true">▾</span>
+            </button>
+            <div v-if="pfOpen" class="rh-pf-pop" role="group" aria-label="플랫폼 고르기">
+              <button v-for="p in ORDER" :key="p" type="button" class="rh-pf-item" :class="{ hint: guesses.includes(p) }"
+                :aria-pressed="selected === p" :style="{ '--c': PLATFORMS[p].color, '--s': PLATFORMS[p].soft }" @click="pick(p); pfOpen = false">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="PLATFORMS[p].icon" /></svg>
+                {{ PLATFORMS[p].label }}
+              </button>
+            </div>
+          </div>
           <label for="rh-ask" class="rh-sr">어떤 권한이 왜 필요한가요?</label>
-          <textarea id="rh-ask" v-model="contents" :rows="rows" :maxlength="MAX" :placeholder="placeholder" @keydown="onKey" />
+          <textarea id="rh-ask" :value="contents" @input="contents = ($event.target as HTMLTextAreaElement).value" :rows="rows" :maxlength="MAX" :placeholder="placeholder" @keydown="onKey" />
           <span class="rh-count">Enter로 보내기 · {{ contents.length }}/{{ MAX }}</span>
           <button type="submit" class="rh-send" aria-label="요청 보내기" :aria-disabled="!ready || sending" :class="{ on: ready && !sending }">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
           </button>
         </form>
 
-        <div class="rh-pf" aria-live="polite">
-          <span class="rh-pf-k">플랫폼</span>
-          <span v-if="selected" class="rh-pf-on" :style="{ '--c': PLATFORMS[selected].color, '--s': PLATFORMS[selected].soft }">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="PLATFORMS[selected].icon" /></svg>
-            {{ PLATFORMS[selected].label }} ✓
-          </span>
-          <template v-else-if="guesses.length > 1">
-            <span class="rh-pf-note">어느 플랫폼인가요? 한 번에 하나씩 보내요</span>
-            <button v-for="g in guesses" :key="g" type="button" class="rh-chip" :style="{ '--c': PLATFORMS[g].color, '--s': PLATFORMS[g].soft }" :aria-pressed="false" @click="pick(g)">{{ PLATFORMS[g].label }}</button>
-          </template>
-          <span v-else class="rh-pf-note">문장에 플랫폼 이름을 쓰면 자동으로 골라요</span>
-          <span v-if="selected" class="rh-pf-note">{{ manual ? '직접 고름' : '문장에서 찾았어요' }}</span>
-          <label class="rh-sr" for="rh-pf-sel">플랫폼 직접 고르기</label>
-          <select id="rh-pf-sel" class="rh-pf-sel" :value="manual ? selected ?? '' : ''" @change="pick(($event.target as HTMLSelectElement).value)">
-            <option value="">{{ selected ? '다른 플랫폼' : '직접 고르기' }}</option>
-            <option v-for="p in ORDER" :key="p" :value="p">{{ PLATFORMS[p].label }}</option>
-          </select>
-        </div>
+        <p class="rh-pf-hint" aria-live="polite">
+          <template v-if="selected">{{ manual ? '직접 고른 플랫폼이에요' : '문장에서 플랫폼을 찾았어요. 틀리면 왼쪽 버튼을 눌러 바꿔 주세요' }}</template>
+          <template v-else-if="guesses.length > 1">{{ guessLabels }} 중 하나를 골라 주세요. 한 번에 하나씩 보내요</template>
+          <template v-else>문장에 플랫폼 이름을 쓰면 자동으로 골라요</template>
+        </p>
         <p v-if="formError" class="rh-err" role="alert">{{ formError }}</p>
         <p class="rh-tip"><strong>자원 이름과 쓰는 이유(TF · 업무)</strong>를 꼭 적어 주세요. 이름이 없으면 담당자가 직접 확인해야 해서 오래 걸려요</p>
       </div>
@@ -219,15 +222,20 @@ const help = {
 .rh-hello { margin: 0 0 12px; font-family: var(--uo-font-en); font-size: 44px; font-weight: 700; letter-spacing: -0.02em; color: var(--uo-primary); }
 .rh-title { margin: 0; font-size: 34px; line-height: 1.4; font-weight: 600; letter-spacing: -0.01em; }
 .rh-ask { margin-top: 36px; display: flex; flex-direction: column; gap: 12px; }
-.rh-pf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-height: 40px; }
-.rh-pf-k { font-size: 14px; font-weight: 600; color: var(--uo-ink); }
-.rh-pf-on { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 14px; border-radius: 999px; background: var(--c); color: #fff; font-size: 14px; font-weight: 600; }
-.rh-pf-note { font-size: 13px; color: var(--uo-muted); }
-.rh-pf-sel { margin-left: auto; height: 36px; padding: 0 10px; border: 1px solid var(--uo-line-strong); border-radius: 10px; background: #fff; font: inherit; font-size: 14px; color: var(--uo-ink-2); }
 .rh-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 16px 0 14px; border-radius: 999px; border: 1.5px solid var(--c); background: #fff; color: var(--c); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color .15s ease, color .15s ease; }
 .rh-chip[aria-pressed="false"]:hover, .rh-chip[aria-pressed="false"]:focus-visible { background: var(--s); }
 .rh-chip[aria-pressed="true"] { background: var(--c); color: #fff; }
-.rh-form { display: flex; align-items: flex-end; gap: 12px; padding: 8px 8px 8px 20px; background: rgba(255,255,255,0.92); border: 1px solid var(--uo-line-strong); border-radius: 16px; box-shadow: 0 8px 30px rgba(59,75,216,0.10); }
+.rh-pf { position: relative; align-self: flex-start; padding-top: 4px; }
+.rh-pf-btn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 10px; border: 1.5px dashed var(--uo-line-strong); background: #fff; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.rh-pf-btn.on { border-style: solid; border-color: var(--c); background: var(--s); color: var(--c); }
+.rh-pf-btn span { font-size: 11px; opacity: .7; }
+.rh-pf-pop { position: absolute; z-index: 5; top: 46px; left: 0; width: 520px; max-width: calc(100vw - 48px); display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 10px; background: #fff; border: 1px solid var(--uo-line); border-radius: 14px; box-shadow: 0 16px 40px rgba(20,26,51,.16); }
+.rh-pf-item { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border: 1px solid transparent; border-radius: 10px; background: #fff; color: var(--c); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
+.rh-pf-item:hover, .rh-pf-item:focus-visible { background: var(--s); }
+.rh-pf-item.hint { border-color: var(--c); }
+.rh-pf-item[aria-pressed="true"] { background: var(--c); color: #fff; }
+.rh-pf-hint { margin: 0; font-size: 13px; color: var(--uo-muted); }
+.rh-form { position: relative; display: flex; align-items: flex-end; gap: 12px; padding: 8px 8px 8px 8px; background: rgba(255,255,255,0.92); border: 1px solid var(--uo-line-strong); border-radius: 16px; box-shadow: 0 8px 30px rgba(59,75,216,0.10); }
 .rh-form textarea { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: 16px; line-height: 1.5; color: var(--uo-ink); padding: 10px 0; resize: none; }
 .rh-form:focus-within { outline: 2px solid var(--uo-primary); outline-offset: 2px; }
 .rh-count { font-size: 12px; color: var(--uo-muted); white-space: nowrap; padding-bottom: 14px; }

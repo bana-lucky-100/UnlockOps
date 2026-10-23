@@ -31,7 +31,7 @@ export interface RevocationCandidate {
   cost_known?: boolean                     // v2: 비용 미확인이면 false. 0원으로 계산하지 않는다
 }
 export interface ScanRun {
-  id: string; task_type: 'RECLAIM_SCAN'; trigger: 'SCHEDULE' | 'MANUAL'
+  id: string; task_type: 'RECLAIM_SCAN'; trigger: 'SCHEDULE' | 'MANUAL' | 'UNKNOWN'
   status: Status; reason_code: string | null; started_at: string; finished_at: string | null
 }
 /**
@@ -142,7 +142,7 @@ export function fromOverview(o: {
   const asOf = r?.as_of ?? ''
   const usd = money(o.summary?.monthly_saving_by_currency?.USD) ?? 0
   return {
-    run: r ? { id: r.run_id, task_type: 'RECLAIM_SCAN', trigger: 'SCHEDULE', status: r.status, reason_code: r.reason_code ?? null, started_at: asOf, finished_at: null } : null,
+    run: r ? { id: r.run_id, task_type: 'RECLAIM_SCAN', trigger: 'UNKNOWN', status: r.status, reason_code: r.reason_code ?? null, started_at: asOf, finished_at: null } : null,
     summary: { new_count: o.summary?.new_candidate_count ?? r?.new_candidate_count ?? 0, monthly_saving: usd, needs_review_count: o.summary?.needs_review_count ?? r?.needs_review_count },
     needs_review: (r?.needs_review ?? []).map((n: any) => ({ employee_name: n.employee_name, resource_name: n.resource_name, missing: n.missing ?? [] })),
     scan_complete: r?.scan_complete,

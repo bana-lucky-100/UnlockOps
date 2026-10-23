@@ -74,7 +74,7 @@ onMounted(load)
 
 const help = {
   howto: [
-    { t: '매일 09:00에 자동으로 점검해요', d: 'TF가 끝났거나 오래 쓰지 않은 유료 권한을 찾아요. 바로 확인하고 싶으면 [지금 다시 점검]을 눌러 주세요' },
+    { t: '[지금 다시 점검]으로 점검해요', d: 'TF가 끝났거나 오래 쓰지 않은 유료 권한을 찾아요. 자동 점검(매일 09:00)은 담당 범위를 켜야 돌아가요(기본은 꺼짐)' },
     { t: '새로 찾은 후보만 먼저 보여 줘요', d: '이미 알린 후보는 다시 알리지 않아요. "이미 알린 후보" 탭에서 따로 볼 수 있어요' },
     { t: '회수는 사람이 결정해요', d: '이 화면은 후보와 근거, 줄일 수 있는 금액까지만 보여 줘요. 실제 회수는 기존 절차로 진행해 주세요' },
   ],
@@ -101,9 +101,9 @@ const help = {
           <template v-else-if="run">
             <b v-if="runResult">{{ runResult }}<template v-if="extra"> · 추가 확인 {{ extra }}건</template></b><span v-if="runResult" class="rv-sep" aria-hidden="true">·</span>
             마지막 점검 <b class="rv-num">{{ when(run.finished_at ?? run.started_at) }}</b>
-            <span class="rv-sep" aria-hidden="true">·</span>{{ run.trigger === 'MANUAL' ? '직접 실행' : '매일 09:00 자동 실행' }}
+            <span class="rv-sep" aria-hidden="true">·</span>{{ run.trigger === 'MANUAL' ? '직접 실행' : run.trigger === 'SCHEDULE' ? '매일 09:00 자동 실행' : '점검 실행' }}
           </template>
-          <template v-else>매일 09:00에 자동으로 점검해요</template>
+          <template v-else>[지금 다시 점검]으로 점검해요 · 자동 점검(매일 09:00)은 담당 범위를 켜면 돌아가요</template>
         </p>
         <button type="button" class="rv-run" :disabled="busy" @click="runScan">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" /></svg>
@@ -163,7 +163,7 @@ const help = {
           </div>
           <!-- 추가 확인 건이 있으면 '후보 없음'이 아니다: 같은 빈 화면 문구를 쓰지 않는다. -->
           <p class="t">{{ tab !== 'NEW' ? '표시할 후보가 없어요' : extra ? '새로 알릴 후보는 없어요' : '신규 회수 후보 없음' }}</p>
-          <p class="d">{{ tab !== 'NEW' ? '다른 탭을 확인해 주세요.' : extra ? `아래 추가 확인 ${extra}건을 확인해 주세요.` : '이미 알린 후보는 다시 알리지 않아요. 다음 점검은 내일 09:00이에요.' }}</p>
+          <p class="d">{{ tab !== 'NEW' ? '다른 탭을 확인해 주세요.' : extra ? `아래 추가 확인 ${extra}건을 확인해 주세요.` : '이미 알린 후보는 다시 알리지 않아요.' }}</p>
         </div>
 
         <table v-else class="rv-table">
