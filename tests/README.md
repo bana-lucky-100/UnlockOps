@@ -15,5 +15,7 @@ python3 scripts/evaluate_phase2.py --run --suite full
 RUN_LIVE_STACK=1 .venv/bin/python -m pytest tests/test_live_stack.py -v
 ```
 
+`LIVE_BASE_URL`은 기본 `http://localhost:8088`이며 프로세스 환경변수로 변경합니다. 평가 실행기의 `PHASE2_EVAL_INPUT`·`EVAL_PASSWORD` 등 자동화 설정은 [환경변수 안내](../docs/environment.md)에 구분했습니다.
+
 A사 신청자 → 부서장 → 권한 담당자의 순차 승인과 독립 검증, 본인 승인/순서 우회 차단을 검사합니다.
 이미 Copilot 좌석을 지급한 환경 대신 새 시연 환경에서 실행합니다. 기본 테스트에서는 건너뜁니다.

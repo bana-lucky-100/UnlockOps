@@ -25,4 +25,6 @@ MCP 연결은 부모 Worker 작업에서 열고 닫습니다. 연결 열기도 �
 ```
 
 서버·RabbitMQ·두 MCP가 먼저 실행돼 있어야 합니다. 환경변수는 [디버깅 안내](../docs/debugging.md)를 참고하세요.
+로컬 연결은 비어 있지 않은 `RABBIT_URL` → `RABBITMQ_URL` → `RABBIT_HOST/PORT/USER/PASSWORD` 순으로 적용합니다. 개별 계정은 `RABBITMQ_USER/PASSWORD`를 fallback으로 사용합니다.
+Compose는 컨테이너 호스트·MCP URL·체크포인트 경로를 고정합니다. 전체 설정과 로컬 전용 항목은 [환경변수 안내](../docs/environment.md)를 참고하세요.
 구 `analysis`/`execution` 큐는 더 이상 소비하지 않습니다. 과거 메시지·체크포인트는 삭제하지 않으며 구 승인 대기 건은 최신 조건으로 재접수해야 합니다.

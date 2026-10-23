@@ -4,6 +4,7 @@
 - [아키텍처](architecture.md): 요청·승인·실행·상태 재개 흐름
 - [API·MCP·이벤트 계약](contracts/README.md): 공통 상태·HTTP·큐 메시지
 - [로컬 디버깅](debugging.md): 설치·시작 순서·F5 구성
+- [환경변수](environment.md): 예제·기본값·호환 별칭·서비스별 적용 범위와 전수 조사
 - [검증](verification.md): 수행 결과와 전체 스택 시연 절차
 - [메시지 재시도](messaging-retry.md): 일시·영구 오류 분류, DLQ와 자동 캡처
 - [DB 스키마](schema.md), [정책 해석](policy-decisions.md), [평가 항목 대응](rubric.md)

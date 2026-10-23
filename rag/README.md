@@ -17,6 +17,7 @@
 직원 현재 소속·권한·예산·가격은 문서 예시로 추측하지 않고 서버 사실로 확인합니다.
 근거 부족은 수동 검토, 보고서 모델 실패는 검증된 템플릿으로 처리합니다.
 현재 검색은 로컬 TF-IDF이며 임베딩 API 설정이 필요하지 않습니다. DocumentIndex의 파일 검색·임베딩 구현은 파서·검색 유틸로 남지만 별도 업무 실행기를 구성하지 않습니다.
+`EMBEDDING_BASE_URL/MODEL/API_KEY`는 이 유틸에만 적용하며 현재 revision 검색을 전환하지 않습니다. `DATA_DIR`도 Settings에 남은 필드이며 현재 업무 자료 경로를 바꾸지 않습니다. 적용 범위는 [환경변수 안내](../docs/environment.md)를 참고하세요.
 
 Compose 시연 초기화는 baseline → 정책 revision 2 → revision 3을 준비합니다. 원문을 수정한 것만으로 기존 DB revision을 덮어쓰지 않습니다.
 수동 적용과 생성은 [정책 자료 안내](../data/phase2/policies/README.md), 문서별 역할은 [승인 RAG 점검](../docs/rag-approval-review.md)을 참고하세요.
