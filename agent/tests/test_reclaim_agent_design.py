@@ -13,13 +13,19 @@ from test_workflows import CANDIDATE, CATALOG, policy, policy_reply
 
 
 def candidate(**changes):
-    return {**deepcopy(CANDIDATE), **changes}
+    row = {**deepcopy(CANDIDATE), **changes}
+    if "assignment_id" in changes and "fact_evidence" not in changes:
+        for evidence in row["fact_evidence"]:
+            evidence["record_id"] = row["assignment_id"]
+    return row
 
 
 def needs_review(**changes):
     return candidate(
         assignment_id=str(uuid4()), candidate_status=None, candidate_reason_code=None,
-        review_required=True, cost_impact={"status": "UNKNOWN"}, **changes,
+        review_required=True,
+        cost_impact={"status": "UNKNOWN", "monthly_amount": None, "currency": None, "basis": None},
+        **changes,
     )
 
 

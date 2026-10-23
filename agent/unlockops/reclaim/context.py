@@ -4,6 +4,7 @@ from ..common.tool_contracts import ReclaimContext
 from ..common.runtime import guarded
 from ..common.models import ToolFailure
 from ..common.settings import settings
+from .verification import verify_context
 
 @guarded
 async def load_context(state, *, tools):
@@ -13,6 +14,7 @@ async def load_context(state, *, tools):
         raise ToolFailure("RUN_SCOPE", "Unexpected run")
     if context.job_event_id != job.event_id:
         return {"skip": True}
+    verify_context(context)
     if context.expected_count > settings.max_reclaim_candidates:
         return {"context": context.model_dump(mode="json"), "scan_complete": False,
                 "error": {"code": "SCAN_LIMIT"}}
