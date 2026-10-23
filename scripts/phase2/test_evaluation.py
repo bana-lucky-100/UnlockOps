@@ -83,6 +83,7 @@ class EvaluationTest(unittest.TestCase):
         observed.update(company_id=company['company_id'], department_id=company['department_id'],
                         requester_id=company['users']['requester'], resource_id=case['input']['resource_id'],
                         entitlement_id=case['fixture_entitlement_id'], budget_currency='USD',
+                        license_observation_valid=True, license_observed_at=NOW.isoformat(), license_valid_until=None,
                         prices=[{**{k: expected[k] for k in price_fields},
                                  'monthly_amount': expected['unit_monthly_amount'], 'cost_basis': 'SEAT_MONTHLY',
                                  'pricing_id': 'fixture-price', 'policy_revision': 4}])
@@ -118,6 +119,20 @@ class EvaluationTest(unittest.TestCase):
         self.assertNotIn('UPDATE ', sql)
         self.assertIn('entitlement_revision=er.revision', sql)
         self.assertIn("AT TIME ZONE 'Asia/Seoul'", sql)
+        self.assertIn('lf.purchase_required',sql)
+        self.assertIn('lf.valid_until>CURRENT_TIMESTAMP',sql)
+
+        seat=next(c for c in prepare(RUN,'full',NOW)[0]['cases'] if c['id']=='BUDGET-INSUFFICIENT')
+        for flag in (False,None):
+            observed=self.budget_observation(seat)
+            observed['purchase_required']=flag
+            self.assertIn('purchase_required',verify(seat,observed)['mismatches'])
+        for observed_at,valid_until in [(None,None),('2020-01-01T00:00:00+00:00','2020-02-01T00:00:00+00:00'),
+                                      ('2099-01-01T00:00:00+00:00',None)]:
+            observed={**good,'license_observation_valid':False,'license_observed_at':observed_at,'license_valid_until':valid_until}
+            result=verify(case,observed)
+            self.assertEqual(result['status'],'PRECONDITION_FAILED')
+            self.assertIn('license_observation_valid',result['mismatches'])
 
     def test_budget_boundaries_and_declared_rule_cannot_silently_change(self):
         bundle, sql = prepare(RUN, 'full', NOW)

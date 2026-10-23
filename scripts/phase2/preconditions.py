@@ -13,7 +13,11 @@ def observation_sql(case):
       'company_id',u.company_id,'department_id',u.department_id,'requester_id',u.id,
       'resource_id',r.id,'entitlement_id',e.id,'entitlement_code',e.code,'entitlement_kind',e.kind,
       'access_scope',r.access_scope,'remaining_budget',b.remaining_monthly_amount,'budget_currency',b.currency,
-      'operation',cr.operation,'license_coverage',lf.coverage,
+      'operation',cr.operation,'license_coverage',lf.coverage,'purchase_required',lf.purchase_required,
+      'license_observed_at',lf.observed_at,'license_valid_until',lf.valid_until,
+      'license_observation_valid',(lf.observed_at<=CURRENT_TIMESTAMP
+        AND (lf.valid_until IS NULL OR lf.valid_until>CURRENT_TIMESTAMP)
+        AND nullif(btrim(lf.source_reference),'') IS NOT NULL),
       'policy_revision',(SELECT max(revision) FROM policy_revisions WHERE company_id={co}),
       'prices',(SELECT coalesce(json_agg(to_jsonb(p) ORDER BY p.pricing_revision DESC),'[]'::json) FROM
         (SELECT pricing_id,revision AS pricing_revision,policy_revision,monthly_amount,currency,cost_basis,source_kind
@@ -47,6 +51,11 @@ def verify(case, observed):
     actual = dict(observed or {})
     prices = actual.pop('prices', [])
     mismatches = []
+    if 'license_coverage' in expected and actual.get('license_observation_valid') is not True:
+        mismatches.append('license_observation_valid')
+    if (actual.get('operation') == 'PURCHASE_SEAT' and actual.get('license_coverage') == 'NOT_COVERED'
+            and actual.get('purchase_required') is not True):
+        mismatches.append('purchase_required')
     if not prices or len({p['pricing_id'] for p in prices}) != 1:
         mismatches.append('effective_price_missing_or_ambiguous')
     else:
@@ -80,5 +89,6 @@ def verify(case, observed):
     rule = rules.get(case['decision_rule'])
     if not rule or not rule[0] or rule[1:] != (case['expected_status'], case['expected_reason_code']):
         mismatches.append('decision_rule')
+    mismatches = list(dict.fromkeys(mismatches))
     return {'status': 'PRECONDITION_FAILED' if mismatches else 'PASS', 'expected': expected,
             'observed': actual, 'mismatches': mismatches, 'decision_rule': case['decision_rule']}

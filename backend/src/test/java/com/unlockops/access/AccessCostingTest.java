@@ -70,4 +70,20 @@ class AccessCostingTest {
         price.put("monthly_amount",0).put("cost_basis","NO_ADDITIONAL_COST");
         assertEquals("0.00",assess(List.of(),List.of()).facts().budget_monthly_amount());
     }
+    @Test void missingRuleOrPurchaseScopeNeverAssumesAnotherSeatIsNeeded() {
+        ent.put("kind","SEAT");rule.put("operation","PURCHASE_SEAT");
+        assertEquals("BUDGET_UNAVAILABLE",assess(List.of(),List.of(fact("COVERED"))).reason());
+        rule.putNull("billing_scope").putNull("required_license");
+        assertEquals("BUDGET_UNAVAILABLE",assess(List.of(rule),List.of(fact("COVERED"))).reason());
+        price.put("cost_basis","USAGE_ESTIMATE");
+        assertEquals("BUDGET_UNAVAILABLE",assess(List.of(),List.of()).reason());
+    }
+    @Test void importedSeatCompatibilityDoesNotApplyToLaterPolicies() {
+        request.put("company_id",new UUID(0,0).toString());ent.put("kind","SEAT");
+        policy.put("doc_id","EXISTING-POLICY").put("revision",1);
+        price.put("source_reference","V9:existing-department_budgets");
+        assertEquals("20.00",assess(List.of(),List.of()).facts().budget_monthly_amount());
+        policy.put("revision",2);
+        assertEquals("BUDGET_UNAVAILABLE",assess(List.of(),List.of()).reason());
+    }
 }

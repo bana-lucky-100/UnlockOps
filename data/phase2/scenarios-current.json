@@ -67,7 +67,8 @@
         "already_assigned": false,
         "unit_monthly_amount": "20.00",
         "operation": "PERMISSION_ONLY",
-        "license_coverage": "COVERED"
+        "license_coverage": "COVERED",
+        "purchase_required": false
       },
       "decision_rule": "NO_ADDITIONAL_COST"
     },
@@ -239,7 +240,8 @@
         "already_assigned": false,
         "unit_monthly_amount": "70.00",
         "operation": "PERMISSION_ONLY",
-        "license_coverage": "COVERED"
+        "license_coverage": "COVERED",
+        "purchase_required": false
       }
     },
     {

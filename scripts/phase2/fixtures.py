@@ -50,7 +50,7 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
         'cost_basis': 'SEAT_MONTHLY', 'remaining_budget': '10.00', 'policy_revision': 4,
         'pricing_revision': 4, 'source_kind': 'PUBLIC_LIST_PRICE', 'tf_member': False,
         'account_exists': True, 'license_active': True, 'work_scope_assigned': True,
-        'already_assigned': False, 'operation': 'PURCHASE_SEAT', 'license_coverage': 'NOT_COVERED',
+        'already_assigned': False, 'operation': 'PURCHASE_SEAT', 'license_coverage': 'NOT_COVERED', 'purchase_required': True,
     }
     boundaries = []
     for case_id, budget in [('BUDGET-INSUFFICIENT', '10.00'), ('BUDGET-EQUAL', '19.00'), ('BUDGET-ABOVE', '30.00'), ('BUDGET-FREE', '10.00')]:
@@ -59,7 +59,7 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
         required = {**conditions, 'remaining_budget': budget}
         overrides = {'budget': budget}
         if free:
-            required.update(monthly_amount='0.00', cost_basis='NO_ADDITIONAL_COST', license_coverage='COVERED')
+            required.update(monthly_amount='0.00', cost_basis='NO_ADDITIONAL_COST', license_coverage='COVERED', purchase_required=False)
             overrides['license_coverage'] = 'COVERED'
         boundaries.append({**seat_case, 'id': case_id, 'overrides': overrides, 'preconditions': required,
                            'decision_rule': 'BUDGET_EXCEEDED' if hold else 'NO_ADDITIONAL_COST' if free else 'BUDGET_SUFFICIENT',

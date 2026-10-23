@@ -16,6 +16,12 @@ public final class AccessCosting {
         public boolean known() {return facts!=null;}
     }
     private static Decision unknown(String message) {return new Decision(null,"BUDGET_UNAVAILABLE",message);}
+    private static boolean legacySeatPrice(JsonNode request,JsonNode policy,JsonNode price) {
+        // Only the original V9 import may retain its explicitly declared seat purchase.
+        return new java.util.UUID(0,0).equals(uuid(request,"company_id"))
+            && "EXISTING-POLICY".equals(str(policy,"doc_id")) && policy.path("revision").asInt()==1
+            && "V9:existing-department_budgets".equals(str(price,"source_reference"));
+    }
     public static Decision assess(WorkflowStore db,JsonNode request,JsonNode ent,JsonNode price,JsonNode policy) {
         var rules=db.rows("SELECT to_jsonb(r) FROM access_cost_rules r WHERE company_id=? AND entitlement_id=? AND entitlement_revision=? AND policy_id=? AND policy_revision=?",
             uuid(request,"company_id"),uuid(ent,"id"),ent.path("revision").intValue(),uuid(policy,"policy_id"),policy.path("revision").intValue());
@@ -23,17 +29,18 @@ public final class AccessCosting {
         Boolean purchaseRequired=null;
         String basis=str(price,"cost_basis");BigDecimal unit=price.path("monthly_amount").decimalValue();
         if(rules.isEmpty()) {
-            // Existing immutable contracts remain readable. A role carrying a seat
-            // rate is deliberately NOT treated as permission to buy a license.
+            // An explicit zero-cost permission is safe to preserve. Missing new
+            // rules must never turn unit prices into purchase/usage authorization.
             operation=switch(basis) {
                 case "NO_ADDITIONAL_COST" -> unit.signum()==0?"PERMISSION_ONLY":"UNKNOWN";
-                case "USAGE_ESTIMATE" -> "USAGE_ALLOCATION";
-                case "SEAT_MONTHLY" -> "SEAT".equals(str(ent,"kind"))?"PURCHASE_SEAT":"UNKNOWN";
+                case "SEAT_MONTHLY" -> "SEAT".equals(str(ent,"kind")) && legacySeatPrice(request,policy,price)?"PURCHASE_SEAT":"UNKNOWN";
                 default -> "UNKNOWN";
             };
         } else {
             if(rules.size()!=1) return unknown("비용 적용 규칙을 유일하게 확인할 수 없습니다.");
             var rule=rules.getFirst();operation=str(rule,"operation");scope=str(rule,"billing_scope");license=str(rule,"required_license");
+            if("PURCHASE_SEAT".equals(operation) && (scope==null || scope.isBlank() || license==null || license.isBlank()))
+                return unknown("좌석 구매 규칙의 대상 조직과 라이선스 코드를 확인해야 합니다.");
             if(scope!=null && license!=null) {
                 var facts=db.rows("SELECT to_jsonb(f) FROM saas_license_facts f WHERE company_id=? AND user_id=? AND platform=? AND billing_scope=? AND license_code=?",
                     uuid(request,"company_id"),uuid(request,"requester_id"),str(request,"platform"),scope,license);

@@ -57,7 +57,9 @@ class AccessPlanningReviewTest {
                     throw new AssertionError(sql);
                 }
                 @Override public List<JsonNode> rows(String sql,Object... args) {
-                    if(sql.contains("FROM access_cost_rules"))return coveredPermission?List.of(mapper.createObjectNode().put("operation","PERMISSION_ONLY").put("billing_scope","target-workspace").put("required_license","BUSINESS")):List.of();
+                    if(sql.contains("FROM access_cost_rules"))return List.of(coveredPermission?
+                        mapper.createObjectNode().put("operation","PERMISSION_ONLY").put("billing_scope","target-workspace").put("required_license","BUSINESS"):
+                        mapper.createObjectNode().put("operation",amount==0?"PERMISSION_ONLY":"USAGE_ALLOCATION"));
                     if(sql.contains("FROM saas_license_facts"))return List.of(mapper.createObjectNode().put("coverage","COVERED").put("observed_at",java.time.OffsetDateTime.now().minusMinutes(1).toString()).put("source_reference","test:license"));
                     if(sql.contains("FROM policy_revisions"))return List.of(policy);
                     if(sql.contains("FROM pricing_revisions"))return List.of(price);

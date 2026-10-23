@@ -800,3 +800,9 @@ R-04의 '이미 전달한 알림' 시드는 후보와 알림만 준비하고 당
 - 검증: Java `mvn -o ... test` **49 tests passed** (Mockito JVM 시작 agent 사용). 실제 planner의 8조건에는 참고 단가 20/70・예산 10・라이선스 보유 시 승인 대기와 plan 0원이 포함된다. Python Agent/MCP/live 검사 **232 passed, 1 skipped**, 평가 준비 오프라인 **6 tests passed**. 업무/HTTP 계약・정책 import・v4 및 비용 생성물 검사와 diff 공백 검사 통과. full 33건・smoke 9건 준비 확인.
 - `AccessCostsIT`에 V10・policy revision 4 import/reapply, Notion/Tableau 승인 후 0원 실행, Copilot 예산 보류와 신규 구매 후 19달러 단일 차감・관측 갱신 검증을 추가했다. 테스트 소스는 컴파일됐으나 Docker 소켓 접근 거부로 실제 PostgreSQL/전체 HTTP 통합 실행은 미검증이다. Docker가 허용되는 환경에서 `cd backend && mvn verify -Pregression -Dit.test=AccessCostsIT` 또는 격리 smoke/full로 확인한다.
 - 실행 중 DB에는 아직 적용하지 않았다. 새 backend/agent 이미지를 함께 빌드・기동해야 V10과 demo revision 4가 준비된다. 기존 승인 계획이 바뀐 비용 기준과 다르면 재분석・재승인이 필요하다.
+
+## 비용 검토 지적 2건 보완 — 2026-10-23
+
+- 비용 규칙 없는 유료 좌석・사용량 예산을 자동 승인 근거로 삼지 않도록 변경했다. 좌석 호환은 V9 기존 조직의 정책 revision 1과 이관 단가 출처에 한정하고, 새 정책은 명시적 규칙을 요구한다. PURCHASE_SEAT 규칙의 조직 범위・라이선스 코드가 없으면 BUDGET_UNAVAILABLE 수동 검토로 처리한다. 명시적인 0원 권한은 유지한다.
+- 평가 준비 SQL에 구매 필요 여부・관측/만료 시각・관측 출처 유효성 검사를 추가했다. 실제 구매 필요가 false/null이거나 라이선스 관측이 누락・미래・만료이면 요청 전 PRECONDITION_FAILED로 분류한다. 시나리오/fixture에도 purchase_required 기대값을 명시했다.
+- 관련 범위만 검증했다. Java AccessCostingTest・AccessPlanningReviewTest 9건, Python 평가 준비의 해당 회귀 검사 3건 통과. 비용 생성물 일치와 diff 공백 검사도 통과했다. 전체 테스트・Docker/LLM 통합 실행은 추가하지 않았다. migration・실행 중 DB・배포된 정책 본문은 변경하지 않았다.
