@@ -23,7 +23,7 @@ defineEmits<{ retry: [] }>()
       <span class="rl-badge" :class="statusOf(p).tone"><svg v-if="statusOf(p).tone === 'review'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -2px"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 19a5.5 5.5 0 0 1 11 0" /></svg>{{ statusOf(p).label }}</span>
       <span class="rl-what">
         <span class="rl-row-title">{{ p.contents.split('\n')[0] }}</span>
-        <span class="rl-sub"><template v-if="showRequester">{{ p.requester_name }} · </template>{{ platformOf(p.platform).label }}<template v-if="p.requested_role"> · {{ p.requested_role }}</template> · <span class="rl-en">{{ p.id.slice(0, 8) }}</span></span>
+        <span class="rl-sub"><template v-if="showRequester">{{ p.requester_name }} · </template>{{ platformOf(p.platform).label }}<template v-if="p.requested_role"> · {{ p.requested_role }}</template><span class="rl-en"> · {{ p.id.slice(0, 8) }}</span></span>
       </span>
       <span class="rl-when">{{ shortWhen(p.created_at) }}</span>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#868CA5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
@@ -42,6 +42,15 @@ defineEmits<{ retry: [] }>()
 .rl-row svg { transition: transform .2s ease; }
 .rl-row:hover { background: #FAFBFE; }
 .rl-row:hover > svg { transform: translateX(3px); }
+@media (max-width: 720px) {
+  /* 휴대폰: 가로 스크롤 대신 두 줄. 윗줄 = 상태 · 시간, 아랫줄 = 요청 제목(줄임표). */
+  .rl-row { min-width: 0; grid-template-columns: auto minmax(0, 1fr) 16px; grid-template-areas: "badge when arrow" "what what arrow"; row-gap: 8px; gap: 8px 12px; padding: 14px 16px; }
+  .rl-badge { grid-area: badge; justify-self: start; }
+  .rl-when { grid-area: when; justify-self: end; }
+  .rl-what { grid-area: what; }
+  .rl-row > svg { grid-area: arrow; }
+  .rl-sub .rl-en { display: none; }
+}
 @media (prefers-reduced-motion: reduce) { .rl-row, .rl-row svg { transition: none; transform: none; } }
 .rl-badge { justify-self: start; font-size: 13px; font-weight: 700; padding: 5px 12px; border-radius: 999px; white-space: nowrap; }
 .rl-badge.run { background: var(--uo-primary-soft); color: var(--uo-primary-ink); }

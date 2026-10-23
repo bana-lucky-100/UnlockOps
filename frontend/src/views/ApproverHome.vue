@@ -5,7 +5,9 @@ import { ApiError, type ApprovalSummary, type Problem } from '../api'
 import { approvalSummary, decide, getProblem, listForApprover, myTurn } from '../lib/data'
 import AppShell from '../components/AppShell.vue'
 import RequestList from '../components/RequestList.vue'
-import { platformOf } from '../lib/platforms'
+import { platformOf, roleText } from '../lib/platforms'
+import { judgmentOf } from '../lib/requestView'
+import lockImg from '../assets/lock.jpg'
 import { usePolling } from '../lib/polling'
 import { isGuidanceComplete } from '../lib/status'
 import { ago } from '../lib/time'
@@ -158,8 +160,9 @@ const help = {
 </script>
 
 <template>
-  <AppShell :help="help" show-lock>
+  <AppShell :help="help">
     <section class="ah-hero">
+      <div class="ah-hero-text">
       <p class="ah-hello">안녕하세요, {{ currentUser?.name }}님</p>
       <h1 class="ah-title">
         <template v-if="!loaded">승인함을 불러오고 있어요</template>
@@ -170,6 +173,8 @@ const help = {
         <template v-else>지금은 기다리는 요청이 없어요</template>
       </h1>
       <p class="ah-lead">AI가 소속 부서와 현재 권한, 사내 규정을 먼저 대조했어요. 근거를 보고 결정만 해 주세요.</p>
+      </div>
+      <img class="ah-lock" :src="lockImg" alt="" aria-hidden="true">
     </section>
 
     <section aria-labelledby="ah-wait-h">
@@ -231,15 +236,17 @@ const help = {
               <span class="ah-en">{{ p.employee_no }}</span> · {{ ago(p.updated_at) }} 대기
             </div>
             <!-- 목록 응답에는 자원 이름이 없어서 권한만 보여 준다. 자원은 상세(승인 카드)에서 확인한다. -->
-            <p class="ah-req-title"><span class="ah-role">{{ p.requested_role || '권한 확인 필요' }}</span> 권한 요청</p>
+            <!-- v2 목록 요약에는 권한 항목이 없어서, 있으면 쉬운 이름 · 없으면 플랫폼 이름으로 쓴다. -->
+            <p class="ah-req-title"><span class="ah-role">{{ roleText(p.platform, p.requested_role) ?? p.requested_role ?? platformOf(p.platform).label }}</span> 권한 요청</p>
             <p class="ah-req-quote">“{{ p.contents }}”</p>
           </div>
-          <div v-if="p.diagnosis" class="ah-ai">
+          <div v-if="judgmentOf(p, true) || p.diagnosis" class="ah-ai">
             <span class="ah-ai-label">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" /></svg>
               AI 진단
             </span>
-            <span class="ah-ai-text">{{ p.diagnosis }}</span>
+            <!-- 서버 문장(합니다체) 대신 사유 코드로 만든 해요체 판단을 먼저 쓴다. -->
+            <span class="ah-ai-text">{{ judgmentOf(p, true) ?? p.diagnosis }}</span>
           </div>
           <RouterLink :to="`/requests/${p.id}`" class="ah-open">
             근거 보기<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
@@ -333,6 +340,11 @@ const help = {
 .ah-open svg { transition: transform .2s ease; }
 .ah-open:hover svg, .ah-open:focus-visible svg { transform: translateX(3px); }
 .ah-week { margin-top: 40px; }
+/* 자물쇠는 화면마다 인사말 · 제목 블록 오른쪽 가운데에 둔다(공통 고정 위치는 화면마다 hero 높이가 달라 어긋났다). */
+.ah-hero { display: grid; grid-template-columns: minmax(0, 1fr) 200px; column-gap: 32px; align-items: center; }
+.ah-lock { grid-column: 2; grid-row: 1; align-self: center; justify-self: end; width: 200px; height: 200px; object-fit: contain; mix-blend-mode: multiply; pointer-events: none; }
+@media (max-width: 1100px) { .ah-hero { grid-template-columns: minmax(0, 1fr) 140px; } .ah-lock { width: 140px; height: 140px; opacity: .6; } }
+@media (max-width: 720px) { .ah-hero { grid-template-columns: minmax(0, 1fr); } .ah-lock { display: none; } }
 .ah-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .ah-stat { display: flex; flex-direction: column; padding: 26px; border-radius: 20px; min-height: 160px; box-sizing: border-box; }
 .ah-stat-name { font-size: 15px; font-weight: 600; color: var(--fg); }
@@ -342,10 +354,18 @@ const help = {
 .ah-recent { margin-top: 16px; }
 .ah-sub { margin: -8px 0 14px; font-size: 14px; color: var(--uo-muted); }
 @media (max-width: 720px) {
-  .ah-hero { padding: 32px 0 28px; }
+  .ah-hero { padding: 12px 0 24px; }
   .ah-hello { font-size: 30px; }
   .ah-title { font-size: 24px; }
   .ah-ai { min-width: 0; flex-basis: 100%; }
+  /* 휴대폰: 이번 주 숫자 3개는 한 줄에 작게, 요청 카드는 체크 상자를 위쪽 정보 줄과 나란히 */
+  .ah-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .ah-stat { min-height: 0; padding: 14px 12px; border-radius: 14px; }
+  .ah-stat-count b { font-size: 30px; }
+  .ah-stat-desc { display: none; }
+  .ah-req { padding: 16px; gap: 12px; align-items: flex-start; }
+  .ah-req-main { flex: 1 1 calc(100% - 48px); min-width: 0; }
+  .ah-open { width: 100%; justify-content: center; }
 }
 @media (prefers-reduced-motion: reduce) { .ah-req, .ah-open svg { transition: none; transform: none; } }
 </style>

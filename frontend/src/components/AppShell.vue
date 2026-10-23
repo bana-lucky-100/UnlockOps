@@ -137,6 +137,18 @@ async function signOut() {
   .sh-inner { padding: 20px 16px 48px; }
   .sh-who { display: none; }
   .sh-lock { display: none; }
+  /* 휴대폰: 상단 바 한 줄 = 왼쪽 로고 · 메뉴, 오른쪽 도움말 · 로그아웃.
+     헤더를 본문에서 꺼내 상단 바 위에 겹쳐 놓는다. 기준을 .sh로 잡으려고 본문 쪽 position을 푼다. */
+  .sh { position: relative; overflow-x: clip; }
+  .sh-nav { height: 60px; padding: 0 16px; align-items: center; gap: 4px; }
+  .sh-nav-link { width: 40px; height: 40px; }
+  .sh-main, .sh-inner { position: static; }
+  .sh-glow { display: none; }
+  .sh-head { position: absolute; top: 0; right: 16px; height: 60px; z-index: 3; }
+  .sh-brand, .sh-avatar { display: none; }
+  .sh-me { gap: 6px; flex-wrap: nowrap; }
+  .sh-pill { height: 34px; padding: 0 12px; font-size: 13px; }
 }
+@media (max-width: 360px) { .sh-pill svg { display: none; } }
 @media (prefers-reduced-motion: reduce) { .sh-nav-link, .sh-nav-link::after { transition: none; } }
 </style>

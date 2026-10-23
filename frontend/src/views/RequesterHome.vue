@@ -7,6 +7,7 @@ import AppShell from '../components/AppShell.vue'
 import RequestList from '../components/RequestList.vue'
 import { PLATFORMS, PLATFORM_ORDER, PLATFORM_ORDER_V2 } from '../lib/platforms'
 import { guessPlatforms } from '../lib/platformGuess'
+import lockImg from '../assets/lock.jpg'
 import { usePolling } from '../lib/polling'
 import { groupOf, needsRefresh, type StatusGroup } from '../lib/status'
 import { currentUser } from '../session'
@@ -159,10 +160,13 @@ const help = {
 </script>
 
 <template>
-  <AppShell :help="help" show-lock>
+  <AppShell :help="help">
     <section class="rh-hero">
+      <div class="rh-hero-text">
       <p class="rh-hello">안녕하세요, {{ currentUser?.name }}님</p>
       <h1 class="rh-title">필요한 권한, 근거와<br>예산 영향까지 함께 정리해 드려요</h1>
+      </div>
+      <img class="rh-lock" :src="lockImg" alt="" aria-hidden="true">
 
       <div class="rh-ask">
 
@@ -232,6 +236,12 @@ const help = {
 
 <style scoped>
 .rh-hero { padding: 72px 0 40px; }
+/* 자물쇠는 화면마다 인사말 · 제목 블록 오른쪽 가운데에 둔다(공통 고정 위치는 화면마다 hero 높이가 달라 어긋났다). */
+.rh-hero { display: grid; grid-template-columns: minmax(0, 1fr) 200px; column-gap: 32px; align-items: center; }
+.rh-lock { grid-column: 2; grid-row: 1; align-self: center; justify-self: end; width: 200px; height: 200px; object-fit: contain; mix-blend-mode: multiply; pointer-events: none; }
+@media (max-width: 1100px) { .rh-hero { grid-template-columns: minmax(0, 1fr) 140px; } .rh-lock { width: 140px; height: 140px; opacity: .6; } }
+@media (max-width: 720px) { .rh-hero { grid-template-columns: minmax(0, 1fr); } .rh-lock { display: none; } }
+.rh-hero > .rh-ask { grid-column: 1 / -1; grid-row: 2; }
 .rh-hello { margin: 0 0 12px; font-family: var(--uo-font-en); font-size: 44px; font-weight: 700; letter-spacing: -0.02em; color: var(--uo-primary); }
 .rh-title { margin: 0; font-size: 34px; line-height: 1.4; font-weight: 600; letter-spacing: -0.01em; }
 .rh-ask { margin-top: 36px; display: flex; flex-direction: column; gap: 12px; }
@@ -288,10 +298,20 @@ const help = {
 .rh-recent { margin-top: 16px; }
 .rh-en { font-family: var(--uo-font-en); }
 @media (max-width: 720px) {
-  .rh-hero { padding: 32px 0 28px; }
+  .rh-hero { padding: 12px 0 24px; }
   .rh-hello { font-size: 30px; }
   .rh-title { font-size: 24px; }
   .rh-count { display: none; }
+  /* 휴대폰: 플랫폼 버튼은 입력창 위 한 줄로, 상태 카드 3개는 한 줄에 작게 */
+  .rh-form { flex-wrap: wrap; padding: 8px; }
+  .rh-pf { flex-basis: 100%; padding-top: 0; }
+  .rh-form textarea { padding: 6px 4px; }
+  .rh-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .rh-step { min-height: 0; padding: 14px 12px 16px; border-radius: 14px; }
+  .rh-step-name { font-size: 13px; }
+  .rh-step-name .rh-en { display: none; }
+  .rh-step-count b { font-size: 30px; }
+  .rh-step-desc, .rh-cut, .rh-cut-a, .rh-cut-b, .rh-arr { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .rh-chip, .rh-send svg, .rh-arr, .rh-arr svg, .rh-all, .rh-all svg { transition: none; transform: none; } }
 </style>
