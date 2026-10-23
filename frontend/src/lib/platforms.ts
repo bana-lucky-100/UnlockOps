@@ -58,7 +58,7 @@ Object.assign(ROLE_TEXT.DATADOG, { service_viewer: '서비스 로그 · 대시�
 Object.assign(ROLE_TEXT.TABLEAU_CLOUD, { project_publisher: '대시보드 편집 · 게시' })
 Object.assign(ROLE_TEXT.FIGMA, { editor_seat: '파일 편집 좌석' })
 Object.assign(ROLE_TEXT.GITHUB, { copilot_seat: 'Copilot 좌석' })
-Object.assign(ROLE_TEXT.NOTION, { editor: '페이지 편집' })
+Object.assign(ROLE_TEXT.NOTION, { editor: '페이지 편집', viewer: '페이지 읽기', reader: '페이지 읽기' })
 ROLE_TEXT.TABLEAU = ROLE_TEXT.TABLEAU_CLOUD
 export function roleText(platform: string | null | undefined, role: string | null | undefined): string | null {
   if (!role) return null

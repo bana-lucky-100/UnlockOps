@@ -282,8 +282,9 @@ const help = {
 .rh-cut-b { position: absolute; right: 80px; bottom: 0; width: 26px; height: 26px; background: radial-gradient(circle at 0 0, rgba(246,247,252,0) 25.5px, var(--uo-bg) 26px); }
 .rh-arr { position: absolute; right: 10px; bottom: 10px; width: 60px; height: 60px; border-radius: 50%; background: #fff; color: var(--fg); border: 1px solid var(--uo-line); box-shadow: 0 4px 14px rgba(20,26,51,0.08); box-sizing: border-box; display: flex; align-items: center; justify-content: center; transition: background-color .25s ease, color .25s ease, border-color .25s ease; }
 .rh-arr svg { transition: transform .2s ease; }
-.rh-step:hover .rh-arr svg, .rh-step:focus-visible .rh-arr svg { transform: translate(3px, -3px); }
-.rh-step:hover .rh-arr { background: var(--fg); color: #fff; border-color: var(--fg); }
+/* 카드 전체가 링크지만, 색 변화는 동그라미 화살표에 올렸을 때(또는 키보드 포커스)만. */
+.rh-arr:hover svg, .rh-step:focus-visible .rh-arr svg { transform: translate(3px, -3px); }
+.rh-arr:hover, .rh-step:focus-visible .rh-arr { background: var(--fg); color: #fff; border-color: var(--fg); }
 .rh-recent { margin-top: 16px; }
 .rh-en { font-family: var(--uo-font-en); }
 @media (max-width: 720px) {

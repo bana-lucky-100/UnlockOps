@@ -104,7 +104,7 @@ async function signOut() {
 /* 배경 장식은 잘라 내되 스크롤 영역은 만들지 않는다(clip). hidden이면 안쪽의 position: sticky가 동작하지 않는다. */
 .sh-main { flex: 999 1 560px; min-width: 0; position: relative; overflow: hidden; overflow: clip; }
 .sh-glow { position: absolute; top: -220px; right: -160px; width: 820px; height: 720px; border-radius: 50%; background: radial-gradient(closest-side at 55% 50%, rgba(122,92,240,0.38), rgba(59,75,216,0.22) 45%, rgba(246,247,252,0) 100%); filter: blur(10px); pointer-events: none; }
-.sh-lock { position: absolute; top: 64px; right: 64px; width: 236px; height: 236px; object-fit: contain; mix-blend-mode: multiply; pointer-events: none; }
+.sh-lock { position: absolute; top: 104px; right: 72px; width: 216px; height: 216px; object-fit: contain; mix-blend-mode: multiply; pointer-events: none; }
 .sh-inner { position: relative; max-width: 1180px; margin: 0 auto; padding: 44px 48px 64px; box-sizing: border-box; }
 .sh-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .sh-brand { font-family: var(--uo-font-en); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; }
