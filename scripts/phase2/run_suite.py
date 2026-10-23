@@ -244,6 +244,42 @@ class Suite:
             notifications = self.user(case["login_prefix"] + role).call("GET", "/api/reclaim/notifications")
             check({n["id"] for n in notifications} == before[role], "repeat scan duplicated notifications")
         result["checks"].extend(["recipient_delivery", "read_idempotency", "episode_stability", "notification_deduplication"])
+        if case["id"] in {"R-01", "R-04"}:
+            operator = self.user(case["login_prefix"] + "operator")
+            target_id = next(iter(targets))
+            target_path = "/api/reclaim/targets/" + target_id
+            historical = operator.call("GET", target_path)
+            state = operator.call("GET", target_path + "/execution")
+            check(state["can_revoke"] is True and state["execution_status"] == "NOT_EXECUTED", "confirmed candidate is not executable")
+            revoke_input = {}
+            revoke_key = str(uuid4())
+            self.user(case["other_login"]).call("POST", target_path + "/revoke", expected=403,
+                                               json=revoke_input, headers={"Idempotency-Key": revoke_key})
+            receipt = operator.call("POST", target_path + "/revoke", json=revoke_input,
+                                    headers={"Idempotency-Key": revoke_key})
+            check(receipt["verification_ok"] is True and receipt["assignment_status_after"] == "INACTIVE"
+                  and receipt["provider_present_after"] is False, "revoke receipt lacks verified absence")
+            operator.call("POST", target_path + "/revoke", expected=409, json=revoke_input,
+                          headers={"Idempotency-Key": revoke_key})
+            operator.call("POST", target_path + "/revoke", expected=409, json=revoke_input,
+                          headers={"Idempotency-Key": str(uuid4())})
+            check(operator.call("GET", target_path) == historical, "revocation rewrote historical report")
+            check(operator.call("GET", target_path + "/execution")["execution_status"] == "SUCCEEDED", "completion not queryable")
+            history = operator.call("GET", "/api/reclaim/executions")
+            check(any(r["id"] == receipt["id"] for r in history["items"]), "receipt missing from permitted history")
+            current = next(t for t in operator.call("GET", "/api/reclaim/overview")["targets"] if t["target_id"] == target_id)
+            check(current["candidate_status"] == "RECLAIMED" and current["action_taken"] == "REVOKED"
+                  and current["reclaimed_at"] and current["can_revoke"] is False, "overview lacks reclaimed state")
+            after = manager.call("POST", "/api/reclaim/runs", expected=202, json=body,
+                                 headers={"Idempotency-Key": str(uuid4())})
+            after_path = "/api/reclaim/runs/" + after["run_id"]
+            check(self.settle(manager, after_path)["reason_code"] == "NO_NEW_CANDIDATES", "post-revoke scan not settled")
+            check(manager.call("GET", after_path + "/items") == [], "post-revoke scan included inactive assignment")
+            check({n["id"] for n in operator.call("GET", "/api/reclaim/notifications")} == before["operator"], "post-revoke scan recreated notification")
+            result["revoked_assignment_ids"] = [receipt["assignment_id"]]
+            result["revoke_receipt_id"] = receipt["id"]
+            result["checks"].extend(["human_mock_revoke", "revoke_receipt_replay", "revoke_tenant_isolation",
+                                     "historical_report_preserved", "revoke_history", "post_revoke_scan"])
 
 
 def run(bundle):

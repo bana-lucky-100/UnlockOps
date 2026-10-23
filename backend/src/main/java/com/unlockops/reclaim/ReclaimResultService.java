@@ -46,10 +46,15 @@ public class ReclaimResultService {
         int needsReview=0,newCandidates=0,pending=0;
         for(var c:targets) {
             UUID assignment=UUID.fromString(c.assignmentId());
+            // A frozen scan may finish after a human revoked this assignment.
+            // Keep its original report, but never reopen an episode or send another notification.
+            var receipts=db.rows("SELECT to_jsonb(e) FROM reclaim_execution_receipts e WHERE assignment_id=?",assignment);
+            UUID superseded=receipts.isEmpty()?null:uuid(receipts.getFirst(),"id");
+            boolean inactive=!db.exists("SELECT EXISTS(SELECT 1 FROM access_assignments WHERE id=? AND status='ACTIVE')",assignment);
             var facts=expected.get(c.assignmentId()).path("facts");
             JsonNode target=null;boolean created=false;String skip=null;
             if(Boolean.TRUE.equals(c.reviewRequired())) needsReview++;
-            else if(c.candidateReasonCode()!=null) {
+            else if(c.candidateReasonCode()!=null && !inactive && superseded==null) {
                 var open=db.rows("SELECT to_jsonb(t) FROM reclaim_targets t WHERE assignment_id=? AND rule_code=? AND closed_at IS NULL FOR UPDATE",assignment,c.candidateReasonCode());
                 if(!open.isEmpty())target=open.getFirst();
                 if(target==null && c.candidateStatus()!=CandidateStatus.PENDING_REVIEW) {
@@ -97,10 +102,10 @@ public class ReclaimResultService {
             db.checked(report,ReclaimCandidate.class);
             db.jdbc.update("""
                 INSERT INTO reclaim_run_items(run_id,company_id,assignment_id,target_id,candidate_status,candidate_reason_code,
-                  exclusion_reason_code,skip_reason_code,review_required,report,policy_evidence,fact_evidence,generation_mode,cost_status,monthly_amount,currency)
-                VALUES(?,?,?,?,?,?,?,?,?,?::jsonb,?::jsonb,?::jsonb,?,?,?,?)
+                  exclusion_reason_code,skip_reason_code,review_required,report,policy_evidence,fact_evidence,generation_mode,cost_status,monthly_amount,currency,superseded_by_receipt_id,action_taken)
+                VALUES(?,?,?,?,?,?,?,?,?,?::jsonb,?::jsonb,?::jsonb,?,?,?,?,?,?)
                 """,id,company,assignment,target==null?null:uuid(target,"id"),c.candidateStatus()==null?null:c.candidateStatus().name(),c.candidateReasonCode(),c.exclusionReasonCode(),skip,
-                c.reviewRequired(),db.json.write(report),db.json.write(c.policyEvidence()),db.json.write(c.factEvidence()),c.generationMode(),c.costImpact().status(),c.costImpact().monthlyAmount()==null?null:new java.math.BigDecimal(c.costImpact().monthlyAmount()),c.costImpact().currency());
+                c.reviewRequired(),db.json.write(report),db.json.write(c.policyEvidence()),db.json.write(c.factEvidence()),c.generationMode(),c.costImpact().status(),c.costImpact().monthlyAmount()==null?null:new java.math.BigDecimal(c.costImpact().monthlyAmount()),c.costImpact().currency(),superseded,superseded==null?"NONE":"REVOKED");
         }
         String status=pending>0?"FAILED":"DONE";
         String reason=pending>0?"NOTIFICATION_FAILED":newCandidates>0 || needsReview>0?"SCAN_COMPLETED":"NO_NEW_CANDIDATES";

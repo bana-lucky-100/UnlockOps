@@ -440,6 +440,14 @@
       "title": "ApprovalStep",
       "type": "object"
     },
+    "AssignmentStatus": {
+      "enum": [
+        "ACTIVE",
+        "INACTIVE"
+      ],
+      "title": "AssignmentStatus",
+      "type": "string"
+    },
     "CandidatePage": {
       "additionalProperties": false,
       "properties": {
@@ -1117,6 +1125,318 @@
       "title": "ReclaimEvent",
       "type": "object"
     },
+    "ReclaimExecutionBlockReason": {
+      "enum": [
+        "EXECUTION_FORBIDDEN",
+        "MOCK_ONLY",
+        "ALREADY_REVOKED",
+        "CANDIDATE_CHANGED",
+        "RECHECK_REQUIRED"
+      ],
+      "title": "ReclaimExecutionBlockReason",
+      "type": "string"
+    },
+    "ReclaimExecutionError": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "code": {
+          "enum": [
+            "IDEMPOTENCY_CONFLICT",
+            "ALREADY_REVOKED",
+            "CANDIDATE_CHANGED",
+            "RECHECK_REQUIRED",
+            "EXECUTION_FORBIDDEN",
+            "MOCK_ONLY"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "receipt_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Receipt Id"
+        }
+      },
+      "required": [
+        "message",
+        "code",
+        "receipt_id"
+      ],
+      "title": "ReclaimExecutionError",
+      "type": "object"
+    },
+    "ReclaimExecutionPage": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ReclaimExecutionReceipt"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next Cursor"
+        }
+      },
+      "required": [
+        "schema_version",
+        "items",
+        "next_cursor"
+      ],
+      "title": "ReclaimExecutionPage",
+      "type": "object"
+    },
+    "ReclaimExecutionReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "target_id": {
+          "format": "uuid",
+          "title": "Target Id",
+          "type": "string"
+        },
+        "assignment_id": {
+          "format": "uuid",
+          "title": "Assignment Id",
+          "type": "string"
+        },
+        "episode_id": {
+          "format": "uuid",
+          "title": "Episode Id",
+          "type": "string"
+        },
+        "review_run_id": {
+          "format": "uuid",
+          "title": "Review Run Id",
+          "type": "string"
+        },
+        "employee_name": {
+          "title": "Employee Name",
+          "type": "string"
+        },
+        "resource_name": {
+          "title": "Resource Name",
+          "type": "string"
+        },
+        "executed_by": {
+          "format": "uuid",
+          "title": "Executed By",
+          "type": "string"
+        },
+        "executed_by_name": {
+          "title": "Executed By Name",
+          "type": "string"
+        },
+        "executed_at": {
+          "format": "date-time",
+          "title": "Executed At",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "verification_ok": {
+          "const": true,
+          "title": "Verification Ok",
+          "type": "boolean"
+        },
+        "assignment_status_before": {
+          "const": "ACTIVE",
+          "title": "Assignment Status Before",
+          "type": "string"
+        },
+        "assignment_status_after": {
+          "const": "INACTIVE",
+          "title": "Assignment Status After",
+          "type": "string"
+        },
+        "provider_present_before": {
+          "title": "Provider Present Before",
+          "type": "boolean"
+        },
+        "provider_present_after": {
+          "const": false,
+          "title": "Provider Present After",
+          "type": "boolean"
+        },
+        "policy_revision": {
+          "minimum": 1,
+          "title": "Policy Revision",
+          "type": "integer"
+        },
+        "policy_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Hash",
+          "type": "string"
+        },
+        "current_facts": {
+          "additionalProperties": true,
+          "title": "Current Facts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema_version",
+        "id",
+        "target_id",
+        "assignment_id",
+        "episode_id",
+        "review_run_id",
+        "employee_name",
+        "resource_name",
+        "executed_by",
+        "executed_by_name",
+        "executed_at",
+        "reason",
+        "verification_ok",
+        "assignment_status_before",
+        "assignment_status_after",
+        "provider_present_before",
+        "provider_present_after",
+        "policy_revision",
+        "policy_hash",
+        "current_facts"
+      ],
+      "title": "ReclaimExecutionReceipt",
+      "type": "object"
+    },
+    "ReclaimExecutionState": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "target_id": {
+          "format": "uuid",
+          "title": "Target Id",
+          "type": "string"
+        },
+        "assignment_id": {
+          "format": "uuid",
+          "title": "Assignment Id",
+          "type": "string"
+        },
+        "episode_id": {
+          "format": "uuid",
+          "title": "Episode Id",
+          "type": "string"
+        },
+        "review_run_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Review Run Id"
+        },
+        "employee_name": {
+          "title": "Employee Name",
+          "type": "string"
+        },
+        "resource_name": {
+          "title": "Resource Name",
+          "type": "string"
+        },
+        "assignment_status": {
+          "$ref": "#/$defs/AssignmentStatus"
+        },
+        "can_revoke": {
+          "title": "Can Revoke",
+          "type": "boolean"
+        },
+        "block_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReclaimExecutionBlockReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "execution_status": {
+          "$ref": "#/$defs/ReclaimExecutionStatus"
+        },
+        "receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReclaimExecutionReceipt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "target_id",
+        "assignment_id",
+        "episode_id",
+        "review_run_id",
+        "employee_name",
+        "resource_name",
+        "assignment_status",
+        "can_revoke",
+        "block_reason",
+        "execution_status",
+        "receipt"
+      ],
+      "title": "ReclaimExecutionState",
+      "type": "object"
+    },
+    "ReclaimExecutionStatus": {
+      "enum": [
+        "NOT_EXECUTED",
+        "SUCCEEDED"
+      ],
+      "title": "ReclaimExecutionStatus",
+      "type": "string"
+    },
     "ReclaimJob": {
       "additionalProperties": false,
       "properties": {
@@ -1176,6 +1496,13 @@
         "scheduled_for"
       ],
       "title": "ReclaimJob",
+      "type": "object"
+    },
+    "ReclaimRevokeInput": {
+      "additionalProperties": false,
+      "description": "Human confirmation uses the path target and session; the JSON body is {}.",
+      "properties": {},
+      "title": "ReclaimRevokeInput",
       "type": "object"
     },
     "ReclaimRunView": {
@@ -1375,6 +1702,220 @@
       "title": "ReclaimSummary",
       "type": "object"
     },
+    "ReclaimTargetStatus": {
+      "enum": [
+        "PENDING_REVIEW",
+        "RETAINED",
+        "EXCLUDED",
+        "RECLAIMED"
+      ],
+      "title": "ReclaimTargetStatus",
+      "type": "string"
+    },
+    "ReclaimTargetView": {
+      "additionalProperties": false,
+      "description": "Current HTTP projection; Worker candidates remain scan-only ReclaimCandidate.",
+      "properties": {
+        "assignment_id": {
+          "format": "uuid",
+          "title": "Assignment Id",
+          "type": "string"
+        },
+        "target_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Id"
+        },
+        "episode_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Episode Id"
+        },
+        "platform": {
+          "$ref": "#/$defs/Platform"
+        },
+        "candidate_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReclaimTargetStatus"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "candidate_reason_code": {
+          "anyOf": [
+            {
+              "enum": [
+                "TF_ENDED_UNUSED_30D",
+                "EMPLOYEE_LEFT"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Reason Code"
+        },
+        "exclusion_reason_code": {
+          "anyOf": [
+            {
+              "enum": [
+                "ACTIVE_OTHER_TF",
+                "RETENTION_APPROVED",
+                "USAGE_RESUMED"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exclusion Reason Code"
+        },
+        "skip_reason_code": {
+          "anyOf": [
+            {
+              "const": "ALREADY_NOTIFIED",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Skip Reason Code"
+        },
+        "review_required": {
+          "default": false,
+          "title": "Review Required",
+          "type": "boolean"
+        },
+        "notified_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notified At"
+        },
+        "read_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Read At"
+        },
+        "action_taken": {
+          "default": "NONE",
+          "enum": [
+            "NONE",
+            "REVOKED"
+          ],
+          "title": "Action Taken",
+          "type": "string"
+        },
+        "generation_mode": {
+          "default": "template",
+          "enum": [
+            "template",
+            "llm"
+          ],
+          "title": "Generation Mode",
+          "type": "string"
+        },
+        "explanation": {
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "policy_evidence": {
+          "items": {
+            "$ref": "#/$defs/PolicyEvidence"
+          },
+          "title": "Policy Evidence",
+          "type": "array"
+        },
+        "fact_evidence": {
+          "items": {
+            "$ref": "#/$defs/FactEvidence"
+          },
+          "title": "Fact Evidence",
+          "type": "array"
+        },
+        "cost_impact": {
+          "$ref": "#/$defs/CostImpact"
+        },
+        "can_revoke": {
+          "title": "Can Revoke",
+          "type": "boolean"
+        },
+        "reclaimed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reclaimed At"
+        },
+        "employee_name": {
+          "title": "Employee Name",
+          "type": "string"
+        },
+        "resource_name": {
+          "title": "Resource Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assignment_id",
+        "platform",
+        "explanation",
+        "cost_impact",
+        "can_revoke",
+        "reclaimed_at",
+        "employee_name",
+        "resource_name"
+      ],
+      "title": "ReclaimTargetView",
+      "type": "object"
+    },
     "Status": {
       "enum": [
         "RECEIVED",
@@ -1459,6 +2000,24 @@
     },
     "reclaim_start": {
       "$ref": "#/$defs/ReclaimStartInput"
+    },
+    "reclaim_revoke": {
+      "$ref": "#/$defs/ReclaimRevokeInput"
+    },
+    "reclaim_execution_receipt": {
+      "$ref": "#/$defs/ReclaimExecutionReceipt"
+    },
+    "reclaim_execution_state": {
+      "$ref": "#/$defs/ReclaimExecutionState"
+    },
+    "reclaim_execution_page": {
+      "$ref": "#/$defs/ReclaimExecutionPage"
+    },
+    "reclaim_execution_error": {
+      "$ref": "#/$defs/ReclaimExecutionError"
+    },
+    "reclaim_target": {
+      "$ref": "#/$defs/ReclaimTargetView"
     }
   },
   "required": [
@@ -1473,7 +2032,13 @@
     "candidate_page",
     "access_request",
     "approval_decision",
-    "reclaim_start"
+    "reclaim_start",
+    "reclaim_revoke",
+    "reclaim_execution_receipt",
+    "reclaim_execution_state",
+    "reclaim_execution_page",
+    "reclaim_execution_error",
+    "reclaim_target"
   ],
   "title": "ContractBundle",
   "type": "object",

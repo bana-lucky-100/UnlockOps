@@ -22,7 +22,8 @@ public final class WorkflowCodec {
             JsonNode tree = mapper.readTree(raw);
             if (!tree.isObject()) throw new IllegalArgumentException("Expected an object");
             if (Set.of(GrantPlanV2.class, AccessView.class, ReclaimRunView.class, AccessJob.class,
-                    ReclaimJob.class, AccessEvent.class, ReclaimEvent.class).contains(type))
+                    ReclaimJob.class, AccessEvent.class, ReclaimEvent.class,
+                    ReclaimExecutionState.class, ReclaimExecutionReceipt.class, ReclaimExecutionPage.class).contains(type))
                 require(tree.path("schema_version").isIntegralNumber() && tree.path("schema_version").intValue()==2,
                     "Explicit schema_version=2 is required");
             validateTimestamps(tree);
@@ -31,6 +32,19 @@ public final class WorkflowCodec {
             require(violations.isEmpty(), "Invalid v2 fields: " + violations);
             if (value instanceof ApprovalDecisionInput d && !"APPROVE".equals(d.action()))
                 require(d.reason()!=null && !d.reason().isBlank(),"Decision reason required");
+            if (value instanceof ReclaimTargetView t) {
+                boolean reclaimed=t.candidateStatus()==ReclaimTargetStatus.RECLAIMED;
+                require(reclaimed==(t.reclaimedAt()!=null) && reclaimed=="REVOKED".equals(t.actionTaken()),"Reclaimed action and timestamp required");
+                require(!t.canRevoke() || (t.candidateStatus()==ReclaimTargetStatus.PENDING_REVIEW && !t.reviewRequired() && t.targetId()!=null),"Only confirmed pending targets can be executable");
+            }
+            if (value instanceof ReclaimExecutionReceipt r) validateReceipt(r);
+            if (value instanceof ReclaimExecutionPage p) p.items().forEach(this::validateReceipt);
+            if (value instanceof ReclaimExecutionState s) {
+                require(s.canRevoke()==(s.blockReason()==null),"Eligibility mismatch");
+                require((s.executionStatus()==ReclaimExecutionStatus.SUCCEEDED)==(s.receipt()!=null),"Receipt required");
+                if (s.receipt()!=null) { validateReceipt(s.receipt()); require(s.assignmentId().equals(s.receipt().assignmentId()) && !s.canRevoke(),"Receipt identity mismatch"); }
+                if (s.canRevoke()) require(s.assignmentStatus()==AssignmentStatus.ACTIVE && s.reviewRunId()!=null,"Active assignment and review required");
+            }
             if (value instanceof GrantPlanV2 p) validatePlan(p);
             if (value instanceof AccessView v) validateAccess(v);
             if (value instanceof ReclaimRunView v) validateReclaim(v);
@@ -66,6 +80,11 @@ public final class WorkflowCodec {
             return value;
         } catch (IllegalArgumentException e) { throw e; }
         catch (Exception e) { throw new IllegalArgumentException("Invalid v2 contract",e); }
+    }
+
+    private void validateReceipt(ReclaimExecutionReceipt r) {
+        require(r.schemaVersion()==2 && Boolean.TRUE.equals(r.verificationOk()) && Boolean.FALSE.equals(r.providerPresentAfter()),"Verified absence required");
+        require(!r.reason().isBlank(),"Receipt reason required");
     }
 
     private void validatePlan(GrantPlanV2 p) {
@@ -161,7 +180,7 @@ public final class WorkflowCodec {
         if (node.isArray()) { node.forEach(WorkflowCodec::validateTimestamps); return; }
         if (!node.isObject()) return;
         node.fields().forEachRemaining(e -> {
-            if (!e.getValue().isNull() && Set.of("acted_at","as_of","scheduled_for","observed_at","notified_at","read_at").contains(e.getKey()))
+            if (!e.getValue().isNull() && Set.of("acted_at","as_of","scheduled_for","observed_at","notified_at","read_at","executed_at","reclaimed_at").contains(e.getKey()))
                 java.time.OffsetDateTime.parse(e.getValue().asText());
             validateTimestamps(e.getValue());
         });

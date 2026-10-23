@@ -65,6 +65,7 @@ public final class WorkflowTypes {
         @JsonProperty("reason") @Valid String reason,
         @JsonProperty("acted_at") @Valid String actedAt
     ) {}
+    public enum AssignmentStatus { ACTIVE, INACTIVE }
     public record CandidatePage(
         @JsonProperty("run_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String runId,
         @JsonProperty("snapshot_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String snapshotId,
@@ -160,6 +161,54 @@ public final class WorkflowTypes {
         @JsonProperty("result") @Valid @NotNull ReclaimRunView result,
         @JsonProperty("targets") @Valid List<ReclaimCandidate> targets
     ) {}
+    public enum ReclaimExecutionBlockReason { EXECUTION_FORBIDDEN, MOCK_ONLY, ALREADY_REVOKED, CANDIDATE_CHANGED, RECHECK_REQUIRED }
+    public record ReclaimExecutionError(
+        @JsonProperty("message") @Valid @NotNull String message,
+        @JsonProperty("code") @Valid @NotNull @Pattern(regexp="^(IDEMPOTENCY_CONFLICT|ALREADY_REVOKED|CANDIDATE_CHANGED|RECHECK_REQUIRED|EXECUTION_FORBIDDEN|MOCK_ONLY)$") String code,
+        @JsonProperty("receipt_id") @Valid @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String receiptId
+    ) {}
+    public record ReclaimExecutionPage(
+        @JsonProperty("schema_version") @Valid @NotNull @Min(2) @Max(2) Integer schemaVersion,
+        @JsonProperty("items") @Valid @NotNull List<ReclaimExecutionReceipt> items,
+        @JsonProperty("next_cursor") @Valid @Min(0) Integer nextCursor
+    ) {}
+    public record ReclaimExecutionReceipt(
+        @JsonProperty("schema_version") @Valid @NotNull @Min(2) @Max(2) Integer schemaVersion,
+        @JsonProperty("id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String id,
+        @JsonProperty("target_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String targetId,
+        @JsonProperty("assignment_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String assignmentId,
+        @JsonProperty("episode_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String episodeId,
+        @JsonProperty("review_run_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String reviewRunId,
+        @JsonProperty("employee_name") @Valid @NotNull String employeeName,
+        @JsonProperty("resource_name") @Valid @NotNull String resourceName,
+        @JsonProperty("executed_by") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String executedBy,
+        @JsonProperty("executed_by_name") @Valid @NotNull String executedByName,
+        @JsonProperty("executed_at") @Valid @NotNull String executedAt,
+        @JsonProperty("reason") @Valid @NotNull @Size(min=1, max=2000) String reason,
+        @JsonProperty("verification_ok") @Valid @NotNull @AssertTrue Boolean verificationOk,
+        @JsonProperty("assignment_status_before") @Valid @NotNull @Pattern(regexp="^ACTIVE$") String assignmentStatusBefore,
+        @JsonProperty("assignment_status_after") @Valid @NotNull @Pattern(regexp="^INACTIVE$") String assignmentStatusAfter,
+        @JsonProperty("provider_present_before") @Valid @NotNull Boolean providerPresentBefore,
+        @JsonProperty("provider_present_after") @Valid @NotNull @AssertFalse Boolean providerPresentAfter,
+        @JsonProperty("policy_revision") @Valid @NotNull @Min(1) Integer policyRevision,
+        @JsonProperty("policy_hash") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{64}$") String policyHash,
+        @JsonProperty("current_facts") @Valid @NotNull JsonNode currentFacts
+    ) {}
+    public record ReclaimExecutionState(
+        @JsonProperty("schema_version") @Valid @NotNull @Min(2) @Max(2) Integer schemaVersion,
+        @JsonProperty("target_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String targetId,
+        @JsonProperty("assignment_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String assignmentId,
+        @JsonProperty("episode_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String episodeId,
+        @JsonProperty("review_run_id") @Valid @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String reviewRunId,
+        @JsonProperty("employee_name") @Valid @NotNull String employeeName,
+        @JsonProperty("resource_name") @Valid @NotNull String resourceName,
+        @JsonProperty("assignment_status") @Valid @NotNull AssignmentStatus assignmentStatus,
+        @JsonProperty("can_revoke") @Valid @NotNull Boolean canRevoke,
+        @JsonProperty("block_reason") @Valid ReclaimExecutionBlockReason blockReason,
+        @JsonProperty("execution_status") @Valid @NotNull ReclaimExecutionStatus executionStatus,
+        @JsonProperty("receipt") @Valid ReclaimExecutionReceipt receipt
+    ) {}
+    public enum ReclaimExecutionStatus { NOT_EXECUTED, SUCCEEDED }
     public record ReclaimJob(
         @JsonProperty("schema_version") @Valid @NotNull @Min(2) @Max(2) Integer schemaVersion,
         @JsonProperty("event_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String eventId,
@@ -169,6 +218,9 @@ public final class WorkflowTypes {
         @JsonProperty("trigger") @Valid @NotNull @Pattern(regexp="^(DAILY_SCHEDULE|MANUAL_DEMO)$") String trigger,
         @JsonProperty("scope_key") @Valid @NotNull @Size(min=1, max=200) String scopeKey,
         @JsonProperty("scheduled_for") @Valid @NotNull String scheduledFor
+    ) {}
+    public record ReclaimRevokeInput(
+
     ) {}
     public record ReclaimRunView(
         @JsonProperty("schema_version") @Valid @NotNull @Min(2) @Max(2) Integer schemaVersion,
@@ -197,6 +249,30 @@ public final class WorkflowTypes {
         @JsonProperty("needs_review_count") @Valid @NotNull @Min(0) Integer needsReviewCount,
         @JsonProperty("new_candidate_count") @Valid @NotNull @Min(0) Integer newCandidateCount,
         @JsonProperty("pending_notification_count") @Valid @NotNull @Min(0) Integer pendingNotificationCount
+    ) {}
+    public enum ReclaimTargetStatus { PENDING_REVIEW, RETAINED, EXCLUDED, RECLAIMED }
+    public record ReclaimTargetView(
+        @JsonProperty("assignment_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String assignmentId,
+        @JsonProperty("target_id") @Valid @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String targetId,
+        @JsonProperty("episode_id") @Valid @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String episodeId,
+        @JsonProperty("platform") @Valid @NotNull Platform platform,
+        @JsonProperty("candidate_status") @Valid ReclaimTargetStatus candidateStatus,
+        @JsonProperty("candidate_reason_code") @Valid @Pattern(regexp="^(TF_ENDED_UNUSED_30D|EMPLOYEE_LEFT)$") String candidateReasonCode,
+        @JsonProperty("exclusion_reason_code") @Valid @Pattern(regexp="^(ACTIVE_OTHER_TF|RETENTION_APPROVED|USAGE_RESUMED)$") String exclusionReasonCode,
+        @JsonProperty("skip_reason_code") @Valid @Pattern(regexp="^ALREADY_NOTIFIED$") String skipReasonCode,
+        @JsonProperty("review_required") @Valid Boolean reviewRequired,
+        @JsonProperty("notified_at") @Valid String notifiedAt,
+        @JsonProperty("read_at") @Valid String readAt,
+        @JsonProperty("action_taken") @Valid @Pattern(regexp="^(NONE|REVOKED)$") String actionTaken,
+        @JsonProperty("generation_mode") @Valid @Pattern(regexp="^(template|llm)$") String generationMode,
+        @JsonProperty("explanation") @Valid @NotNull @Size(min=1) String explanation,
+        @JsonProperty("policy_evidence") @Valid List<PolicyEvidence> policyEvidence,
+        @JsonProperty("fact_evidence") @Valid List<FactEvidence> factEvidence,
+        @JsonProperty("cost_impact") @Valid @NotNull CostImpact costImpact,
+        @JsonProperty("can_revoke") @Valid @NotNull Boolean canRevoke,
+        @JsonProperty("reclaimed_at") @Valid String reclaimedAt,
+        @JsonProperty("employee_name") @Valid @NotNull String employeeName,
+        @JsonProperty("resource_name") @Valid @NotNull String resourceName
     ) {}
     public enum Status { RECEIVED, DIAGNOSING, WAITING_APPROVAL, ON_HOLD, EXECUTING, DONE, REJECTED, MANUAL_REVIEW, FAILED }
     public static final java.util.Map<String, String> REASON_STATUSES = java.util.Map.ofEntries(java.util.Map.entry("ELIGIBLE","WAITING_APPROVAL"),java.util.Map.entry("LEAST_PRIVILEGE_PROPOSED","WAITING_APPROVAL"),java.util.Map.entry("BUDGET_INSUFFICIENT","ON_HOLD"),java.util.Map.entry("HELD_BY_APPROVER","ON_HOLD"),java.util.Map.entry("HUMAN_APPROVED","EXECUTING"),java.util.Map.entry("HUMAN_REJECTED","REJECTED"),java.util.Map.entry("POLICY_NOT_ELIGIBLE","REJECTED"),java.util.Map.entry("NOT_TF_MEMBER","REJECTED"),java.util.Map.entry("DUPLICATE_SEAT","REJECTED"),java.util.Map.entry("MISSING_SOURCE_EVIDENCE","MANUAL_REVIEW"),java.util.Map.entry("APPROVER_UNAVAILABLE","MANUAL_REVIEW"),java.util.Map.entry("OUT_OF_SCOPE","MANUAL_REVIEW"),java.util.Map.entry("BUDGET_UNAVAILABLE","MANUAL_REVIEW"),java.util.Map.entry("MODEL_UNAVAILABLE","MANUAL_REVIEW"),java.util.Map.entry("PLAN_REVIEW_REQUIRED","MANUAL_REVIEW"),java.util.Map.entry("ANALYSIS_CONFLICT","MANUAL_REVIEW"),java.util.Map.entry("VERIFIED","DONE"),java.util.Map.entry("ALREADY_HAS_ACCESS","DONE"),java.util.Map.entry("RAG_GUIDANCE","DONE"),java.util.Map.entry("SCAN_IN_PROGRESS","EXECUTING"),java.util.Map.entry("SCAN_COMPLETED","DONE"),java.util.Map.entry("NO_NEW_CANDIDATES","DONE"),java.util.Map.entry("VERIFICATION_FAILED","FAILED"),java.util.Map.entry("TOOL_CALL_FAILED","FAILED"),java.util.Map.entry("SCAN_FAILED","FAILED"),java.util.Map.entry("NOTIFICATION_FAILED","FAILED"));
