@@ -184,3 +184,11 @@ test('개요에 이름 · 사용일이 없으면 지어내지 않고 정보 없�
   assert.equal(r2.candidates[0].resource, 'Copilot')
   assert.equal(r2.candidates[0].usage_known, true)
 })
+
+test('회수 버튼은 서버가 can_revoke를 준 후보에만 열린다', () => {
+  const base = { candidate_status: 'PENDING_REVIEW', explanation: 'x', policy_evidence: [], cost_impact: { status: 'ESTIMATED', monthly_amount: '19.00', currency: 'USD' }, platform: 'GITHUB' }
+  const r = fromOverview({ last_run: null, active_run: null, summary: null, targets: [{ ...base, assignment_id: 'a' }, { ...base, assignment_id: 'b', can_revoke: true }, { ...base, assignment_id: 'c', candidate_status: 'RECLAIMED', reclaimed_at: '2026-10-23T15:20:00+09:00' }] })
+  assert.deepEqual(r.candidates.map(c => c.can_revoke), [false, true, false])
+  assert.equal(r.candidates[2].candidate_status, 'RECLAIMED')
+  assert.equal(r.candidates[2].reclaimed_at, '2026-10-23T15:20:00+09:00')
+})

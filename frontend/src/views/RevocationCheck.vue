@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError } from '../api'
 import AppShell from '../components/AppShell.vue'
-import { CANDIDATE_REASON_TEXT, daysSince, EXCLUSION_TEXT, isAlreadyNotified, isNewInRun, isPartial, isRunning, latestReport, needsReviewCount, needsReviewRow, runNow, type RevocationCandidate, type RevocationReport } from '../lib/revocation.ts'
+import { CANDIDATE_REASON_TEXT, daysSince, EXCLUSION_TEXT, isAlreadyNotified, isNewInRun, isPartial, isRunning, latestReport, needsReviewCount, needsReviewRow, revoke, runNow, type RevocationCandidate, type RevocationReport } from '../lib/revocation.ts'
 import { DONE_TEXT } from '../lib/status.ts'
 import { REASONS } from '../lib/requestView.ts'
 import { usd } from '../lib/costImpact.ts'
@@ -10,7 +10,7 @@ import { saasBadge } from '../lib/saasBadge.ts'
 
 // S-04 오늘의 회수 점검 (IT 권한 관리 · 최종 승인자).
 // 읽는 순서: 언제 점검했나 → 얼마나 줄일 수 있나(요약 숫자) → 누구의 어떤 권한인가(표) → 왜(사유 · 근거).
-// 실제 회수는 하지 않는다. 다시 점검은 결과를 대신하지 않는 보조 동작이라 상태 줄 안의 작은 버튼으로 둔다.
+// 회수는 서버가 can_revoke를 준 후보만, 확인 창을 거쳐 실행한다. 다시 점검은 결과를 대신하지 않는 보조 동작이라 상태 줄 안의 작은 버튼으로 둔다.
 const report = ref<RevocationReport | null>(null)
 const mock = ref(false)
 const loading = ref(true)
@@ -73,6 +73,28 @@ async function runScan() {
   try { ({ report: report.value, mock: mock.value } = await runNow()); tab.value = 'NEW' } catch (e) { fail(e) } finally { running.value = false }
 }
 onMounted(load)
+
+// 회수 실행: 사람이 확인 창에서 한 번 더 결정한다. 실패하면 창을 닫지 않고 이유를 보여 준다.
+const confirming = ref<RevocationCandidate | null>(null)
+const revoking = ref(false)
+const revokeError = ref('')
+const done = ref('')
+const canRevokeAny = computed(() => all.value.some(c => c.can_revoke))
+function askRevoke(c: RevocationCandidate) { confirming.value = c; revokeError.value = ''; done.value = '' }
+async function doRevoke() {
+  const c = confirming.value
+  if (!c || revoking.value) return
+  revoking.value = true; revokeError.value = ''
+  try {
+    await revoke(c.id)
+    done.value = `${c.user_name || '대상자'}님의 ${c.platform} 권한을 회수했어요${c.cost_known !== false ? ` · 월 ${usd(c.monthly_cost)} 절감` : ''}`
+    confirming.value = null
+    await load()
+  } catch (e) {
+    revokeError.value = e instanceof ApiError && e.status === 409 ? '이미 처리된 후보예요. 목록을 다시 불러올게요.' : `회수하지 못했어요. ${(e as Error)?.message ?? ''}`
+    if (e instanceof ApiError && e.status === 409) { confirming.value = null; await load() }
+  } finally { revoking.value = false }
+}
 // 10. 점검이 진행 중(접수 · 선별 · 결과 저장)인 보고서를 받으면 끝날 때까지 3초마다 다시 불러온다. 화면을 떠나면 멈춘다.
 let follow: number | undefined
 watch(report, () => {
@@ -87,7 +109,7 @@ const help = {
   howto: [
     { t: '[지금 다시 점검]으로 점검해요', d: 'TF가 끝났거나 오래 쓰지 않은 유료 권한을 찾아요. 자동 점검(매일 09:00)은 담당 범위를 켜야 돌아가요(기본은 꺼짐)' },
     { t: '새로 찾은 후보만 먼저 보여 줘요', d: '이미 알린 후보는 다시 알리지 않아요. "이미 알린 후보" 탭에서 따로 볼 수 있어요' },
-    { t: '회수는 사람이 결정해요', d: '이 화면은 후보와 근거, 줄일 수 있는 금액까지만 보여 줘요. 실제 회수는 기존 절차로 진행해 주세요' },
+    { t: '회수는 사람이 결정해요', d: '후보와 근거, 줄일 수 있는 금액을 보고 [회수]를 누르면 확인 창에서 한 번 더 확인한 뒤 회수해요. 회수 버튼이 없으면 기존 절차로 진행해 주세요' },
   ],
   faqs: [
     { q: '어떤 기준으로 후보가 되나요?', a: 'TF가 끝난 뒤 30일 넘게 쓰지 않았고, 다른 TF 소속이나 유지 승인이 없는 유료 권한이에요 (시연용 가정 기준).' },
@@ -164,7 +186,7 @@ const help = {
           </div>
           <p class="rv-note">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
-            실제 회수는 하지 않아요. 기존 절차로 진행해 주세요
+            <template v-if="canRevokeAny">[회수]를 누르면 확인 후 바로 권한을 회수해요</template><template v-else>실제 회수는 하지 않아요. 기존 절차로 진행해 주세요</template>
           </p>
         </div>
 
@@ -203,11 +225,13 @@ const help = {
                 <span class="rv-ref">{{ c.policy_ref }}</span>
               </td>
               <td>
-                <span v-if="c.candidate_status === 'RETAINED'" class="rv-badge kept">유지 승인</span>
+                <span v-if="c.candidate_status === 'RECLAIMED'" class="rv-badge done">회수 완료<template v-if="c.reclaimed_at"> · {{ when(c.reclaimed_at) }}</template></span>
+                <span v-else-if="c.candidate_status === 'RETAINED'" class="rv-badge kept">유지 승인</span>
                 <span v-else-if="c.candidate_status === 'EXCLUDED'" class="rv-badge kept">제외 · {{ EXCLUSION_TEXT[c.exclusion_reason_code ?? ''] ?? '조건 미충족' }}</span>
                 <span v-else-if="isNewInRun(c, run)" class="rv-badge new">신규</span>
                 <span v-else-if="c.notified_at" class="rv-badge sent">알림 {{ when(c.notified_at) }}</span>
                 <span v-else class="rv-badge kept">알림 전</span>
+                <button v-if="c.can_revoke && c.candidate_status === 'PENDING_REVIEW'" type="button" class="rv-revoke" @click="askRevoke(c)">회수</button>
               </td>
             </tr>
           </tbody>
@@ -227,6 +251,25 @@ const help = {
           </li>
         </ul>
       </section>
+    </div>
+    <p v-if="done" class="rv-done" role="status">{{ done }}</p>
+    <div v-if="confirming" class="rv-modal" role="dialog" aria-modal="true" aria-labelledby="rv-modal-t" @keydown.esc="confirming = null">
+      <button type="button" class="rv-scrim" aria-label="닫기" @click="confirming = null" />
+      <div class="rv-modal-box">
+        <h2 id="rv-modal-t">이 권한을 회수할까요?</h2>
+        <dl class="rv-modal-dl">
+          <dt>대상자</dt><dd>{{ confirming.user_name || '이름 미제공' }}</dd>
+          <dt>SaaS</dt><dd>{{ confirming.platform }}<template v-if="confirming.resource"> · {{ confirming.resource }}</template></dd>
+          <dt>줄어드는 비용</dt><dd><template v-if="confirming.cost_known !== false">월 {{ usd(confirming.monthly_cost) }}</template><template v-else>비용 미확인</template></dd>
+          <dt>근거</dt><dd>{{ confirming.policy_ref || '—' }}</dd>
+        </dl>
+        <p class="rv-modal-note">회수하면 이 사용자는 바로 쓸 수 없어요. 다시 필요하면 새로 요청해야 해요.</p>
+        <p v-if="revokeError" class="rv-modal-err" role="alert">{{ revokeError }}</p>
+        <div class="rv-modal-act">
+          <button type="button" class="rv-btn-ghost" :disabled="revoking" @click="confirming = null">취소</button>
+          <button type="button" class="rv-btn-danger" :disabled="revoking" @click="doRevoke">{{ revoking ? '회수 중…' : '회수하기' }}</button>
+        </div>
+      </div>
     </div>
   </AppShell>
 </template>
@@ -302,6 +345,23 @@ const help = {
 .rv-badge { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .rv-badge.new { background: var(--uo-primary-soft); color: var(--uo-primary-ink); }
 .rv-badge.sent { background: #F0F2F8; color: var(--uo-muted); }
+.rv-badge.done { background: #FDECEC; color: #B42318; }
+.rv-revoke { display: block; margin-top: 8px; height: 30px; padding: 0 14px; border: 1px solid #E4A4A4; border-radius: 999px; background: #fff; color: #B42318; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.rv-revoke:hover, .rv-revoke:focus-visible { background: #FDECEC; }
+.rv-done { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); margin: 0; padding: 12px 20px; border-radius: 12px; background: var(--uo-ink); color: #fff; font-size: 14px; font-weight: 600; z-index: 40; }
+.rv-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.rv-scrim { position: absolute; inset: 0; border: 0; padding: 0; background: rgba(20,26,51,0.4); cursor: pointer; }
+.rv-modal-box { position: relative; width: 440px; max-width: 100%; background: #fff; border-radius: 20px; padding: 28px; box-shadow: 0 20px 60px rgba(20,26,51,0.25); }
+.rv-modal-box h2 { margin: 0 0 16px; font-size: 20px; font-weight: 700; }
+.rv-modal-dl { display: grid; grid-template-columns: 96px 1fr; gap: 8px 12px; margin: 0 0 16px; font-size: 14px; }
+.rv-modal-dl dt { color: var(--uo-muted); } .rv-modal-dl dd { margin: 0; font-weight: 600; }
+.rv-modal-note { margin: 0 0 12px; font-size: 14px; line-height: 1.6; color: var(--uo-ink-2); background: #FFF6E5; border-radius: 10px; padding: 10px 12px; }
+.rv-modal-err { margin: 0 0 12px; font-size: 14px; color: var(--uo-bad); font-weight: 600; }
+.rv-modal-act { display: flex; justify-content: flex-end; gap: 8px; }
+.rv-btn-ghost, .rv-btn-danger { height: 40px; padding: 0 18px; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.rv-btn-ghost { border: 1px solid var(--uo-line); background: #fff; color: var(--uo-ink-2); }
+.rv-btn-danger { border: 0; background: #B42318; color: #fff; }
+.rv-btn-ghost:disabled, .rv-btn-danger:disabled { opacity: .6; cursor: default; }
 .rv-badge.kept { background: var(--uo-ok-bg); color: var(--uo-ok); }
 
 .rv-empty { padding: 48px 16px; text-align: center; }
