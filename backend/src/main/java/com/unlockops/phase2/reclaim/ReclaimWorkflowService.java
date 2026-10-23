@@ -47,12 +47,31 @@ public class ReclaimWorkflowService {
             VALUES(?,?,?,?,?,?,?,?,?,'RECEIVED','회수 후보 점검이 접수되었습니다.')
             """,id,uuid(scope,"company_id"),uuid(scope,"id"),trigger,now,now.toLocalDate(),actor,key,hash(str(scope,"id")));
         if(!snapshots.create(id,scope,now)) {
-            db.jdbc.update("UPDATE reclaim_runs SET status='MANUAL_REVIEW',reason_code='MISSING_SOURCE_EVIDENCE',message='유효한 정책·회수 규칙을 확인할 수 없습니다.' WHERE id=?",id);
+            db.jdbc.update("UPDATE reclaim_runs SET status='FAILED',reason_code='SCAN_FAILED',message='유효한 정책·회수 규칙을 확인할 수 없어 점검을 시작하지 못했습니다.' WHERE id=?",id);
         } else jobs.reclaim(id,trigger,str(scope,"scope_key"),now.toString());
         return view(db.run(id,false));
     }
     public ReclaimRunView view(JsonNode r) {
-        return db.checked(new ReclaimRunView(2,"RECLAIM_SCAN",Status.valueOf(str(r,"status")),str(r,"reason_code"),str(r,"message"),null,0,List.of(),null,str(r,"id"),str(r,"snapshot_id"),str(r,"as_of"),r.path("scan_complete").asBoolean(),r.path("needs_review_count").asInt(),r.path("new_candidate_count").asInt(),r.path("pending_notification_count").asInt()),ReclaimRunView.class);
+        var checks=new ArrayList<NeedsReviewItem>();
+        if(!r.path("snapshot_id").isNull()) for(var row:db.rows("""
+            SELECT s.facts FROM reclaim_run_items i JOIN reclaim_snapshot_items s
+              ON s.assignment_id=i.assignment_id AND s.snapshot_id=?
+            WHERE i.run_id=? AND i.review_required ORDER BY i.assignment_id
+            """,uuid(r,"snapshot_id"),uuid(r,"id"))) {
+            var f=row.path("facts");var missing=new ArrayList<String>();
+            if(!Set.of("ACTIVE","LEFT").contains(f.path("employment_status").asText("")))missing.add("EMPLOYMENT_STATUS");
+            if("UNKNOWN".equals(row.path("candidate").path("cost_impact").path("status").asText()))missing.add("PRICE_EVIDENCE");
+            if(!"LEFT".equals(str(f,"employment_status"))) {
+                var observed=str(f,"observed_at");var asOf=OffsetDateTime.parse(str(r,"as_of"));
+                if(!"KNOWN".equals(str(f,"observation_status")) || observed==null
+                    || OffsetDateTime.parse(observed).isAfter(asOf)
+                    || OffsetDateTime.parse(observed).atZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDate().isBefore(asOf.atZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDate()))missing.add("USAGE_OBSERVATION");
+            }
+            if(missing.isEmpty())missing.add("RECLAIM_FACTS");
+            checks.add(new NeedsReviewItem(str(f,"assignment_id"),f.path("employee_name").asText("직원 정보 확인 필요"),f.path("resource_name").asText("자원 정보 확인 필요"),missing));
+        }
+        var summary=new ReclaimSummary(r.path("needs_review_count").asInt(),r.path("new_candidate_count").asInt(),r.path("pending_notification_count").asInt());
+        return db.checked(new ReclaimRunView(2,"RECLAIM_SCAN",Status.valueOf(str(r,"status")),str(r,"reason_code"),str(r,"message"),null,0,List.of(),null,str(r,"id"),str(r,"snapshot_id"),str(r,"as_of"),r.path("scan_complete").asBoolean(),summary.needsReviewCount(),summary.newCandidateCount(),summary.pendingNotificationCount(),summary,checks),ReclaimRunView.class);
     }
     @Transactional(readOnly=true)
     public ReclaimRunView get(UUID actor,UUID id) {

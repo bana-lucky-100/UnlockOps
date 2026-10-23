@@ -101,6 +101,12 @@ export interface GrantPlanV2 {
   route_revision: number;
   approver_ids: (string)[];
 }
+export interface NeedsReviewItem {
+  assignment_id: string;
+  employee_name: string;
+  resource_name: string;
+  missing: ("USAGE_OBSERVATION" | "PRICE_EVIDENCE" | "EMPLOYMENT_STATUS" | "RECLAIM_FACTS")[];
+}
 export interface NotificationHistoryRequest {
   run_id: string;
   assignment_ids: (string)[];
@@ -172,8 +178,15 @@ export interface ReclaimRunView {
   needs_review_count?: number;
   new_candidate_count?: number;
   pending_notification_count?: number;
+  summary?: ReclaimSummary | null;
+  needs_review?: (NeedsReviewItem)[];
 }
 export interface ReclaimStartInput {
   scope_id: string;
+}
+export interface ReclaimSummary {
+  needs_review_count: number;
+  new_candidate_count: number;
+  pending_notification_count: number;
 }
 export type Status = "RECEIVED" | "DIAGNOSING" | "WAITING_APPROVAL" | "ON_HOLD" | "EXECUTING" | "DONE" | "REJECTED" | "MANUAL_REVIEW" | "FAILED";

@@ -17,13 +17,16 @@ class EvaluationTest(unittest.TestCase):
         bundle, sql = prepare(RUN, "full", NOW)
         catalog = json.loads((ROOT / "data/phase2/catalog.json").read_text())
         cases = {c["id"]: c for c in bundle["cases"]}
-        self.assertEqual(len(cases), 25)
+        self.assertEqual(len(cases), 28)
         self.assertTrue({s["id"] for s in catalog["scenarios"]}.issubset(cases))
         self.assertIn("current_database()<>'phase2_eval'", sql)
         tenant_ids = [co["company_id"] for c in cases.values() for co in c["companies"].values()]
-        self.assertEqual(len(set(tenant_ids)), 50)
+        self.assertEqual(len(set(tenant_ids)), 56)
         self.assertTrue(all(co["company_id"] not in sql for co in catalog["companies"].values()))
         self.assertNotIn("entitlement_id", cases["B-02"]["input"])
+        self.assertNotIn("entitlement_id", cases["P-06"]["input"])
+        self.assertEqual(cases['P-06']['monthly_amount'], '16.00')
+        self.assertEqual(cases['X-08b-USAGE']['expected_reason_code'], 'SCAN_COMPLETED')
         self.assertNotIn("resource_id", cases["B-05"]["input"])
         self.assertIn("SET access_scope='TF'", sql)
         self.assertIn("entitlement_revision,granted_at", sql)

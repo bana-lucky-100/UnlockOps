@@ -20,10 +20,11 @@ public class ReclaimResultService {
             db.jdbc.update("UPDATE reclaim_runs SET status='DIAGNOSING',message='고정된 조회 범위를 점검하고 있습니다.',updated_at=now() WHERE id=?",id);return;
         }
         if("FAILED".equals(event.eventType()) || event.result().status()==Status.FAILED) {
-            db.jdbc.update("UPDATE reclaim_runs SET status='FAILED',reason_code='SCAN_FAILED',message='점검 도구 호출에 실패했습니다.',updated_at=now() WHERE id=?",id);return;
+            savePartial(run,event);
+            db.jdbc.update("UPDATE reclaim_runs SET status='FAILED',reason_code='SCAN_FAILED',message='일부만 조회되었거나 전체 점검에 실패했습니다. 부분 결과에는 알림을 보내지 않습니다.',scan_complete=false,needs_review_count=(SELECT count(*) FROM reclaim_run_items WHERE run_id=? AND review_required),updated_at=now() WHERE id=?",id,id);return;
         }
         if(!Boolean.TRUE.equals(event.result().scanComplete())) {
-            db.jdbc.update("UPDATE reclaim_runs SET status='MANUAL_REVIEW',reason_code='MISSING_SOURCE_EVIDENCE',message='전체 조회를 확인할 수 없습니다.',updated_at=now() WHERE id=?",id);return;
+            db.jdbc.update("UPDATE reclaim_runs SET status='FAILED',reason_code='SCAN_FAILED',message='일부만 조회되어 전체 점검을 완료하지 못했습니다.',updated_at=now() WHERE id=?",id);return;
         }
         conflict(event.result().snapshotId()!=null && event.result().snapshotId().equals(str(run,"snapshot_id")) &&
             OffsetDateTime.parse(event.result().asOf()).isEqual(OffsetDateTime.parse(str(run,"as_of"))),"스냅샷 식별자가 다릅니다.");
@@ -66,13 +67,13 @@ public class ReclaimResultService {
                     db.jdbc.update("UPDATE reclaim_targets SET candidate_status=?,exclusion_reason_code=?,closed_at=now() WHERE id=?",c.candidateStatus().name(),c.exclusionReasonCode(),uuid(target,"id"));
                 }
                 if(c.candidateStatus()==CandidateStatus.PENDING_REVIEW) {
-                    if(created)newCandidates++;
+                    if(target.path("notified_at").isNull())newCandidates++;
                     var recipients=db.rows("""
                         SELECT to_jsonb(u) - 'password_hash' FROM operator_assignments o JOIN users u ON u.id=o.user_id
                         WHERE o.company_id=? AND o.department_id=? AND o.platform=? AND o.capability='RECLAIM_REVIEWER'
                           AND u.employment_status='ACTIVE' AND u.role='APPROVER' ORDER BY u.id
                         """,company,uuid(facts,"department_id"),c.platform().name());
-                    if(recipients.isEmpty()) {pending++;needsReview++;}
+                    if(recipients.isEmpty()) {pending++;}
                     else {
                         boolean deliveredBefore=!target.path("notified_at").isNull();
                         for(var recipient:recipients) {
@@ -101,10 +102,29 @@ public class ReclaimResultService {
                 """,id,company,assignment,target==null?null:uuid(target,"id"),c.candidateStatus()==null?null:c.candidateStatus().name(),c.candidateReasonCode(),c.exclusionReasonCode(),skip,
                 c.reviewRequired(),db.json.write(report),db.json.write(c.policyEvidence()),db.json.write(c.factEvidence()),c.generationMode(),c.costImpact().status(),c.costImpact().monthlyAmount()==null?null:new java.math.BigDecimal(c.costImpact().monthlyAmount()),c.costImpact().currency());
         }
-        String status=needsReview>0?"MANUAL_REVIEW":"DONE";
-        String reason=pending>0?"APPROVER_UNAVAILABLE":needsReview>0?"MISSING_SOURCE_EVIDENCE":newCandidates>0?"SCAN_COMPLETED":"NO_NEW_CANDIDATES";
+        String status=pending>0?"FAILED":"DONE";
+        String reason=pending>0?"NOTIFICATION_FAILED":newCandidates>0 || needsReview>0?"SCAN_COMPLETED":"NO_NEW_CANDIDATES";
         db.jdbc.update("""
             UPDATE reclaim_runs SET status=?,reason_code=?,message=?,scan_complete=true,needs_review_count=?,new_candidate_count=?,pending_notification_count=?,updated_at=now() WHERE id=?
-            """,status,reason,needsReview>0?"확인되지 않은 사실 또는 알림 담당자가 있어 추가 검토가 필요합니다.":newCandidates>0?"신규 회수 후보를 저장하고 담당자에게 알렸습니다.":"점검을 완료했습니다. 신규 회수 후보가 없습니다.",needsReview,newCandidates,pending,id);
+            """,status,reason,pending>0?"알림 담당자를 확인할 수 없어 필수 알림을 완료하지 못했습니다. 전달된 알림 이력은 보존됩니다.":"점검 완료: 신규 후보 "+newCandidates+"건 · 추가 확인 "+needsReview+"건. "+(newCandidates==0 && needsReview==0?"신규 회수 후보 없음":"추가 확인 항목에는 알림을 보내지 않습니다."),needsReview,newCandidates,pending,id);
+    }
+    private void savePartial(JsonNode run,ReclaimEvent event) {
+        if(event.targets()==null || event.targets().isEmpty())return;
+        conflict(Objects.equals(event.result().snapshotId(),str(run,"snapshot_id")) && event.result().asOf()!=null
+            && OffsetDateTime.parse(event.result().asOf()).isEqual(OffsetDateTime.parse(str(run,"as_of"))),"부분 결과의 스냅샷이 다릅니다.");
+        var seen=new HashSet<String>();
+        for(var supplied:event.targets()) {
+            conflict(seen.add(supplied.assignmentId()),"중복된 부분 결과입니다.");
+            var row=db.one("SELECT facts FROM reclaim_snapshot_items WHERE snapshot_id=? AND assignment_id=?",uuid(run,"snapshot_id"),UUID.fromString(supplied.assignmentId()));
+            // Persist the frozen server decision, never an unverified partial model report.
+            var c=db.decode(row.path("candidate"),ReclaimCandidate.class);
+            db.jdbc.update("""
+                INSERT INTO reclaim_run_items(run_id,company_id,assignment_id,candidate_status,candidate_reason_code,
+                  exclusion_reason_code,review_required,report,policy_evidence,fact_evidence,generation_mode,cost_status,monthly_amount,currency)
+                VALUES(?,?,?,?,?,?,?,?::jsonb,?::jsonb,?::jsonb,?,?,?,?)
+                """,uuid(run,"id"),uuid(run,"company_id"),UUID.fromString(c.assignmentId()),c.candidateStatus()==null?null:c.candidateStatus().name(),c.candidateReasonCode(),c.exclusionReasonCode(),
+                c.reviewRequired(),db.json.write(c),db.json.write(c.policyEvidence()),db.json.write(c.factEvidence()),c.generationMode(),c.costImpact().status(),
+                c.costImpact().monthlyAmount()==null?null:new java.math.BigDecimal(c.costImpact().monthlyAmount()),c.costImpact().currency());
+        }
     }
 }

@@ -22,6 +22,10 @@ const visible = computed(() =>
         : x.candidate_status === filter.value)
   )
 )
+const missingLabels: Record<string, string> = {
+  USAGE_OBSERVATION: '최신 사용 이력', PRICE_EVIDENCE: '유효한 비용 근거',
+  EMPLOYMENT_STATUS: '재직 상태', RECLAIM_FACTS: '회수 판정에 필요한 사실'
+}
 const polling = usePolling(async () => {
   try {
     const next = await phase2.run(id)
@@ -61,7 +65,7 @@ const polling = usePolling(async () => {
         <span
           >신규 후보<strong>{{ run.scan_complete ? (run.new_candidate_count ?? 0) : '미확정' }}</strong></span
         ><span
-          >근거 확인 필요<strong>{{
+          >추가 확인<strong>{{
             run.scan_complete ? (run.needs_review_count ?? 0) : '미확정'
           }}</strong></span
         ><span
@@ -75,6 +79,14 @@ const polling = usePolling(async () => {
       </p>
       <small class="p2-id">실행 {{ run.run_id }} · 스냅샷 {{ run.snapshot_id || '미확정' }}</small>
     </section>
+    <section v-if="run?.needs_review?.length" class="p2-card" style="margin-bottom: 24px">
+      <h2>추가 확인 {{ run.needs_review.length }}건</h2>
+      <p v-for="item in run.needs_review" :key="item.assignment_id">
+        {{ item.employee_name }} · {{ item.resource_name }}:
+        {{ item.missing.map(code => missingLabels[code] ?? code).join(', ') }} 확인 필요
+      </p>
+      <p class="p2-muted">정보가 부족한 항목은 회수 후보 알림에서 제외했습니다.</p>
+    </section>
     <div class="p2-filter" aria-label="판정 필터">
       <button
         v-for="tab in [
@@ -82,7 +94,7 @@ const polling = usePolling(async () => {
           { id: 'PENDING_REVIEW', label: '검토 후보' },
           { id: 'RETAINED', label: '유지' },
           { id: 'EXCLUDED', label: '제외' },
-          { id: 'unknown', label: '근거 확인 필요' }
+          { id: 'unknown', label: '추가 확인' }
         ]"
         :key="tab.id"
         class="p2-btn"

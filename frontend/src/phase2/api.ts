@@ -127,7 +127,7 @@ export function access(value: unknown, expected?: string): AccessView {
 }
 export function run(value: unknown, expected?: string): ReclaimRunView {
   const x = envelope(value, 'run_id', expected)
-  if (x.task_type !== 'RECLAIM_SCAN' || ['WAITING_APPROVAL', 'ON_HOLD', 'REJECTED'].includes(x.status))
+  if (x.task_type !== 'RECLAIM_SCAN' || ['WAITING_APPROVAL', 'ON_HOLD', 'REJECTED', 'MANUAL_REVIEW'].includes(x.status))
     throw new Error('점검 상태 응답을 확인하지 못했습니다.')
   return x as ReclaimRunView
 }

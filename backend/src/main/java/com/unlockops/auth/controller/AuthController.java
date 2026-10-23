@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.*;
@@ -28,7 +29,15 @@ public class AuthController {
 
     @PostMapping("/login")
     public UserProfileResponse login(@RequestBody @Valid Login body, HttpServletRequest request, HttpServletResponse response) {
-        var auth = service.authenticate(body);
+        return establishSession(service.authenticate(body),request,response);
+    }
+
+    @PostMapping("/demo-login")
+    public UserProfileResponse demoLogin(@RequestBody @Valid DemoLogin body, HttpServletRequest request, HttpServletResponse response) {
+        return establishSession(service.authenticateDemo(body.loginId()),request,response);
+    }
+
+    private UserProfileResponse establishSession(Authentication auth,HttpServletRequest request,HttpServletResponse response) {
         request.getSession(true);
         request.changeSessionId();
         var context = SecurityContextHolder.createEmptyContext();

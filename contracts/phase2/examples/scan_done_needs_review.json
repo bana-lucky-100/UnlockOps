@@ -1,0 +1,33 @@
+{
+  "schema_version": 2,
+  "status": "DONE",
+  "reason_code": "SCAN_COMPLETED",
+  "message": "점검 완료 · 추가 확인 1건",
+  "current_step": null,
+  "total_steps": 0,
+  "approval_steps": [],
+  "verification_ok": null,
+  "task_type": "RECLAIM_SCAN",
+  "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+  "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+  "as_of": "2026-10-22T09:00:00+09:00",
+  "scan_complete": true,
+  "needs_review_count": 1,
+  "new_candidate_count": 0,
+  "pending_notification_count": 0,
+  "summary": {
+    "needs_review_count": 1,
+    "new_candidate_count": 0,
+    "pending_notification_count": 0
+  },
+  "needs_review": [
+    {
+      "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+      "employee_name": "김개발",
+      "resource_name": "Copilot 좌석",
+      "missing": [
+        "USAGE_OBSERVATION"
+      ]
+    }
+  ]
+}

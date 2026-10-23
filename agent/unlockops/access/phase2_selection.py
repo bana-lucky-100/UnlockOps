@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict
 from .planner import contains_token, model
 from ..common.models import ToolFailure
 from ..common.settings import settings
+from .phase2_intent import ROLE_ALIASES, read_is_sufficient, scoped_text
 
 
 class Selection(BaseModel):
@@ -24,19 +25,22 @@ async def select_entitlement(context, intent):
         if len(matches) != 1:
             raise ToolFailure("OUT_OF_SCOPE", "Explicit entitlement is outside the request")
         return explicit, False
-    text = p["contents"].casefold()
+    text = scoped_text(p["contents"], p['platform']).casefold()
     named = [x for x in options if x["external_id"].casefold() in text or x["name"].casefold() in text]
     if named:
         options = named
     role = intent["requested_role"].casefold()
     least = role in {"admin", "owner", "maintain", "full access"}
     if least:
+        if p['platform'] != 'GITHUB' or not read_is_sufficient(text):
+            raise ToolFailure('OUT_OF_SCOPE', 'Read does not demonstrably satisfy the requested purpose')
         options = [x for x in options if x["code"].casefold() == "read"]
     elif role == "seat":
         options = [x for x in options if x["kind"] == "SEAT"]
     elif role:
         # An unresolved explicit role must not fall back to a different permission.
-        options = [x for x in options if x["code"].casefold() == role]
+        mapped = ROLE_ALIASES.get(p['platform'], {}).get(role, role).casefold()
+        options = [x for x in options if x["code"].casefold() == mapped]
     else:
         matched = [x for x in options if contains_token(text, x["code"].casefold())]
         if matched:

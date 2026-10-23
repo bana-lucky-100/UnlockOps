@@ -6,8 +6,10 @@ from .contracts import READ_ONLY
 
 
 def scoped_index(repo, task_type, work_id, source_hash):
+    platform = None
     if task_type == "ACCESS_REQUEST":
         context = repo.invoke("get_access_request_context", {"problem_id": work_id})
+        platform = context['problem']['platform']
         policies = context["policies"]
         if len({p["policy_id"] for p in policies}) != 1:
             raise ToolFailure("POLICY_SOURCE_UNAVAILABLE", "Policy family is absent or ambiguous")
@@ -23,7 +25,7 @@ def scoped_index(repo, task_type, work_id, source_hash):
     else:
         raise ToolFailure("INVALID_TOOL_INPUT", "Unsupported policy work type")
     return revision_index(policy["company_id"], policy["policy_id"], policy["revision"],
-                          policy["doc_id"], policy["source_hash"], policy["content"])
+                          policy["doc_id"], policy["source_hash"], policy["content"], platform)
 
 
 def register(mcp):

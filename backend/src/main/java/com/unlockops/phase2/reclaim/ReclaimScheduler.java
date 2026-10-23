@@ -16,7 +16,7 @@ public class ReclaimScheduler {
     public ReclaimScheduler(Phase2Store db,ReclaimWorkflowService service,@Value("${app.phase2-reclaim-schedule-enabled:false}") boolean enabled) {
         this.db=db;this.service=service;this.enabled=enabled;
     }
-    @Scheduled(cron="0 0 9 * * *",zone="Asia/Seoul")
+    @Scheduled(cron="${app.phase2-reclaim-cron:0 0 9 * * *}",zone="Asia/Seoul")
     public void daily() {
         if(!enabled)return;
         for(var s:db.rows("SELECT to_jsonb(s) FROM reclaim_scopes s WHERE enabled ORDER BY id")) {

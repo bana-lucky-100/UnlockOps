@@ -14,10 +14,10 @@ const helpOpen = ref(false)
 const error = ref('')
 
 // 왼쪽 메뉴는 역할마다 다르다. 메뉴를 숨겨도 실제 차단은 서버가 한다.
-const nav = computed(() => currentUser.value?.workflow_version === 2
+const nav = computed(() => currentUser.value?.workflow_version !== 1
   ? [
       { to: '/access', label: '권한 요청·승인', icon: 'M6 3h12v18H6zM9 8h6M9 12h6M9 16h4' },
-      ...(currentUser.value.can_reclaim ? [{ to: '/reclaim', label: '회수 점검·알림', icon: 'M20 11a8 8 0 1 1-3-6M20 3v6h-6M9 12l2 2 4-4' }] : []),
+      ...(currentUser.value?.can_reclaim ? [{ to: '/reclaim', label: '회수 점검·알림', icon: 'M20 11a8 8 0 1 1-3-6M20 3v6h-6M9 12l2 2 4-4' }] : []),
     ]
   : currentUser.value?.role === 'APPROVER'
   ? [{ to: '/approvals', label: '승인함', icon: 'M4 13l3-8h10l3 8v6H4zM4 13h5l1 2h4l1-2h5' }]

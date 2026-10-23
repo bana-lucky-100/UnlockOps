@@ -14,7 +14,7 @@ public final class ReclaimPolicy {
         var cost=f.path("price");
         CostImpact impact=cost.isObject()?new CostImpact("ESTIMATED",cost.path("monthly_amount").decimalValue().setScale(2).toPlainString(),str(cost,"currency"),str(cost,"source_kind")):
             new CostImpact("UNKNOWN",null,null,null);
-        var evidence=List.of(new PolicyEvidence(str(policy,"doc_id"),str(policy,"article"),str(policy,"revision"),str(policy,"source_hash"),str(policy,"content")));
+        var evidence=com.unlockops.phase2.common.PolicyArticles.reclaim(policy);
         var facts=List.of(new FactEvidence("reclaim_snapshot_items",str(f,"assignment_id"),asOf.toString()));
         var left=rules.stream().filter(r->"EMPLOYEE_LEFT".equals(str(r,"code"))).findFirst();
         var idle=rules.stream().filter(r->"TF_ENDED_UNUSED_30D".equals(str(r,"code"))).findFirst();

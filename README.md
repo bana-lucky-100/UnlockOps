@@ -24,7 +24,7 @@ UnlockOps는 이 과정을 **접수 → 진단 → 규정 검토 → 승인 → 
 | 변경 결과 검증 | 실행 후 권한을 재조회하여 반영 여부 확인 |
 | 요청·승인 현황 조회 | 요청자 본인 이력, 승인자 담당 요청, 운영 담당자 전체 이력 조회 |
 
-지원 플랫폼은 GitHub, Jira, Slack, Notion입니다. 현재 권한 변경 대상은 **모의 SaaS 환경**이며, 실제 외부 SaaS API와는 연결하지 않습니다. Notion 편집 권한은 자동 부여하지 않고 수동 검토로 전환합니다.
+기본 화면은 Phase 2이며 Snowflake, Databricks, Salesforce, Datadog, Tableau Cloud, Figma, GitHub, Jira, Slack, Notion의 10개 플랫폼을 지원합니다. 현재 권한 변경 대상은 **모의 SaaS 환경**이며, 실제 외부 SaaS API와는 연결하지 않습니다. 기존 4개 플랫폼 계정과 요청은 이전 처리 경로로 보존합니다.
 
 ## 3. 시스템 아키텍처
 
@@ -161,6 +161,10 @@ docker compose up --build
 
 중단은 `docker compose stop`입니다. DB와 체크포인트 볼륨은 유지됩니다.
 
+Compose 시연 환경에서는 backend가 마이그레이션 후 기본 계정과 10개 플랫폼 초기 데이터를 자동으로 준비합니다.
+로그인 화면에서 직원·승인자·권한 담당자 카드를 누르면 비밀번호 입력 없이 바로 로그인됩니다.
+기존 데이터·요청·승인 이력은 유지합니다. 계정·초기 데이터와 개별 실행 설정은 [mock 데이터 안내](data/phase2/README.md)를 참고하세요.
+
 ### 실행 모드
 
 | 모드 | 동작 |
@@ -181,16 +185,20 @@ LLM_MODEL=<사용할 모델>
 
 ### 데모 계정
 
-비밀번호는 `.env`의 `DEMO_PASSWORD`를 사용합니다.
+시연 카드와 역할 선택은 서버의 `DEMO_PASSWORD` 설정으로 바로 로그인합니다. 직접 로그인할 때는 같은 비밀번호를 입력합니다.
+빠른 로그인은 `DEMO_ENABLED=true`에서 지정된 A/B사 합성 계정 12개에만 허용되며, CSRF와 세션 인증을 그대로 사용합니다.
 
 | 계정 | 역할 |
 |---|---|
-| `kim_dev` | 접근 권한 신청자 |
-| `park_lead` | 결제 TF 승인자 |
-| `yoon_head` | 개발팀 부서장 |
-| `song_ops` | 전체 처리 이력 조회 담당자 |
+| `p2_a_requester` | A사 직원 · 기본 로그인 · 10개 플랫폼 권한 요청 |
+| `p2_a_head` | A사 부서장 · 1차 승인 |
+| `p2_a_operator` | A사 권한 담당자 · 최종 승인·회수 점검 |
+| `p2_b_requester` | B사 직원 · 다단계 승인 요청 |
+| `p2_b_it_head` | B사 IT 총괄 · GitHub/Figma 통합 회수 점검 |
 
 운영 담당자는 지정 승인자를 대신하여 승인할 수 없습니다.
+기본 진입 경로는 `/access`이며 새 요청은 `/access/new`에서 작성합니다. 로그인 화면에서 회사·담당 역할을 바로 선택합니다.
+기존 `kim_dev`, `park_lead`, `yoon_head`, `song_ops` 계정은 아래 기존 시나리오의 호환 확인용으로 유지합니다.
 
 ### 로컬 개발·검증
 

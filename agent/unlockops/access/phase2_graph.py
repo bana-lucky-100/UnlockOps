@@ -8,7 +8,7 @@ from ..common.phase2_runtime import Phase2Tools, guarded, access_event, failure_
 from ..common.phase2_reporting import report
 from ..common.models import ToolFailure
 from ..common.settings import settings
-from .planner import interpret
+from .phase2_intent import interpret_v4 as interpret
 from .phase2_selection import select_entitlement
 
 

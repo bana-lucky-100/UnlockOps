@@ -22,6 +22,7 @@ public class AccessWorkflowService {
     public AccessView create(UUID actor,AccessRequestInput input,String key) {
         key(key); var user=acl.actor(actor);
         conflict(!input.contents().isBlank(),"요청 내용을 입력해 주세요.");
+        input=new AccessRequestInput(input.schemaVersion(),input.platform(),RequestPlatformScope.mask(input.contents()),input.resourceId(),input.entitlementId());
         UUID company=uuid(user,"company_id");
         forbid(!company.equals(new UUID(0,0))); // Legacy writers retain ownership of legacy resources.
         db.mutex("access-request:"+actor+":"+key);
@@ -32,6 +33,9 @@ public class AccessWorkflowService {
             conflict(p.path("contract_version").asInt()==2 && payload.equals(p.path("request_payload")),"동일 요청 키에 다른 입력이 사용되었습니다.");
             return view(p);
         }
+        var mentioned=RequestPlatformScope.mentioned(input.contents());
+        if(!mentioned.isEmpty() && mentioned.getFirst()!=input.platform())
+            input=new AccessRequestInput(input.schemaVersion(),mentioned.getFirst(),input.contents(),null,null);
         if(input.resourceId()!=null) {
             var resource=db.one("SELECT to_jsonb(r) FROM resources r WHERE id=? AND company_id=?",UUID.fromString(input.resourceId()),company);
             conflict(input.platform().name().equals(str(resource,"platform")),"자원 플랫폼이 다릅니다.");
@@ -70,7 +74,7 @@ public class AccessWorkflowService {
             .stream().map(s->new ApprovalStep(s.path("step").intValue(),str(s,"approver_id"),ApprovalStatus.valueOf(str(s,"status")),str(s,"reason"),str(s,"acted_at"))).toList();
         Integer current=steps.stream().filter(s->s.status()==ApprovalStatus.WAITING).map(ApprovalStep::step).findFirst().orElse(null);
         return db.checked(new AccessView(2,"ACCESS_REQUEST",Status.valueOf(str(p,"status")),str(p,"reason_code"),
-            str(p,"proposal")==null?"요청을 처리하고 있습니다.":str(p,"proposal"),current,steps.size(),steps,
+            (str(p,"proposal")==null?"요청을 처리하고 있습니다.":str(p,"proposal"))+RequestPlatformScope.notice(p.path("contents").asText("")),current,steps.size(),steps,
             p.path("verification_ok").isNull()?null:p.path("verification_ok").booleanValue(),str(p,"id"),str(p,"result_type"),str(p,"plan_hash"),
             p.path("active_plan_version").isNull()?null:p.path("active_plan_version").intValue()),AccessView.class);
     }
@@ -183,15 +187,17 @@ public class AccessWorkflowService {
         if("PROGRESS".equals(event.eventType())) {state(id,Status.DIAGNOSING,null,"요청을 분석하고 있습니다.",null);return;}
         if("FAILED".equals(event.eventType())) {state(id,Status.FAILED,"TOOL_CALL_FAILED","분석 도구 실행에 실패했습니다.",null);return;}
         conflict("ANALYZED".equals(event.eventType()),"분석 이벤트가 아닙니다.");
+        var sources=db.rows("SELECT to_jsonb(r) FROM policy_revisions r WHERE company_id=? ORDER BY revision DESC",uuid(p,"company_id"));
+        var citations=event.policyEvidence()==null?List.<PolicyEvidence>of():event.policyEvidence().stream().filter(e->!sources.isEmpty()
+            && e.docId().equals(str(sources.getFirst(),"doc_id")) && e.version().equals(str(sources.getFirst(),"revision"))
+            && e.sourceHash().equals(str(sources.getFirst(),"source_hash")) && hash(str(sources.getFirst(),"content")).equals(e.sourceHash())
+            && e.text().startsWith("## "+e.article()+"\n")
+            && str(sources.getFirst(),"content").contains(e.text())).toList();
+        db.jdbc.update("UPDATE problems SET evidence=?::jsonb WHERE id=?",db.json.write(citations),id);
         if(event.result().status()==Status.DONE && "RAG_GUIDANCE".equals(event.result().reasonCode())) {
-            var policies=db.rows("SELECT to_jsonb(r) FROM policy_revisions r WHERE company_id=? ORDER BY revision DESC",uuid(p,"company_id"));
-            boolean supported=!policies.isEmpty() && event.policyEvidence()!=null && event.policyEvidence().stream().anyMatch(e->{
-                var source=policies.getFirst();
-                return e.docId().equals(str(source,"doc_id")) && e.version().equals(str(source,"revision")) &&
-                    e.sourceHash().equals(str(source,"source_hash")) && hash(str(source,"content")).equals(e.sourceHash()) && str(source,"content").contains(e.text());
-            });
+            boolean supported=!citations.isEmpty();
             if(supported) {
-                db.jdbc.update("UPDATE problems SET evidence=?::jsonb WHERE id=?",db.json.write(event.policyEvidence()),id);
+                db.jdbc.update("UPDATE problems SET evidence=?::jsonb WHERE id=?",db.json.write(citations),id);
                 state(id,Status.DONE,"RAG_GUIDANCE",event.result().message(),"GUIDANCE");
             } else state(id,Status.MANUAL_REVIEW,"MISSING_SOURCE_EVIDENCE","안내에 검증 가능한 정책 근거가 없습니다.",null);
             return;
@@ -214,6 +220,7 @@ public class AccessWorkflowService {
         }
         if("LEAST_PRIVILEGE_PROPOSED".equals(event.result().reasonCode()))
             assessment=new AccessPlanningService.Assessment(assessment.status(),"LEAST_PRIVILEGE_PROPOSED","서버에서 허용한 최소 권한 제안에 대해 순서대로 승인을 기다립니다.",assessment.plan(),assessment.evidence());
+        assessment=new AccessPlanningService.Assessment(assessment.status(),assessment.reason(),assessment.message(),assessment.plan(),citations);
         install(p,assessment);
         db.jdbc.update("UPDATE problems SET diagnosis=? WHERE id=?",event.result().message(),id);
     }

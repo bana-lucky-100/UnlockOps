@@ -20,7 +20,15 @@ export async function ensureSession(): Promise<User|null> {
 }
 
 export async function login(loginId: string, password: string): Promise<User> {
-  const user = await api<User>('/auth/login', {method: 'POST', body: JSON.stringify({loginId, password})})
+  return authenticate('/auth/login', {loginId, password})
+}
+
+export async function demoLogin(loginId: string): Promise<User> {
+  return authenticate('/auth/demo-login', {loginId})
+}
+
+async function authenticate(path: string, input: object): Promise<User> {
+  const user = await api<User>(path, {method: 'POST', body: JSON.stringify(input)})
   // 로그인하면 세션이 새로 만들어지므로 CSRF 토큰도 다시 받는다.
   await refreshCsrf()
   currentUser.value = user
@@ -50,8 +58,8 @@ export async function logout() {
   await refreshCsrf().catch(() => {})
 }
 
-/** 역할별 첫 화면: 요청자는 홈, 승인자는 승인함. */
+/** 기본 첫 화면은 요청·승인 통합 목록. 명시적인 구 계정만 이전 화면과 호환한다. */
 export function homeOf(user: User) {
-  if (user.workflow_version === 2) return '/access'
-  return user.role === 'APPROVER' ? '/approvals' : '/'
+  if (user.workflow_version === 1) return user.role === 'APPROVER' ? '/approvals' : '/'
+  return '/access'
 }

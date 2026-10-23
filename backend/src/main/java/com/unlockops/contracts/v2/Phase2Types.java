@@ -110,6 +110,12 @@ public final class Phase2Types {
         @JsonProperty("route_revision") @Valid @NotNull @Min(1) Integer routeRevision,
         @JsonProperty("approver_ids") @Valid @NotNull @Size(min=1, max=10) List<String> approverIds
     ) {}
+    public record NeedsReviewItem(
+        @JsonProperty("assignment_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String assignmentId,
+        @JsonProperty("employee_name") @Valid @NotNull String employeeName,
+        @JsonProperty("resource_name") @Valid @NotNull String resourceName,
+        @JsonProperty("missing") @Valid @NotNull @Size(min=1) List<String> missing
+    ) {}
     public record NotificationHistoryRequest(
         @JsonProperty("run_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String runId,
         @JsonProperty("assignment_ids") @Valid @NotNull @Size(min=1, max=200) List<String> assignmentIds
@@ -180,11 +186,18 @@ public final class Phase2Types {
         @JsonProperty("scan_complete") @Valid Boolean scanComplete,
         @JsonProperty("needs_review_count") @Valid @Min(0) Integer needsReviewCount,
         @JsonProperty("new_candidate_count") @Valid @Min(0) Integer newCandidateCount,
-        @JsonProperty("pending_notification_count") @Valid @Min(0) Integer pendingNotificationCount
+        @JsonProperty("pending_notification_count") @Valid @Min(0) Integer pendingNotificationCount,
+        @JsonProperty("summary") @Valid ReclaimSummary summary,
+        @JsonProperty("needs_review") @Valid List<NeedsReviewItem> needsReview
     ) {}
     public record ReclaimStartInput(
         @JsonProperty("scope_id") @Valid @NotNull @Pattern(regexp="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") String scopeId
     ) {}
+    public record ReclaimSummary(
+        @JsonProperty("needs_review_count") @Valid @NotNull @Min(0) Integer needsReviewCount,
+        @JsonProperty("new_candidate_count") @Valid @NotNull @Min(0) Integer newCandidateCount,
+        @JsonProperty("pending_notification_count") @Valid @NotNull @Min(0) Integer pendingNotificationCount
+    ) {}
     public enum Status { RECEIVED, DIAGNOSING, WAITING_APPROVAL, ON_HOLD, EXECUTING, DONE, REJECTED, MANUAL_REVIEW, FAILED }
-    public static final java.util.Map<String, String> REASON_STATUSES = java.util.Map.ofEntries(java.util.Map.entry("ELIGIBLE","WAITING_APPROVAL"),java.util.Map.entry("LEAST_PRIVILEGE_PROPOSED","WAITING_APPROVAL"),java.util.Map.entry("BUDGET_INSUFFICIENT","ON_HOLD"),java.util.Map.entry("HELD_BY_APPROVER","ON_HOLD"),java.util.Map.entry("HUMAN_APPROVED","EXECUTING"),java.util.Map.entry("HUMAN_REJECTED","REJECTED"),java.util.Map.entry("POLICY_NOT_ELIGIBLE","REJECTED"),java.util.Map.entry("NOT_TF_MEMBER","REJECTED"),java.util.Map.entry("DUPLICATE_SEAT","REJECTED"),java.util.Map.entry("MISSING_SOURCE_EVIDENCE","MANUAL_REVIEW"),java.util.Map.entry("APPROVER_UNAVAILABLE","MANUAL_REVIEW"),java.util.Map.entry("OUT_OF_SCOPE","MANUAL_REVIEW"),java.util.Map.entry("BUDGET_UNAVAILABLE","MANUAL_REVIEW"),java.util.Map.entry("MODEL_UNAVAILABLE","MANUAL_REVIEW"),java.util.Map.entry("VERIFIED","DONE"),java.util.Map.entry("ALREADY_HAS_ACCESS","DONE"),java.util.Map.entry("RAG_GUIDANCE","DONE"),java.util.Map.entry("SCAN_IN_PROGRESS","EXECUTING"),java.util.Map.entry("SCAN_COMPLETED","DONE"),java.util.Map.entry("NO_NEW_CANDIDATES","DONE"),java.util.Map.entry("VERIFICATION_FAILED","FAILED"),java.util.Map.entry("TOOL_CALL_FAILED","FAILED"),java.util.Map.entry("SCAN_FAILED","FAILED"),java.util.Map.entry("NOTIFICATION_FAILED","FAILED"));
+    public static final java.util.Map<String, String> REASON_STATUSES = java.util.Map.ofEntries(java.util.Map.entry("ELIGIBLE","WAITING_APPROVAL"),java.util.Map.entry("LEAST_PRIVILEGE_PROPOSED","WAITING_APPROVAL"),java.util.Map.entry("BUDGET_INSUFFICIENT","ON_HOLD"),java.util.Map.entry("HELD_BY_APPROVER","ON_HOLD"),java.util.Map.entry("HUMAN_APPROVED","EXECUTING"),java.util.Map.entry("HUMAN_REJECTED","REJECTED"),java.util.Map.entry("POLICY_NOT_ELIGIBLE","REJECTED"),java.util.Map.entry("NOT_TF_MEMBER","REJECTED"),java.util.Map.entry("DUPLICATE_SEAT","REJECTED"),java.util.Map.entry("MISSING_SOURCE_EVIDENCE","MANUAL_REVIEW"),java.util.Map.entry("APPROVER_UNAVAILABLE","MANUAL_REVIEW"),java.util.Map.entry("OUT_OF_SCOPE","MANUAL_REVIEW"),java.util.Map.entry("BUDGET_UNAVAILABLE","MANUAL_REVIEW"),java.util.Map.entry("MODEL_UNAVAILABLE","MANUAL_REVIEW"),java.util.Map.entry("PLAN_REVIEW_REQUIRED","MANUAL_REVIEW"),java.util.Map.entry("ANALYSIS_CONFLICT","MANUAL_REVIEW"),java.util.Map.entry("VERIFIED","DONE"),java.util.Map.entry("ALREADY_HAS_ACCESS","DONE"),java.util.Map.entry("RAG_GUIDANCE","DONE"),java.util.Map.entry("SCAN_IN_PROGRESS","EXECUTING"),java.util.Map.entry("SCAN_COMPLETED","DONE"),java.util.Map.entry("NO_NEW_CANDIDATES","DONE"),java.util.Map.entry("VERIFICATION_FAILED","FAILED"),java.util.Map.entry("TOOL_CALL_FAILED","FAILED"),java.util.Map.entry("SCAN_FAILED","FAILED"),java.util.Map.entry("NOTIFICATION_FAILED","FAILED"));
 }

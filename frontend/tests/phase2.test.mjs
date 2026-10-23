@@ -39,7 +39,7 @@ test('scan completion, verified access, unknown cost and unknown candidates stay
     costLabel({ status: 'ESTIMATED', monthly_amount: '0.00', currency: 'USD' }),
     '0.00 USD / 월 (예상)'
   )
-  assert.equal(candidateLabel({ candidate_status: null, review_required: true }), '근거 확인 필요')
+  assert.equal(candidateLabel({ candidate_status: null, review_required: true }), '추가 확인')
 })
 
 test('v2 submission reuses a persisted retry key and isolates users, operation types and accepted intents', async () => {

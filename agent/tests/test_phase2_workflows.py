@@ -125,7 +125,11 @@ async def test_unmatched_viewer_role_requires_manual_review(platform, code, kind
     # Exact roles and the existing Admin -> Read proposal remain available.
     assert await phase2_selection.select_entitlement(ctx, {'requested_role': code.lower()}) == (PLAN['entitlement_id'], False)
     ctx['entitlements'][0]['code'] = 'READ'
+    ctx['problem'].update(platform='GITHUB', contents='GitHub 저장소 Admin 요청, 목적은 코드 열람뿐입니다.')
     assert await phase2_selection.select_entitlement(ctx, {'requested_role': 'Admin'}) == (PLAN['entitlement_id'], True)
+    ctx['problem']['contents']='GitHub 저장소 Admin 권한으로 배포 설정을 수정해야 합니다.'
+    with pytest.raises(ToolFailure):
+        await phase2_selection.select_entitlement(ctx, {'requested_role': 'Admin'})
 
 
 async def test_execution_requires_fresh_verification_and_preserves_mismatch(monkeypatch):
@@ -174,7 +178,8 @@ async def test_reclaim_requires_all_unique_rows_and_never_claims_done(monkeypatc
             assert result['result']['status'] == 'FAILED'
             assert result['result']['scan_complete'] is False
         else:
-            assert result['result']['status'] == 'MANUAL_REVIEW'
+            assert result['result']['status'] == 'EXECUTING'
+            assert result['result']['needs_review_count'] == 1
             assert result['result']['scan_complete'] is True
             assert len(result['targets']) == 2
         assert not {'execute_access_plan', 'grant_permission'} & set(tools.calls)
@@ -190,6 +195,44 @@ def test_queue_boundary_rejects_wrong_versions_and_commands():
         with pytest.raises(ValueError): parse_delivery(body, queue)
     raw = job.model_dump(mode='json'); raw['schema_version'] = 3
     with pytest.raises(ValueError): parse_delivery(json.dumps(raw).encode(), 'v2.analysis')
+
+
+async def test_v4_natural_requests_resolve_only_the_selected_platform(monkeypatch):
+    from unlockops.access.phase2_intent import interpret_v4, scoped_text
+    from unlockops.access.phase2_selection import select_entitlement
+    from unlockops.access import planner
+    monkeypatch.setattr(planner, 'settings', replace(settings, mode='demo'))
+    cases=json.loads((ROOT/'data/phase2/scenarios-v4.json').read_text())['scenarios']
+    for case in cases:
+        if case['id'].startswith('R-') or case['id'] in {'B-02','B-03','B-05'}: continue
+        item=next(x for x in CATALOG['catalog'] if x['company']==case['company'] and x['platform']==case['platform'])
+        ctx={'problem':{'platform':case['platform'],'contents':case['input_text'],'resource_id':item['resource_id']},
+             'entitlements':[{**item,'id':item['entitlement_id'],'name':'test resource','external_id':'test-resource'}]}
+        intent=await interpret_v4(case['input_text'],case['platform'])
+        assert await select_entitlement(ctx,intent.model_dump())==(item['entitlement_id'],False),case['id']
+    text='GitHub Copilot 좌석과 Jira 프로젝트 Admin 권한을 신청합니다.'
+    assert 'Jira' not in scoped_text(text,'GITHUB')
+    assert (await interpret_v4(text,'GITHUB')).requested_role=='Seat'
+
+
+async def test_v4_reclaim_narrates_only_new_confirmed_candidates(monkeypatch):
+    from unlockops.reclaim import graph
+    calls=[]
+    async def spy(facts,evidence,template):
+        calls.append(facts)
+        return template,'template'
+    monkeypatch.setattr(graph,'report',spy)
+    excluded={**CANDIDATE,'candidate_status':'EXCLUDED','exclusion_reason_code':'ACTIVE_OTHER_TF'}
+    unknown={**CANDIDATE,'assignment_id':str(uuid4()),'candidate_status':None,'review_required':True}
+    state={'targets':[excluded,unknown],'policy_evidence':policy_reply()['evidence'],'history':[]}
+    await graph.compose_reports(state)
+    assert calls==[]
+    state.update(targets=[CANDIDATE],history=[{'assignment_id':CANDIDATE['assignment_id'],'candidate_status':'PENDING_REVIEW','notified_at':CATALOG['as_of']}])
+    await graph.compose_reports(state)
+    assert calls==[]
+    state['history']=[]
+    await graph.compose_reports(state)
+    assert len(calls)==1
 
 
 def test_phase2_http_adapter_preserves_verification_and_scoped_policy():

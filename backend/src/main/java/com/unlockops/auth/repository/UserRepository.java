@@ -20,6 +20,20 @@ public class UserRepository {
             .stream().findFirst();
     }
 
+    public static boolean isPhase2DemoLogin(String login) {
+        return login != null && login.matches("p2_[ab]_(requester|team_lead|head|operator|it_head|figma_operator)");
+    }
+
+    public List<AppUser> phase2DemoAccounts() {
+        return jdbc.query("""
+            SELECT u.id,u.login_id,u.password_hash,u.role FROM users u JOIN companies c ON c.id=u.company_id
+            WHERE c.is_mock=TRUE AND c.code IN ('P2_A','P2_B') AND u.employment_status='ACTIVE'
+              AND c.code='P2_' || upper(substring(u.login_id from 4 for 1))
+            """, (rs,n) -> new AppUser(rs.getObject("id",UUID.class),rs.getString("login_id"),
+                rs.getString("password_hash"),UserRole.valueOf(rs.getString("role"))))
+            .stream().filter(user -> isPhase2DemoLogin(user.loginId())).toList();
+    }
+
     public UserProfileResponse profile(UUID id) {
         return jdbc.queryForObject("""
             SELECT u.id,u.login_id,u.employee_no,u.name,u.role,u.job_grade,u.job_family,d.name department,

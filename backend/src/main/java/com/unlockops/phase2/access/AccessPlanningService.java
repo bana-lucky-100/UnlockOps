@@ -70,11 +70,14 @@ public class AccessPlanningService {
             return stop(Status.MANUAL_REVIEW,"OUT_OF_SCOPE","계정 또는 기본 라이선스를 먼저 확인해야 합니다.");
         if(mapping.path("requires_existing_data_access").asBoolean() && !f.path("data_access").asBoolean())
             return stop(Status.MANUAL_REVIEW,"OUT_OF_SCOPE","기존 데이터 접근 범위를 먼저 확인해야 합니다.");
+        if("DATABRICKS".equals(str(p,"platform")) && (f.path("job_run_as_principal").asText("").isBlank() || !f.path("job_run_as_data_access").asBoolean()))
+            return stop(Status.MANUAL_REVIEW,"MISSING_SOURCE_EVIDENCE","작업 Run as 실행 주체의 데이터 접근 권한 확인이 필요합니다.");
         String function=str(f,"job_function"),platform=str(p,"platform");
         if("UNKNOWN".equals(function)) return stop(Status.MANUAL_REVIEW,"MISSING_SOURCE_EVIDENCE","직무 확인이 필요합니다.");
         boolean eligible=switch(platform) {
             case "GITHUB" -> "DEV".equals(str(user,"job_family")) || "Read".equals(str(ent,"external_role"));
-            case "SNOWFLAKE","DATABRICKS","TABLEAU_CLOUD" -> Set.of("DEV","ANALYST").contains(function);
+            case "SNOWFLAKE","DATABRICKS" -> Set.of("DEV","ANALYST").contains(function);
+            case "TABLEAU_CLOUD" -> "ANALYST".equals(function);
             case "SALESFORCE" -> "SALES".equals(function);
             case "DATADOG" -> "OPS".equals(function);
             case "FIGMA" -> "DESIGN".equals(function);
@@ -113,7 +116,8 @@ public class AccessPlanningService {
             return stop(Status.ON_HOLD,"BUDGET_INSUFFICIENT","잔여 예산이 부족하여 보류되었습니다.");
         var plan=db.checked(new GrantPlanV2(2,str(p,"id"),company.toString(),requester.toString(),Platform.valueOf(platform),str(ent,"resource_id"),entitlementId.toString(),ent.path("revision").intValue(),str(price,"pricing_id"),price.path("revision").intValue(),amount.setScale(2).toPlainString(),str(price,"currency"),str(price,"cost_basis"),str(policy,"policy_id"),policy.path("revision").intValue(),str(route,"route_id"),route.path("revision").intValue(),approvers),GrantPlanV2.class);
         var evidence=List.of(new PolicyEvidence(str(policy,"doc_id"),str(policy,"article"),str(policy,"revision"),str(policy,"source_hash"),str(policy,"content")));
-        return new Assessment(Status.WAITING_APPROVAL,"ELIGIBLE","정책·직무·예산을 확인했습니다. 순서대로 승인을 기다립니다.",plan,evidence);
+        var remaining=budgets.getFirst().path("remaining_monthly_amount").decimalValue();
+        return new Assessment(Status.WAITING_APPROVAL,"ELIGIBLE","정책·직무·예산을 확인했습니다. 예상 예산 영향은 "+remaining.setScale(2).toPlainString()+" → "+remaining.subtract(amount).setScale(2).toPlainString()+" "+str(price,"currency")+"입니다. 순서대로 승인을 기다립니다.",plan,evidence);
     }
     public boolean sameCurrentPlan(JsonNode p,GrantPlanV2 approved) {
         var next=assess(p,UUID.fromString(approved.entitlementId()));

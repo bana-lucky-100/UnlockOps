@@ -73,13 +73,11 @@ def access_event(job, result, *, entitlement=None, evidence=None):
 
 def failure_event(job, code):
     if isinstance(job, ReclaimJob):
-        review = code in {"POLICY_SOURCE_UNAVAILABLE", "SCAN_LIMIT", "MISSING_SOURCE_EVIDENCE"}
         result = ReclaimRunView(schema_version=2, run_id=job.run_id,
-            status="MANUAL_REVIEW" if review else "FAILED",
-            reason_code="MISSING_SOURCE_EVIDENCE" if review else "SCAN_FAILED",
-            message="점검 근거·조회 범위를 확인해야 합니다." if review else "회수 점검 도구 호출에 실패했습니다.")
+            status="FAILED", reason_code="SCAN_FAILED",
+            message="전체 점검을 완료하지 못했습니다. 조회 범위와 근거를 확인한 뒤 다시 실행해 주세요.")
         return ReclaimEvent(schema_version=2, event_id=event_id(job), job_event_id=job.event_id,
-            run_id=job.run_id, event_type="RECLAIM_CHECKED" if review else "FAILED", result=result).model_dump(mode="json")
+            run_id=job.run_id, event_type="FAILED", result=result).model_dump(mode="json")
     review = job.job_type == "ANALYZE" and code in {"POLICY_SOURCE_UNAVAILABLE", "MODEL_UNAVAILABLE", "OUT_OF_SCOPE"}
     result = AccessView(schema_version=2, problem_id=job.problem_id, status="MANUAL_REVIEW" if review else "FAILED",
         reason_code=("MODEL_UNAVAILABLE" if code == "MODEL_UNAVAILABLE" else "OUT_OF_SCOPE" if code == "OUT_OF_SCOPE" else "MISSING_SOURCE_EVIDENCE") if review else "TOOL_CALL_FAILED",

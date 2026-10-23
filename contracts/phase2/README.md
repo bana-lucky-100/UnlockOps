@@ -81,7 +81,7 @@ MCP/Worker는 업무 DB에 직접 쓰지 않는다. 회수 도구에는 grant_pe
 ## 회수 상태·비용·알림
 
 회수에는 승인 단계가 없다: current_step=null, total_steps=0, approval_steps=[], verification_ok=null.
-scan_complete는 전체 페이지 조회 완료를 의미한다. 근거 미확인·미완료 알림이 있으면 DONE이 될 수 없다.
+scan_complete는 전체 페이지 조회 완료를 의미한다. 개별 사실 미확인은 추가 확인 목록으로 분리하며 DONE을 막지 않는다. 전체 조회 미완료·미완료 필수 알림은 DONE이 될 수 없다.
 후보 status와 실행 status를 분리한다. 불확실한 행은 candidate_status=null/review_required=true.
 기존 후보를 근거 없이 EXCLUDED/RETAINED로 바꾸지 않는다. 새로운 episode/target ID는 Spring이 생성한다.
 Candidate DTO는 보고서 explanation/generation_mode, 정책·사실 근거, cost_impact를 가진다.
@@ -125,7 +125,7 @@ Candidate DTO는 보고서 explanation/generation_mode, 정책·사실 근거, c
 3. 서버의 후보 상태·비용·근거는 유지하고 설명을 보완한다. 읽은 할당 개수/중복/스냅샷을 검증한다.
 4. `/notification-history`로 해당 스냅샷 내 할당들의 이전 전달 이력을 확인할 수 있다.
 5. RECLAIM_CHECKED에 **제외·유지·미확인 행을 포함한 전체 items**를 targets로 보낸다. snapshot/as_of를 그대로 반영한다.
-6. 미확인 행이 있으면 MANUAL_REVIEW, 모두 확인했으면 EXECUTING/SCAN_IN_PROGRESS로 보낸다. Worker는 DONE을 보내지 않는다.
+6. 전체 조회가 끝나면 미확인 행이 있어도 EXECUTING/SCAN_IN_PROGRESS로 보낸다. Worker는 DONE을 보내지 않는다. 서버가 후보·추가 확인을 저장하고 필수 알림 완료 후 DONE으로 확정한다.
 7. Spring이 스냅샷과 판정을 비교하고 발생 건을 재사용하며 IN_APP 알림을 저장한 뒤 최종 상태를 확정한다.
 
 `/api/reclaim/runs/{id}/items`로 미확인 행도 볼 수 있다. `/notifications`는 본인 알림 ID와 read_at을 제공하고 PATCH read는 최초 읽음 시각을 보존한다.
@@ -160,3 +160,13 @@ summaries는 workflow·contents·platform·requester_id·requester_name·created
 catalog는 현재 회사의 entitlement_id·resource_id·platform·resource_name·resource_key·entitlement_code·kind를 반환한다.
 report에는 platform/requester_id/requester_name/created_at/approvers(id,name)/resource_name/entitlement_code를 추가한다.
 인증 profile의 workflow_version/can_reclaim은 메뉴/화면 안내용이며 업무 API의 ACL을 대체하지 않는다.
+
+## 시나리오 v4 정합화 (2026-10-23)
+
+- 회수에는 MANUAL_REVIEW를 사용하지 않는다. 신규 후보 또는 추가 확인이 있으면 DONE/SCAN_COMPLETED, 둘 다 0건이면 DONE/NO_NEW_CANDIDATES다. 필수 알림 미완료는 FAILED/NOTIFICATION_FAILED다.
+- 실행 응답은 `summary.{needs_review_count,new_candidate_count,pending_notification_count}`와 `needs_review[{assignment_id,employee_name,resource_name,missing[]}]`를 제공한다. 기존 최상위 카운트는 호환성을 위해 유지하며 summary와 일치해야 한다. Worker 이벤트에서는 summary/needs_review를 생략할 수 있고 서버가 고정 사실에서 생성한다.
+- missing 코드는 USAGE_OBSERVATION(최신 사용 이력), PRICE_EVIDENCE(비용 근거), EMPLOYMENT_STATUS(재직 상태), RECLAIM_FACTS(기타 필수 사실)다. 미확인 항목은 candidate_status=null/review_required=true로 보존하고 알림을 보내지 않는다.
+- 내부 QUEUED/RUNNING/REPORT_READY/PARTIAL 상태를 새로 저장하지 않는다. 현재 구현은 공통 상태를 직접 사용한다. 전체 조회 실패·상한 초과·일부 조회는 FAILED/SCAN_FAILED, scan_complete=false다. 수신된 검증 가능 부분 행은 실행 items로 저장할 수 있지만 후보 확정·알림을 수행하지 않는다. 메시지 상한을 넘으면 부분 행 전달을 생략하며 완료나 0건으로 표시하지 않는다.
+- 재시도 가능한 회수 읽기 도구 호출은 기존 호출 한도 안에서 최대 3회 시도한다. 새로운 점검은 새 run_id로 기록한다. 기본 알림은 IN_APP이며 목록 저장 성공이 전달 성공이다. 외부 Slack/메일 전달은 구현 범위가 아니다.
+- PLAN_REVIEW_REQUIRED와 ANALYSIS_CONFLICT는 승인 요청의 MANUAL_REVIEW 사유로 등록했다. ALREADY_HAS_ACCESS는 기존처럼 DONE/GUIDANCE/verification_ok=null이다.
+- API와 Worker, MCP, 프론트 및 V8 migration은 함께 배포해야 한다. 기존 회수 MANUAL_REVIEW 이력은 V8에서 조회·알림 완료 여부에 따라 DONE 또는 FAILED로 옮긴다. 기존 정책·가격 revision과 스냅샷 원문은 수정하지 않는다.

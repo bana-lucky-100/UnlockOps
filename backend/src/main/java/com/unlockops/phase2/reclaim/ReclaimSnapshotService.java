@@ -29,7 +29,7 @@ public class ReclaimSnapshotService {
         // One SQL statement freezes all changing facts in one MVCC snapshot.
         var facts=db.rows("""
             SELECT jsonb_build_object('assignment_id',a.id,'company_id',a.company_id,'user_id',a.user_id,
-              'department_id',u.department_id,'platform',r.platform,'entitlement_id',a.entitlement_id,
+              'department_id',u.department_id,'employee_name',u.name,'resource_name',r.name,'platform',r.platform,'entitlement_id',a.entitlement_id,
               'employment_status',u.employment_status,'origin_tf_id',a.origin_tf_id,'granted_at',a.granted_at,
               'tf_ends_on',t.ends_on,'last_used_at',usage.last_used_at,'observation_status',usage.observation_status,
               'observed_at',usage.observed_at,

@@ -26,6 +26,9 @@ const selected = ref(''),
   reading = ref(''),
   acceptedId = ref('')
 const unread = computed(() => notifications.value.filter((n) => !n.read_at).length)
+function scopeLabel(scope: Scope): string {
+  return `${scope.scope_key} · ${scope.platforms.map((platform) => platforms[platform]).join(', ')}`
+}
 const polling = usePolling(async () => {
   try {
     const [next, permitted, inbox] = await Promise.all([
@@ -150,7 +153,7 @@ async function markRead(notification: Notification) {
               >허용된 점검 범위<select v-model="selected" :disabled="busy || !scopes.length">
                 <option value="" disabled>범위를 선택하세요</option>
                 <option v-for="scope in scopes" :key="scope.id" :value="scope.id">
-                  {{ scope.scope_key }} · {{ scope.platforms.map((p) => platforms[p]).join(', ') }}
+                  {{ scopeLabel(scope) }}
                 </option>
               </select></label
             >

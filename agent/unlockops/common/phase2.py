@@ -66,6 +66,7 @@ REASON_STATUSES = {
     "POLICY_NOT_ELIGIBLE": "REJECTED", "NOT_TF_MEMBER": "REJECTED", "DUPLICATE_SEAT": "REJECTED",
     "MISSING_SOURCE_EVIDENCE": "MANUAL_REVIEW", "APPROVER_UNAVAILABLE": "MANUAL_REVIEW",
     "OUT_OF_SCOPE": "MANUAL_REVIEW", "BUDGET_UNAVAILABLE": "MANUAL_REVIEW", "MODEL_UNAVAILABLE": "MANUAL_REVIEW",
+    "PLAN_REVIEW_REQUIRED": "MANUAL_REVIEW", "ANALYSIS_CONFLICT": "MANUAL_REVIEW",
     "VERIFIED": "DONE", "ALREADY_HAS_ACCESS": "DONE", "RAG_GUIDANCE": "DONE",
     "SCAN_IN_PROGRESS": "EXECUTING", "SCAN_COMPLETED": "DONE", "NO_NEW_CANDIDATES": "DONE",
     "VERIFICATION_FAILED": "FAILED", "TOOL_CALL_FAILED": "FAILED", "SCAN_FAILED": "FAILED", "NOTIFICATION_FAILED": "FAILED",
@@ -177,7 +178,7 @@ class WorkflowView(Contract):
         elif waiting or self.current_step is not None:
             raise ValueError("current_step and WAITING only exist while waiting for approval")
         if self.task_type == TaskType.RECLAIM_SCAN:
-            if self.status in {Status.WAITING_APPROVAL, Status.ON_HOLD, Status.REJECTED}:
+            if self.status in {Status.WAITING_APPROVAL, Status.ON_HOLD, Status.REJECTED, Status.MANUAL_REVIEW}:
                 raise ValueError("Reclaim scans do not enter approval states")
             if self.total_steps or self.verification_ok is not None:
                 raise ValueError("Reclaim scans have no approvals or grant verification")
@@ -211,6 +212,19 @@ class AccessView(WorkflowView):
         return self
 
 
+class ReclaimSummary(Contract):
+    needs_review_count: int = Field(ge=0)
+    new_candidate_count: int = Field(ge=0)
+    pending_notification_count: int = Field(ge=0)
+
+
+class NeedsReviewItem(Contract):
+    assignment_id: UUID
+    employee_name: str
+    resource_name: str
+    missing: list[Literal["USAGE_OBSERVATION", "PRICE_EVIDENCE", "EMPLOYMENT_STATUS", "RECLAIM_FACTS"]] = Field(min_length=1)
+
+
 class ReclaimRunView(WorkflowView):
     task_type: Literal[TaskType.RECLAIM_SCAN] = TaskType.RECLAIM_SCAN
     run_id: UUID
@@ -220,6 +234,8 @@ class ReclaimRunView(WorkflowView):
     needs_review_count: int = Field(default=0, ge=0)
     new_candidate_count: int = Field(default=0, ge=0)
     pending_notification_count: int = Field(default=0, ge=0)
+    summary: ReclaimSummary | None = None
+    needs_review: list[NeedsReviewItem] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_scan(self):
@@ -227,13 +243,15 @@ class ReclaimRunView(WorkflowView):
             raise ValueError("Snapshot id and as_of travel together")
         if self.scan_complete and self.snapshot_id is None:
             raise ValueError("A completed scan needs a snapshot")
+        if self.summary is not None and (self.summary.needs_review_count, self.summary.new_candidate_count, self.summary.pending_notification_count) != (self.needs_review_count, self.new_candidate_count, self.pending_notification_count):
+            raise ValueError("Summary differs from scan counts")
         if self.status == Status.DONE:
-            if not self.scan_complete or self.needs_review_count or self.pending_notification_count:
-                raise ValueError("Incomplete scan/review/notification cannot be DONE")
+            if not self.scan_complete or self.pending_notification_count:
+                raise ValueError("Incomplete scan/notification cannot be DONE")
             if self.reason_code not in {"SCAN_COMPLETED", "NO_NEW_CANDIDATES"}:
                 raise ValueError("Invalid scan completion reason")
-            if self.reason_code == "NO_NEW_CANDIDATES" and self.new_candidate_count:
-                raise ValueError("New candidates cannot be reported as none")
+            if self.reason_code == "NO_NEW_CANDIDATES" and (self.new_candidate_count or self.needs_review_count):
+                raise ValueError("Candidates or additional checks cannot be reported as none")
         return self
 
 
@@ -383,8 +401,8 @@ class ReclaimEvent(Contract):
         if self.result.status == Status.DONE:
             raise ValueError("Only Spring may finalize storage and delivery as DONE")
         if self.event_type == "RECLAIM_CHECKED" and self.result.status == Status.EXECUTING:
-            if not self.result.scan_complete or self.result.needs_review_count or any(t.review_required for t in self.targets):
-                raise ValueError("Incomplete evidence cannot enter result application")
+            if not self.result.scan_complete or self.result.needs_review_count != sum(t.review_required for t in self.targets):
+                raise ValueError("Incomplete scan or inconsistent review count")
         if self.event_type == "FAILED" and self.result.status != Status.FAILED:
             raise ValueError("Failed event must carry a failed result")
         if len({t.assignment_id for t in self.targets}) != len(self.targets):

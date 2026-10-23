@@ -552,11 +552,110 @@ P1은 우선 수정할 승인 정확성 문제, P2는 후속 수정할 조회·�
 - 프론트 Phase 2 검사 **3건**, 평가 준비 검사 **3건** 통과. 공통 계약·HTTP 생성물 일치 확인 완료. 공통 계약 벡터로 정상 결정·버전 누락·0 및 기존 보류 사유 검증을 Python/Java에서 확인했습니다.
 - 실제 PostgreSQL·브로커를 사용하는 E-01 통합 평가와 브라우저 상호작용은 이번 수정에서 실행하지 않았습니다. 지정 버전 프론트 전체 빌드도 미검증입니다.
 
+## 수신 RAG 문서 반영 — 2026-10-23
+
+### 변경 내용과 의도
+
+- 제공받은 `policy_corpus.md`를 `data/phase2/policies/policy_corpus.md`에 원문 그대로 보관했습니다. 총 28개 문서(POL-01~14 및 공식 요약 14개), 107개 조항/요약 청크입니다. 원문 SHA-256은 `5e1a78226662b90b9dfb10865bfde4d67a1eb6274b654bf25308c3bf594c1912`입니다.
+- `rag/unlockops_rag/corpus.py`가 메타데이터 표의 문서 ID·플랫폼·버전/확인일을 읽습니다. 규정 조항과 공식 요약의 중첩 제목을 구분해, 서로 다른 문서의 `핵심 요약`이 동일한 근거 키로 덮이는 것을 방지했습니다.
+- `scripts/import_phase2_policy.py`는 A/B 회사별 승인 경로·시연 가격 해석을 결합한 정책 묶음 revision 2와 opt-in `apply.sql`을 생성합니다. DB의 회사 정책 ID/버전/전체 해시는 유지하고, 원문 문서 ID·버전·조항은 근거 article에서 확인합니다.
+- `RevisionIndex`와 Policy MCP는 승인 요청의 플랫폼을 서버 context에서 받아 해당 플랫폼+COMMON만 검색·정확 조회합니다. 기존 원문 해시 검증, 회사/버전별 캐시와 회수 스냅샷 정책 고정은 유지합니다. 임베딩 모델은 필요하지 않습니다.
+- 정책만 교체하면 서버의 연결 버전 검사에서 차단됩니다. 따라서 SQL은 정책·가격·승인 경로·회수 규칙 revision 2를 하나의 트랜잭션에 추가합니다. 기존 revision 1과 과거 계획/스냅샷은 수정하지 않습니다. 같은 적용은 중복 생성하지 않고, 다른 내용의 동일 버전이나 이후 버전은 거절하도록 구성했습니다.
+- v1은 단일 승인·Admin 거절 등 규칙이 다르므로 기존 `data/policy_corpus.md`를 보존합니다. 기존 baseline seed와 smoke/full 평가는 revision 1을 유지하고 수신 정책 반영은 별도 SQL로 적용합니다.
+
+### 확인된 차이 및 한계
+
+- Figma 원문 예시는 월 16달러, 기존 mock 계약은 월 15.00 USD입니다. 이번에는 검색 문서를 반영했으며 구조화된 가격은 유지합니다. 실제 가격·계약 변경은 별도 revision 작업이 필요합니다. 원문의 공식 요약과 링크는 외부 웹으로 재검증하지 않았습니다.
+- Tableau 허용 직무, Databricks 실행 주체의 데이터 접근, Notion 기밀 편집의 추가 승인, Figma View 카탈로그, Admin→Read 제안의 목적 검증에는 문서와 현재 구현 차이가 남습니다. 정책 문장이 자동으로 실행 규칙으로 바뀌지는 않습니다. 구체적인 차이는 `data/phase2/policies/README.md`에 기록했습니다.
+- 실제 서비스 반영은 V7·baseline seed 적용 후 `data/phase2/policies/apply.sql`을 실행해야 합니다. 이번 환경에서는 Docker 소켓 접근이 거절됐고, 임시 PostgreSQL도 공유 메모리 생성 권한 제한으로 시작하지 못해 실행 중 DB 적용은 하지 못했습니다.
+
+### 검증
+
+- Python agent/MCP 검사 **363건 통과**. 신규 회귀 검사 3건으로 원문 메타데이터, 플랫폼 분리, 고유 조항 식별, Figma/회수 검색, 원문 발췌·해시 검증, 생성물 재현성을 확인했습니다. 최종 정책 설명 정리 후 신규 3건도 다시 통과했습니다.
+- Java main/test 오프라인 컴파일 통과. 기존 `Phase2FoundationIT`에 정책 SQL 2회 적용, 연결 버전 수, 기존 mock 가격·v1 권한 보존 검사를 보강했으나 실제 PostgreSQL 통합 실행은 환경 제한으로 미실행입니다.
+- 생성 파일 검증과 `git diff --check` 통과. 적용 방법은 `data/phase2/policies/README.md`에 있습니다.
+
+## 최종 시나리오 v4·첨부 이미지 대조 리뷰 — 2026-10-23
+
+### 범위와 결론
+
+- 수신 `UnlockOps-Phase-2-Test-Scenarios_근거반영_v4.md` 전체와 첨부 `image(8).png`의 9개 지적을 현재 작업 트리 기준으로 대조했습니다. 이번 작업은 리뷰이며 업무 코드·계약·DB·평가 기대값은 변경하지 않았습니다.
+- 승인 2/3/4단계, 보류·재개, 기존 권한 안내, 부여 후 검증, 회수 후보/제외/유지/중복 알림 및 퇴사자 판정의 기본 흐름은 구현돼 있습니다. 다만 v4 전체와 일치하지 않으며, 기존 25건 평가가 통과하더라도 v4 충족을 의미하지 않습니다. 실제 DB·큐를 포함한 통합 시연은 이번 리뷰에서 실행하지 않았습니다.
+
+### 우선 정합화할 차이
+
+1. **회수 정보 부족과 실패 계약**: v4 X-08b는 신규 0건·추가 확인 1건 이상이면 `DONE / SCAN_COMPLETED`입니다. 현재 `agent/unlockops/reclaim/graph.py:finish`, `ReclaimResultService`는 `MANUAL_REVIEW / MISSING_SOURCE_EVIDENCE`로 처리합니다. `ReclaimRunView`, Java `Phase2Codec`, V6의 `reclaim_runs` CHECK도 `DONE`에 `needs_review_count=0`을 요구합니다. 서버만 고쳐서는 안 되며 새 migration·공통 계약·생성물·에이전트·화면·평가를 함께 갱신해야 합니다. 전체 정책/규칙 확보 실패도 현재 `MANUAL_REVIEW`이고, 담당자 미지정은 `MANUAL_REVIEW / APPROVER_UNAVAILABLE`입니다. 개별 사실 부족, 전체 점검 불가, 필수 알림 실패를 분리해야 합니다.
+2. **v4 가격과 RAG 적용 데이터**: P-06은 Figma 월 16달러·예산 100→84인데 `data/phase2/catalog.json`과 기존 seed는 15달러·100→85입니다. 지난 RAG import의 revision 2도 기존 가격을 복사하므로 가격 차이는 남습니다. 기존 immutable revision을 UPDATE하지 않고 새 연결 revision으로 반영해야 합니다. RAG import SQL은 준비돼 있으나 실행 중 DB 적용은 확인되지 않았고, 평가 실행기는 여전히 revision 1 seed만 복제합니다.
+3. **평가 입력과 근거 채점**: `scripts/phase2/fixtures.py`는 대부분 자연어 시나리오 대신 내부 권한 코드와 명시적 entitlement ID를 전달합니다. `run_suite.py`의 근거 검사는 존재 여부 중심이며 v4의 POL/공식 요약별 조항 적중을 채점하지 않습니다. 따라서 자연어 해석과 새 RAG 근거를 통과했다고 볼 수 없습니다. `편집 권한`은 현재 해석기에서 `Can edit`이 되지만 Figma `EDITOR_SEAT`·Databricks `NOTEBOOK_JOB_USER`와 일치하지 않아 명시 ID 없는 요청이 권한 선택에서 탈락하는 것을 재현했습니다. 검증된 플랫폼별 역할 매핑이 필요하며 다른 권한으로 무조건 대체해서는 안 됩니다.
+4. **회수 LLM 호출 범위**: v4는 신규 후보만 설명하고 신규/추가 확인 모두 0건이면 LLM 호출을 생략합니다. 현재 `compose_reports`는 제외·기통지 여부와 관계없이 앞쪽 항목들에 `report`를 호출하고, 이 함수는 LLM 모드에서 모델을 사용합니다. 조회한 알림 이력도 이 호출 제외 조건에 사용하지 않습니다. R-02/R-03/R-04처럼 결과가 신규 0건이어도 호출할 수 있습니다.
+5. **최소 권한 제안의 목적 검증**: B-02는 코드 열람 목적일 때만 Admin→Read를 제안합니다. 현재 `phase2_selection.py`는 Admin/Owner/Maintain/Full access를 목적 검사 없이 Read 후보로 좁힙니다. B-02 fixture도 열람 목적 없는 Admin 요청입니다. 요청 목적에 Read가 충분한지 확인하는 양성/음성 조건을 맞춰야 합니다.
+6. **여러 플랫폼 요청(X-12)**: v4는 첫 플랫폼 GitHub만 처리하고 Jira 별도 접수를 안내합니다. 현재 `planner.py:interpret`의 LLM 지시는 여러 플랫폼 변경 요청을 out_of_scope=true로 분류하며, v2 그래프는 이를 수동 검토로 중단합니다. 첫 플랫폼 선택·나머지 플랫폼 별도 안내를 보장하는 계약/평가가 필요합니다.
+
+### 첨부 이미지 9개 항목에 대한 확인
+
+| 이미지 번호 | 확인 결과 |
+|---|---|
+| 1. v2는 DB 정책 revision 사용 | 맞습니다. 지난 작업에서 `data/phase2/policies/` 원문·회사별 묶음·새 revision 적용 SQL과 MCP 검색을 마련했습니다. v1 파일 교체만으로 반영되지 않습니다. 실제 DB 적용은 별도 확인이 필요합니다. |
+| 2. 가격은 합성 계약, 새 revision 필요 | 맞습니다. Figma 16달러 미반영이며 정책 import는 가격 수치를 그대로 복사합니다. V6 immutable trigger 때문에 기존 revision 직접 수정은 불가합니다. |
+| 3. 정보 부족은 현재 MANUAL_REVIEW | 맞습니다. v4와 명확한 충돌이며 DB/계약/평가까지 변경 대상입니다. X-UNKNOWN/X-COST 기대값도 이전 규격입니다. |
+| 4. PARTIAL 및 내부 상태 매핑 | 현재 repo에는 QUEUED/RUNNING/REPORT_READY/PARTIAL 실행 상태가 없고 공통 상태를 직접 저장합니다. 페이지 누락·상한 초과는 그래프 오류로 실패 처리하며 부분 결과를 저장·반환하는 계약은 없습니다. 별도 회수 구현의 어댑터 요구인지 구분해야 합니다. 추가로 서버에 scan_complete=false 결과가 직접 오면 현재 MANUAL_REVIEW로 처리하므로 이 분기도 v4와 다릅니다. |
+| 5. ALREADY_HAS_ACCESS와 result_type | 현재 `DONE / ALREADY_HAS_ACCESS`, `result_type=GUIDANCE`, `verification_ok=null`로 이미 처리됩니다. result_type은 추가 구분 필드라 v4와 충돌하지 않습니다. 회수는 별도 reclaim_runs 테이블이므로 이 이유만으로 problems의 result_type 제약을 제거할 필요는 없습니다. |
+| 6. 추가 확인 응답 필드 | 실행 응답에는 최상위 needs_review_count, overview에는 summary.needs_review_count, 항목에는 review_required가 있습니다. v4의 needs_review[{employee_name, resource_name, missing[]}] 구조는 없습니다. 화면도 현재 ‘근거 확인 필요’입니다. 필드 중복 신설보다 기존 계약과 통합해 확정해야 합니다. |
+| 7. PLAN_REVIEW_REQUIRED | 실제 서버가 계획/조건 변경 시 사용합니다. 현재 공통 최소 사유 목록에는 등록되지 않았습니다. ANALYSIS_CONFLICT도 서버 사용 코드이므로 함께 문서화해야 합니다. |
+| 8. 추가 평가 ID | 맞습니다. 실행기는 X-10, X-UNKNOWN, X-4STEP, X-11, X-COST입니다. X-4STEP은 v4 X-03에 대응하고 X-UNKNOWN/X-COST는 X-08b 하위 사례로 정리할 수 있습니다. 다른 X 항목 일부는 기존 평가 내부 검사와 겹치므로 누락과 이름 차이를 구분해야 합니다. |
+| 9. 자동 점검 기본 비활성 | 맞습니다. 실제 토글은 PHASE2_RECLAIM_SCHEDULE_ENABLED=false이며, seed의 reclaim_scopes.enabled도 false입니다. 두 조건을 켜야 09:00 Asia/Seoul 스케줄이 동작합니다. DEMO_ENABLED는 수동 실행 허용 설정입니다. 현재 시각은 @Scheduled에 고정돼 있어 v4의 시각 설정값 요구와도 차이가 있습니다. |
+
+### 작은 재현 검사와 권장 순서
+
+- 기존 scan_done_empty 예제를 `SCAN_COMPLETED`, `needs_review_count=1`로 바꾸어 Python 계약 검증: `Incomplete scan/review/notification cannot be DONE`으로 거절됨을 확인했습니다.
+- 모델 대신 설명 함수 spy를 사용한 검사: 제외 항목만 1개인 경우와 기통지 항목만 1개인 경우 모두 설명 생성 함수가 1회 호출됐습니다. 외부 LLM은 호출하지 않았습니다.
+- Figma·Databricks 편집 자연어 요청을 기존 catalog 권한 선택 함수에 전달: `Can edit`과 내부 권한 코드 불일치로 선택 실패를 확인했습니다. 새 테스트 파일은 추가하지 않았습니다.
+- 권장 순서: (1) 회수 상태/정보 부족/실패 계약 확정·동시 반영 → (2) v4 RAG·가격·역할 매핑과 평가 데이터 정합화 → (3) 신규 후보만 LLM 호출, 목적 기반 최소 권한 제안 → (4) 시나리오 ID·근거 채점·스케줄 설정 정리 후 실제 스택 시연 검증.
+
+## 시나리오 v4 정합화 구현 — 2026-10-23
+
+위 대조 리뷰 이후 수행한 변경입니다. 이전 리뷰는 변경 전 상태의 기록이며, 이 절이 현재 구현 기준입니다.
+
+### 변경 내용과 의도
+
+| 영역 | 변경 내용 | 의도 |
+|---|---|---|
+| 회수 상태 | 정보 부족은 추가 확인 목록으로 분리하고 DONE/SCAN_COMPLETED. 신규·추가 확인 모두 0건만 NO_NEW_CANDIDATES | 정보 부족 한 건 때문에 전체 정상 점검을 수동 검토로 중단하지 않음 |
+| 실패·부분 조회 | 전체 조회 실패·상한 초과·정책 확보 실패는 FAILED/SCAN_FAILED. 검증 가능한 부분 행은 scan_complete=false로 저장하고 알리지 않음 | 부분 결과를 전체 완료·0건으로 오인하지 않음 |
+| 필수 알림 | 담당자 미지정은 FAILED/NOTIFICATION_FAILED. 성공 이력은 보존하며 미통지 기존 후보도 재점검에서 신규 알림 대상으로 계산 | 실패한 알림과 정보 부족을 구분하고 재점검으로 전달 복구 가능 |
+| 공통 응답·화면 | summary 카운트와 needs_review 목록에 직원·자원·missing 코드 추가. ‘추가 확인’ 문구 사용 | 어느 정보를 보완해야 하는지 확인 가능. 기존 최상위 카운트는 호환 유지 |
+| LLM 호출 | 신규·확정·미통지 후보만 설명 생성. 제외·유지·기통지·정보 부족은 검증된 템플릿 사용 | 후보 0건일 때 불필요한 호출 방지 |
+| DB·정책·가격 | V8 migration과 opt-in revision 3 추가. Figma 16달러, 100→84 예산 반영. 원문·revision 1/2 보존 | 과거 승인 계획/스냅샷을 바꾸지 않고 v4 자료를 연결 |
+| SaaS 사실 | Databricks Run as 주체/데이터 접근 사실, 플랜명, 모의 TF 자원 범위 명시. Tableau ANALYST 기준 | v4 전제조건을 실제 서버 검사와 모의 데이터에 반영 |
+| 자연어 해석 | 플랫폼별 Can Edit/USAGE/Read Only 등의 별칭을 허용된 mock 권한 코드에 매핑 | 명시 entitlement ID 없이도 시나리오 문장 처리. Viewer를 Editor로 대체하는 기존 결함은 재발 방지 |
+| 최소 권한 | GitHub 코드 열람 목적이 확인되고 변경 목적이 없을 때만 Admin→Read 제안 | 요청 목적을 해결하지 못하는 권한을 자동 제안하지 않음 |
+| 여러 플랫폼 | 첫 명시 플랫폼만 서버 요청 범위로 저장하고, 에이전트에도 그 구간만 해석하도록 전달. 나머지는 별도 접수 안내 | X-12에서 두 플랫폼의 권한을 함께 변경하지 않음 |
+| 개인정보 | 요청 저장·감사 payload·MCP 전달 전에 전화번호/이메일/명시 주소·도로명 주소 형식 마스킹 | X-07의 입력 개인정보가 보고서로 그대로 전달되지 않음. 자유형 개인정보 전체를 탐지하는 DLP는 아님 |
+| 근거·평가 | 승인 근거를 검증된 개별 조항으로 보존하고 회수 근거도 조항으로 분리. v4 자연어·근거 조항·revision 3으로 평가 | 상태값만 맞고 입력 해석·근거는 검증하지 못하던 공백 보완 |
+| 스케줄·사유 | PHASE2_RECLAIM_CRON 설정 추가(기본 09:00 KST), PLAN_REVIEW_REQUIRED/ANALYSIS_CONFLICT 등록 | 시나리오·문서·실제 서버 코드의 용어 통일 |
+
+### 적용 파일과 실행 순서
+
+- `V8__reclaim_v4_completion.sql`: 회수 CHECK 제약과 기존 MANUAL_REVIEW 실행 이력 변환, SaaS 추가 사실 필드. V1~V7 파일은 수정하지 않았습니다.
+- `scripts/align_phase2_v4.py`: `data/phase2/policies/company-*-policy-v3.md`, `apply-v4.sql`, `data/phase2/scenarios-v4.json` 생성. 가격의 공식/가정 구분은 수신 문서 기준이며 공식 웹 원문을 재검증하지 않았습니다.
+- 새 시연 DB: 백엔드 V8 적용 → `data/phase2/seed.sql` → `data/phase2/policies/apply.sql` → `data/phase2/policies/apply-v4.sql`. 이미 revision 2가 있으면 마지막 SQL만 적용합니다. revision 3 이후 이전 apply.sql을 다시 실행하지 않습니다.
+- 서버·Worker/MCP·프론트 계약을 함께 배포해야 합니다. 새 요청/재분석/새 점검부터 새 revision을 사용합니다. 과거 계획은 최신 조건 검사에 따라 재검토가 필요할 수 있습니다.
+- 자동 점검은 기본 비활성을 유지합니다. 시연은 DEMO_ENABLED 수동 실행이며, 정기 실행하려면 PHASE2_RECLAIM_SCHEDULE_ENABLED와 대상 reclaim_scopes.enabled를 모두 켭니다. 실제 회수와 외부 Slack/메일 발송은 수행하지 않습니다.
+- 핵심 평가 20건은 `scenarios-v4.json`, 추가 검증 8건은 fixtures입니다. X-08b-USAGE/COST, X-03으로 ID를 맞추고 X-07/X-08/X-12를 추가했습니다. 기존 catalog/seed는 baseline-v1 비교용으로 보존합니다.
+
+### 검증과 남은 실행 확인
+
+- Python agent/MCP **368건 통과**, 평가 데이터 준비 **3건 통과**, 프론트 상태 표시 **3건 통과**. 기존 검사 보완과 자연어/LLM 생략 경계 검사 2개를 추가했습니다.
+- Java main/test 오프라인 컴파일 및 핵심 워크플로 5건·공통 계약 2건 직접 실행 통과. 추가 확인이 있는 DONE과 회수 MANUAL_REVIEW 금지는 Python/Java 공통 벡터에 포함했습니다.
+- `Phase2FoundationIT`에 revision 3 이중 적용·Figma 16달러·Run as 사실·v4 DB 상태 제약 검사를 보강했습니다. 실제 PostgreSQL/브로커를 사용하는 통합 실행 및 실행 중 DB 적용은 아직 수행하지 않았습니다.
+- 수정한 ReclaimRun.vue는 캐시된 Vue 컴파일러로 script/template 구문 검사를 통과했습니다. `npm run build`는 로컬 vue-tsc 미설치로 실행하지 못했습니다. 지정 버전 의존성이 설치된 환경의 프론트 전체 빌드·브라우저 시연과 smoke/full 통합 평가가 남습니다.
+- 현재 권한 실행은 mock입니다. 플랫폼별 공식 역할의 실제 SaaS API 적용, 임의 형식 개인정보의 완전 탐지, 외부 알림 전달은 이번 변경으로 구현됐다고 간주하지 않습니다.
+
 ## 다음 작업
 
 1. Docker 및 패키지 다운로드가 가능한 환경에서 smoke → full을 실행하고 FAIL/BLOCKED를 해결합니다. 수동 GitHub workflow로도 실행할 수 있습니다.
-2. 위 브라우저 시연 항목과 기존 데이터 복제본의 V5→V7 업그레이드를 확인합니다.
-3. 기준 결과를 확보한 뒤 실제 RAG 문서·가격을 새 revision으로 추가하고 같은 평가를 다시 실행해 변화와 에이전트 품질을 비교합니다.
+2. 위 브라우저 시연 항목과 기존 데이터 복제본의 V5→V8 업그레이드를 확인합니다.
+3. 수신 RAG와 v4 가격 revision 3을 적용하고, 동일 입력·기대값의 기준선과 비교해 변화와 에이전트 품질을 확인합니다.
 
 ## 작업 이력
 
@@ -570,3 +669,6 @@ P1은 우선 수정할 승인 정확성 문제, P2는 후속 수정할 조회·�
 | 2026-10-22 | 1~5단계 전체 코드 리뷰 | 미해결 결함 5건(CR-01~05) 기록. 업무 코드 수정 없음. Python 355건·프론트 3건·평가 준비 3건 및 Java 컴파일 확인. 경계 오류 별도 재현 |
 | 2026-10-22 | CR-01·CR-02 개선 | 역할 불일치 시 수동 검토, 결정 API에 계획 버전 검증 추가. 계약·프론트·평가 호출자 동시 갱신. Python 39건·Java 7건·프론트 3건·평가 준비 3건 통과 |
 | 2026-10-23 | DB 구조 시각화 | V1~V7 DDL을 기준으로 `docs/images/phase2/database-overview.png` 작성, `docs/schema.md`에 연결. 권한 목록과 직원 할당, 가격과 예산, 승인 회차와 회수 스냅샷을 구분해 설명. 업무 코드·DB 변경 없음 |
+| 2026-10-23 | 수신 RAG 문서 연결 | 28개 문서·107개 청크 파싱, 회사별 정책 revision 2와 연결 버전 적용 SQL 생성, 플랫폼별 검색 및 인용 개선. Python 363건·Java 컴파일 통과. 실제 DB 적용은 환경 권한 제한으로 미실행 |
+
+| 2026-10-23 | 시나리오 v4 정합화 | 회수 완료/추가 확인/실패 계약, V8 migration, 정책·가격 revision 3, 자연어 권한 매핑·최소 권한 목적 검사·첫 플랫폼 처리·마스킹·평가셋 정합화. Python 368건, 평가 준비 3건, Java 핵심 7건, 프론트 3건 통과. DB 적용·전체 프론트 빌드·통합 시연 미실행 |

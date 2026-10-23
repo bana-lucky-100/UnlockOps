@@ -13,13 +13,16 @@ ROOT = Path(__file__).resolve().parents[2]
 UUID_RE = re.compile(r"\b[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\b")
 LITERAL = re.compile(r"'((?:''|[^'])*)'", re.S)
 BASE = datetime.fromisoformat("2026-10-22T09:00:00+09:00")
-SMOKE = {"E-01", "E-02", "E-04", "B-02", "R-01", "R-04", "X-10", "X-UNKNOWN"}
+SMOKE = {"E-01", "E-02", "E-04", "B-02", "R-01", "R-04", "X-10", "X-08b-USAGE"}
 EXTRA = [
+    {"id": "X-08", "company": "A", "platform": "GITHUB", "expected_status": "DONE", "expected_reason_code": "NO_NEW_CANDIDATES", "overrides": {}, "reclaim_fixture": "R-02"},
+    {"id": "X-12", "company": "A", "platform": "GITHUB", "expected_status": "WAITING_APPROVAL", "expected_reason_code": "ELIGIBLE", "overrides": {}, "input_text": "GitHub Copilot 좌석과 Jira 프로젝트 권한을 한 번에 신청합니다."},
+    {"id": "X-07", "company": "A", "platform": "GITHUB", "expected_status": "WAITING_APPROVAL", "expected_reason_code": "ELIGIBLE", "overrides": {}, "input_text": "GitHub Copilot 좌석 신청. 전화번호 010-1234-5678. 주소: 서울특별시 강남구 테헤란로 123"},
     {"id": "X-10", "company": "B", "platform": "GITHUB", "expected_status": "DONE", "expected_reason_code": "SCAN_COMPLETED", "overrides": {}, "reclaim_fixture": "X-10-GITHUB"},
-    {"id": "X-UNKNOWN", "company": "A", "platform": "GITHUB", "expected_status": "MANUAL_REVIEW", "expected_reason_code": "MISSING_SOURCE_EVIDENCE", "overrides": {}, "reclaim_fixture": "MISSING_USAGE"},
-    {"id": "X-4STEP", "company": "B", "platform": "SNOWFLAKE", "expected_status": "WAITING_APPROVAL", "expected_reason_code": "ELIGIBLE", "overrides": {"budget": "500.00"}},
+    {"id": "X-08b-USAGE", "company": "A", "platform": "GITHUB", "expected_status": "DONE", "expected_reason_code": "SCAN_COMPLETED", "overrides": {}, "reclaim_fixture": "MISSING_USAGE"},
+    {"id": "X-03", "company": "B", "platform": "SNOWFLAKE", "expected_status": "WAITING_APPROVAL", "expected_reason_code": "ELIGIBLE", "overrides": {"budget": "500.00"}},
     {"id": "X-11", "company": "A", "platform": "GITHUB", "expected_status": "DONE", "expected_reason_code": "SCAN_COMPLETED", "overrides": {}, "reclaim_fixture": "X-11"},
-    {"id": "X-COST", "company": "A", "platform": "GITHUB", "expected_status": "MANUAL_REVIEW", "expected_reason_code": "MISSING_SOURCE_EVIDENCE", "overrides": {}, "reclaim_fixture": "R-01"},
+    {"id": "X-08b-COST", "company": "A", "platform": "GITHUB", "expected_status": "DONE", "expected_reason_code": "SCAN_COMPLETED", "overrides": {}, "reclaim_fixture": "R-01"},
 ]
 
 
@@ -33,7 +36,11 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
     shift = now.date() - BASE.date()
     catalog = json.loads((ROOT / "data/phase2/catalog.json").read_text())
     seed = (ROOT / "data/phase2/seed.sql").read_text()
-    definitions = catalog["scenarios"] + EXTRA
+    v4 = json.loads((ROOT / 'data/phase2/scenarios-v4.json').read_text())
+    for item in catalog['catalog']:
+        if item['platform'] == 'FIGMA': item['monthly_amount'] = v4['figma_monthly_amount']
+    imports = [(ROOT / 'data/phase2/policies' / name).read_text() for name in ('apply.sql', 'apply-v4.sql')]
+    definitions = v4['scenarios'] + EXTRA
     if suite == "smoke":
         definitions = [s for s in definitions if s["id"] in SMOKE]
     elif suite != "full":
@@ -68,6 +75,8 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
         company_ids = [c["company_id"] for c in mapped["companies"].values()]
         seeded = LITERAL.sub(lambda m: quote(translate(m.group(1).replace("''", "'"))), seed)
         statements.append(seeded.replace("BEGIN;", "").replace("COMMIT;", ""))
+        for imported in imports:
+            statements.append(LITERAL.sub(lambda m: quote(translate(m.group(1).replace("''", "'"))), imported).replace('BEGIN;', '').replace('COMMIT;', ''))
         company_filter = ",".join(quote(x) for x in company_ids)
         # New users use the isolated stack's demo password hash; never print or export it.
         statements.append(f"UPDATE users SET password_hash=(SELECT password_hash FROM users WHERE login_id='kim_dev') WHERE company_id IN ({company_filter});")
@@ -86,19 +95,19 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
             statements.append(f"UPDATE tf_members SET active=false WHERE user_id={quote(requester)} AND tf_id={quote(company['active_tf_id'])};")
         if overrides.get("already_assigned"):
             statements.append("INSERT INTO access_assignments(id,company_id,user_id,resource_id,entitlement_id,entitlement_revision,granted_at) VALUES(" + ",".join(quote(x) for x in [str(uuid5(case_namespace, "existing")), co, requester, item["resource_id"], item["entitlement_id"]]) + ",1,now());")
-        if scenario["id"] == "X-COST":
+        if scenario["id"] == "X-08b-COST":
             # Two simultaneous price families are ambiguous: UNKNOWN, never 0.00.
             columns = "revision,company_id,entitlement_id,entitlement_revision,monthly_amount,currency,cost_basis,source_kind,source_reference,effective_from,effective_until,policy_id,policy_revision"
-            statements.append(f"INSERT INTO pricing_revisions(pricing_id,{columns}) SELECT {quote(uuid5(case_namespace, 'ambiguous-price'))},{columns} FROM pricing_revisions WHERE pricing_id={quote(item['pricing_id'])} AND revision=1;")
+            statements.append(f"INSERT INTO pricing_revisions(pricing_id,{columns}) SELECT {quote(uuid5(case_namespace, 'ambiguous-price'))},{columns} FROM pricing_revisions WHERE pricing_id={quote(item['pricing_id'])} AND revision=3;")
         if overrides.get("policy_missing"):
             content = "정책 원문을 확인할 수 없습니다."
             digest = hashlib.sha256(content.encode()).hexdigest()
             # A new, unusable source revision exercises missing evidence without deleting immutable history.
-            statements.append(f"INSERT INTO policy_revisions(policy_id,revision,company_id,doc_id,article,source_path,source_hash,content,is_mock) SELECT policy_id,2,company_id,doc_id,article,source_path,{quote(digest)},{quote(content)},true FROM policy_revisions WHERE policy_id={quote(company['policy_id'])} AND revision=1;")
-        body = {"schema_version": 2, "platform": scenario["platform"], "contents": f"업무 수행을 위해 {item['code']} 권한을 신청합니다.", "resource_id": item["resource_id"], "entitlement_id": item["entitlement_id"]}
+            statements.append(f"INSERT INTO policy_revisions(policy_id,revision,company_id,doc_id,article,source_path,source_hash,content,is_mock) SELECT policy_id,4,company_id,doc_id,article,source_path,{quote(digest)},{quote(content)},true FROM policy_revisions WHERE policy_id={quote(company['policy_id'])} AND revision=3;")
+        body = {"schema_version": 2, "platform": scenario["platform"], "contents": scenario.get("input_text") or f"{scenario['platform']} 업무 권한을 신청합니다.", "resource_id": item["resource_id"]}
         if scenario["id"] == "B-02":
-            body.update(contents="결제 개편 TF 저장소 Admin 권한을 신청합니다.", resource_id=overrides["resource_id"])
-            body.pop("entitlement_id")  # Agent must actually propose Read, not receive an explicit Read selection.
+            body.update(contents=scenario["input_text"], resource_id=overrides["resource_id"])
+            body.pop("entitlement_id", None)  # Agent must actually propose Read, not receive an explicit Read selection.
         if scenario["id"] == "B-05":
             body = {"schema_version": 2, "platform": scenario["platform"], "contents": overrides["request"]}
         reclaim_key = scenario.get("reclaim_fixture", scenario["id"] if scenario["id"].startswith("R-") else None)

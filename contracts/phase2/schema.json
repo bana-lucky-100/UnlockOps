@@ -749,6 +749,46 @@
       "title": "GrantPlanV2",
       "type": "object"
     },
+    "NeedsReviewItem": {
+      "additionalProperties": false,
+      "properties": {
+        "assignment_id": {
+          "format": "uuid",
+          "title": "Assignment Id",
+          "type": "string"
+        },
+        "employee_name": {
+          "title": "Employee Name",
+          "type": "string"
+        },
+        "resource_name": {
+          "title": "Resource Name",
+          "type": "string"
+        },
+        "missing": {
+          "items": {
+            "enum": [
+              "USAGE_OBSERVATION",
+              "PRICE_EVIDENCE",
+              "EMPLOYMENT_STATUS",
+              "RECLAIM_FACTS"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Missing",
+          "type": "array"
+        }
+      },
+      "required": [
+        "assignment_id",
+        "employee_name",
+        "resource_name",
+        "missing"
+      ],
+      "title": "NeedsReviewItem",
+      "type": "object"
+    },
     "NotificationHistoryRequest": {
       "additionalProperties": false,
       "properties": {
@@ -1264,6 +1304,24 @@
           "minimum": 0,
           "title": "Pending Notification Count",
           "type": "integer"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReclaimSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "needs_review": {
+          "items": {
+            "$ref": "#/$defs/NeedsReviewItem"
+          },
+          "title": "Needs Review",
+          "type": "array"
         }
       },
       "required": [
@@ -1288,6 +1346,33 @@
         "scope_id"
       ],
       "title": "ReclaimStartInput",
+      "type": "object"
+    },
+    "ReclaimSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "needs_review_count": {
+          "minimum": 0,
+          "title": "Needs Review Count",
+          "type": "integer"
+        },
+        "new_candidate_count": {
+          "minimum": 0,
+          "title": "New Candidate Count",
+          "type": "integer"
+        },
+        "pending_notification_count": {
+          "minimum": 0,
+          "title": "Pending Notification Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "needs_review_count",
+        "new_candidate_count",
+        "pending_notification_count"
+      ],
+      "title": "ReclaimSummary",
       "type": "object"
     },
     "Status": {

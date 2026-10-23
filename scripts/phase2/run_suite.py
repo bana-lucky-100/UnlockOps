@@ -82,6 +82,16 @@ class Suite:
         check((view["status"], view["reason_code"]) == (expected, reason),
               f"analysis expected {expected}/{reason}, got {view['status']}/{view['reason_code']}")
         result["checks"].extend(["submission_idempotency", "analysis_status_reason"])
+        report = requester.call("GET", path + "/report")
+        evidence = report.get('policy_evidence') or []
+        for required in case.get('expected_evidence', []):
+            check(any(all(token in e['article'] for token in required) and e['version']=='3' for e in evidence), 'v4 expected policy article missing: '+str(required))
+        if case.get('expected_evidence'): result['checks'].append('v4_evidence_articles')
+        if case['id']=='X-12':
+            check('JIRA' in view['message'] and '별도' in view['message'], 'remaining platform guidance missing')
+            check(report['platform']=='GITHUB', 'first platform not selected')
+        if case['id']=='X-07':
+            check('010-1234-5678' not in json.dumps(report,ensure_ascii=False) and '테헤란로 123' not in json.dumps(report,ensure_ascii=False), 'PII leaked into stored report')
         if view["status"] != "WAITING_APPROVAL":
             if view["status"] == "DONE":
                 check(view["result_type"] == "GUIDANCE" and view["verification_ok"] is None, "guidance claimed execution")
@@ -175,9 +185,11 @@ class Suite:
         if case["id"] in expected_fields:
             field, expected = expected_fields[case["id"]]
             check(all(i[field] == expected for i in items), "reclaim decision reason differs")
-        if case["id"] in {"X-UNKNOWN", "X-COST"}:
+        if case["id"] in {"X-08b-USAGE", "X-08b-COST"}:
             check(view["needs_review_count"] == len(items) and all(i["review_required"] and i["candidate_status"] is None for i in items), "missing facts were treated as zero/confirmed")
-            if case["id"] == "X-COST":
+            check(view['summary']['needs_review_count']==len(view['needs_review'])==len(items), 'additional checks missing')
+            check(all(row['missing'] for row in view['needs_review']), 'missing facts not identified')
+            if case["id"] == "X-08b-COST":
                 check(all(i["cost_impact"]["status"] == "UNKNOWN" and i["cost_impact"]["monthly_amount"] is None for i in items), "unknown cost was treated as zero")
         result["checks"].extend(["scan_idempotency", "complete_snapshot", "scan_status_reason", "no_revocation_claim", "tenant_isolation"])
         result["final_status"] = view["status"]

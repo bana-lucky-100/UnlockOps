@@ -10,7 +10,7 @@ from .search import features, cosine
 
 
 class RevisionIndex:
-    def __init__(self, company_id, policy_id, revision, doc_id, source_hash, content):
+    def __init__(self, company_id, policy_id, revision, doc_id, source_hash, content, platform=None):
         if hashlib.sha256(content.encode("utf-8")).hexdigest() != source_hash:
             raise ToolFailure("POLICY_SOURCE_UNAVAILABLE", "Policy content/hash mismatch")
         self.source_hash = source_hash
@@ -19,6 +19,10 @@ class RevisionIndex:
             if not segment.startswith("## "):
                 continue
             heading = segment.splitlines()[0][3:].strip()
+            # Imported corpus headings retain their declared platform and original version.
+            fields = heading.split(' | ')
+            if platform and len(fields) == 4 and fields[1] not in {'COMMON', platform}:
+                continue
             self.evidence.append(PolicyEvidence(doc_id=doc_id, article=heading,
                 version=str(revision), source_hash=source_hash, text=segment.strip()))
         if not self.evidence:
@@ -44,6 +48,6 @@ class RevisionIndex:
 
 
 @lru_cache(maxsize=32)
-def revision_index(company_id, policy_id, revision, doc_id, source_hash, content):
+def revision_index(company_id, policy_id, revision, doc_id, source_hash, content, platform=None):
     # Both tenant and revision/hash participate in cache identity. No fact/permission cache.
-    return RevisionIndex(company_id, policy_id, revision, doc_id, source_hash, content)
+    return RevisionIndex(company_id, policy_id, revision, doc_id, source_hash, content, platform)

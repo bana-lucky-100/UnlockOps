@@ -29,11 +29,11 @@ export const router = createRouter({
 router.beforeEach(async (to) => {
   const user = await ensureSession()
   if (to.meta.public) {
-    // 이미 로그인했으면 로그인 화면 대신 역할별 첫 화면으로.
+    // 이미 로그인했으면 로그인 화면 대신 기본 업무 화면으로.
     return to.path === '/login' && user ? homeOf(user) : true
   }
   if (!user) return { path: '/login', query: { next: to.fullPath } }
-  if (!!to.meta.phase2 !== (user.workflow_version === 2)) return homeOf(user)
+  if (!!to.meta.phase2 !== (user.workflow_version !== 1)) return homeOf(user)
   // 메뉴 숨김은 편의일 뿐이고, 실제 차단은 서버(403)가 한다.
   if (to.meta.role && to.meta.role !== user.role) return homeOf(user)
   return true

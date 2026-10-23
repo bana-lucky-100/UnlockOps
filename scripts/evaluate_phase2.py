@@ -86,9 +86,9 @@ def main(argv=None):
                            "policy-mcp", "business-mcp", "agent", "frontend"], timeout=1800)
         report["checks"]["locked_frontend_test_build"] = "PASS"
         versions = json.loads(database("SELECT json_agg(version ORDER BY installed_rank) FROM flyway_schema_history WHERE success AND version IS NOT NULL;"))
-        if not {"6", "7"}.issubset(versions):
-            raise Blocked("Required migrations V6/V7 were not applied")
-        report["checks"]["fresh_migration_v1_v7"] = "PASS"
+        if not {"6", "7", "8"}.issubset(versions):
+            raise Blocked("Required migrations V6/V7/V8 were not applied")
+        report["checks"]["fresh_migration_v1_v8"] = "PASS"
         before = database(legacy_sql)
         database(sql)
         report["checks"]["fixture_install"] = "PASS"

@@ -44,6 +44,9 @@ bad('wrong_hold_reason','AccessView',valid[-1]['payload'],lambda p:p.update(reas
 bad('missing_version','GrantPlanV2',plan,lambda p:p.pop('schema_version'))
 bad('false_verification_on_lookup_error','AccessView',{**common,'task_type':'ACCESS_REQUEST','problem_id':plan['problem_id'],'result_type':None,'status':'FAILED','reason_code':'TOOL_CALL_FAILED','verification_ok':False},lambda p:None)
 valid.append(dict(name='approval_decision',model='ApprovalDecisionInput',payload=decision))
+valid.append(dict(name='scan_done_needs_review',model='ReclaimRunView',payload={**scan,'reason_code':'SCAN_COMPLETED','needs_review_count':1,'message':'점검 완료 · 추가 확인 1건','summary':{'needs_review_count':1,'new_candidate_count':0,'pending_notification_count':0},'needs_review':[{'assignment_id':candidate['assignment_id'],'employee_name':'김개발','resource_name':'Copilot 좌석','missing':['USAGE_OBSERVATION']}]}))
+bad('review_reported_empty','ReclaimRunView',scan,lambda p:p.update(needs_review_count=1))
+bad('scan_manual_review','ReclaimRunView',scan,lambda p:p.update(status='MANUAL_REVIEW',reason_code='MISSING_SOURCE_EVIDENCE'))
 output={'schema_version':2,'plan_canonical_json':model.canonical_json(),'plan_sha256':model.digest(),'valid':valid,'invalid':invalid}
 (ROOT/'contracts/phase2/examples/vectors.json').write_text(json.dumps(output,ensure_ascii=False,indent=2)+'\n')
 for v in valid:

@@ -70,7 +70,7 @@ export function canDecide(view: AccessView, actor?: string): boolean {
 }
 export function candidateLabel(item: ReclaimCandidate): string {
   return item.review_required || !item.candidate_status
-    ? '근거 확인 필요'
+    ? '추가 확인'
     : { PENDING_REVIEW: '회수 검토 후보', RETAINED: '유지', EXCLUDED: '제외' }[item.candidate_status]
 }
 export function costLabel(cost: CostImpact): string {

@@ -60,8 +60,7 @@ public final class Phase2Codec {
                 var ids=new HashSet<String>();
                 for (var c:optional(e.targets())) { validateCandidate(c); require(ids.add(c.assignmentId()),"Duplicate assignment"); }
                 if ("RECLAIM_CHECKED".equals(e.eventType()) && e.result().status()==Status.EXECUTING)
-                    require(Boolean.TRUE.equals(e.result().scanComplete()) && zero(e.result().needsReviewCount())==0
-                        && optional(e.targets()).stream().noneMatch(c->Boolean.TRUE.equals(c.reviewRequired())),"Incomplete scan");
+                    require(Boolean.TRUE.equals(e.result().scanComplete()) && zero(e.result().needsReviewCount())==optional(e.targets()).stream().filter(c->Boolean.TRUE.equals(c.reviewRequired())).count(),"Incomplete scan or inconsistent review count");
                 require(!"FAILED".equals(e.eventType()) || e.result().status()==Status.FAILED,"Failed event mismatch");
             }
             return value;
@@ -132,15 +131,16 @@ public final class Phase2Codec {
 
     private void validateReclaim(ReclaimRunView v) {
         common(v.status(),v.reasonCode(),v.currentStep(),v.totalSteps(),v.approvalSteps());
-        require(!Set.of(Status.WAITING_APPROVAL,Status.ON_HOLD,Status.REJECTED).contains(v.status()),"Scan has no approval states");
+        require(!Set.of(Status.WAITING_APPROVAL,Status.ON_HOLD,Status.REJECTED,Status.MANUAL_REVIEW).contains(v.status()),"Scan has no approval/manual review states");
         require(zero(v.totalSteps())==0 && v.verificationOk()==null,"Scan is not a grant");
         require((v.snapshotId()==null)==(v.asOf()==null),"Snapshot identity mismatch");
         if (Boolean.TRUE.equals(v.scanComplete())) require(v.snapshotId()!=null,"Snapshot required");
         if (v.status()==Status.DONE) {
-            require(Boolean.TRUE.equals(v.scanComplete()) && zero(v.needsReviewCount())==0 && zero(v.pendingNotificationCount())==0,"Unfinished scan");
+            require(Boolean.TRUE.equals(v.scanComplete()) && zero(v.pendingNotificationCount())==0,"Unfinished scan");
             require(Set.of("SCAN_COMPLETED","NO_NEW_CANDIDATES").contains(v.reasonCode()),"Invalid scan completion");
-            require(!"NO_NEW_CANDIDATES".equals(v.reasonCode()) || zero(v.newCandidateCount())==0,"Candidates reported as none");
+            require(!"NO_NEW_CANDIDATES".equals(v.reasonCode()) || (zero(v.newCandidateCount())==0 && zero(v.needsReviewCount())==0),"Candidates/checks reported as none");
         }
+        if(v.summary()!=null) require(zero(v.summary().needsReviewCount())==zero(v.needsReviewCount()) && zero(v.summary().newCandidateCount())==zero(v.newCandidateCount()) && zero(v.summary().pendingNotificationCount())==zero(v.pendingNotificationCount()),"Summary differs from scan counts");
     }
 
     private void validateCandidate(ReclaimCandidate c) {

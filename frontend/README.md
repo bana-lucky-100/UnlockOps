@@ -43,7 +43,14 @@ Docker 화면은 localhost:8088, Vite 개발 화면은 localhost:5173입니다.
 
 ## Phase 2 화면
 
-새 회사 계정은 서버의 `workflow_version=2` 응답에 따라 `/access`로 진입합니다. 기존 LEGACY 계정의 화면은 유지합니다.
+기본 로그인 카드는 A사 직원(`p2_a_requester`)·1차 승인자(`p2_a_head`)·권한 담당자(`p2_a_operator`)입니다.
+카드를 누르거나 회사·담당 역할을 선택하면 즉시 로그인합니다. 화면에 시연 비밀번호를 저장하지 않으며,
+`POST /api/auth/demo-login`에 계정 ID만 전달하고 서버가 시연 설정과 허용 계정을 확인한 뒤 일반 인증·세션 발급을 수행합니다.
+비밀번호를 입력하면 기존 `POST /api/auth/login`을 사용합니다. 시연 계정은 비밀번호가 비어 있어도 로그인 버튼으로 진입할 수 있습니다.
+로그인하면 `/access`로 진입하며, 별도의 버전 선택 없이 10개 플랫폼 요청·승인 화면을 사용합니다.
+회사·담당 역할 선택에서 A/B사 직원·승인자·권한 담당자·IT 총괄로 전환할 수 있습니다.
+기본 화면은 Phase 2이며, 서버가 명시적으로 `workflow_version=1`을 반환하는 기존 LEGACY 계정만 이전 화면과 호환합니다.
+기존 계정의 소속·권한·요청을 새 회사로 자동 이관하지 않습니다.
 화면은 `src/views/phase2`, 공통 컴포넌트는 `src/components/phase2`, API·표시 규칙·접수 키는 `src/phase2`에 있습니다.
 
 | 경로 | 기능 |
@@ -62,9 +69,9 @@ Docker 화면은 localhost:8088, Vite 개발 화면은 localhost:5173입니다.
 회수 DONE은 점검 완료이고, 비용 UNKNOWN은 미확인입니다. 실제 권한 말소·환입은 하지 않습니다.
 요청·점검 시작의 재시도 키는 사용자와 작업별로 분리하여 보관하며 원문은 sessionStorage에 저장하지 않습니다.
 
-로그인 화면의 확장 시나리오 계정 선택을 이용할 수 있습니다. 먼저 [mock seed 안내](../data/phase2/README.md)에 따라
-계정과 초기 데이터를 준비해야 합니다. A사 승인 경로는 p2_a_requester → p2_a_head → p2_a_operator이며,
-B사 통합 회수 점검 계정은 p2_b_it_head입니다. 계정 선택은 실제 로그인 성공이나 seed 적용을 대신하지 않습니다.
+Compose 시연 환경은 [mock seed 안내](../data/phase2/README.md)의 초기 데이터를 기동 시 준비합니다.
+개별 백엔드 실행에서는 DEMO_ENABLED=true와 DEMO_PHASE2_SEED_PATH를 설정하거나 초기 데이터를 수동 적용해야 합니다.
+A사 승인 경로는 p2_a_requester → p2_a_head → p2_a_operator이며, B사 통합 회수 점검 계정은 p2_b_it_head입니다.
 
 신규 핵심 테스트는 phase2.test.mjs 3건입니다. 지정 버전 의존성 설치·브라우저·전체 스택 검증의 제한과 대체 검증 결과는
 [IMPLEMENTATION.md](../IMPLEMENTATION.md)의 4단계 검증 범위를 확인하세요. 이번 작업에서는 package.json/lockfile을 변경하지 않았습니다.
