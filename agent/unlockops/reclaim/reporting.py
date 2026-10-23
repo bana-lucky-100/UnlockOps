@@ -1,4 +1,4 @@
-"""Compose and verify explanations, then project the S-04 report and wire event."""
+"""Compose explanations, then project the S-04 report and wire event."""
 import json
 from collections.abc import Mapping
 from copy import deepcopy
@@ -6,8 +6,8 @@ from copy import deepcopy
 from ..common.workflow_contracts import ReclaimCandidate, ReclaimEvent
 from ..common.runtime import guarded, failure_event
 from ..common.reporting import report
-from ..common.models import ToolFailure
 from ..common.settings import settings
+from .verification import verify_reports  # Compatibility export for existing callers.
 
 
 def build_report_payload(targets, *, scan_complete, error_code=None, display_facts=None):
@@ -127,19 +127,3 @@ async def compose_reports(state):
                 pass
         targets.append(ReclaimCandidate.model_validate(item).model_dump(mode="json"))
     return {"targets": targets, "before_report_targets": baseline}
-
-
-@guarded
-async def verify_reports(state):
-    """Only explanation text and generation mode may differ after narration."""
-    originals = state["before_report_targets"]
-    supplied = state["targets"]
-    if len(originals) != len(supplied):
-        raise ToolFailure("REPORT_FACT_MISMATCH", "Narration changed the number of scan rows")
-    mutable = {"explanation", "generation_mode"}
-    for original, current in zip(originals, supplied):
-        before = ReclaimCandidate.model_validate(original).model_dump(mode="json", exclude=mutable)
-        after = ReclaimCandidate.model_validate(current).model_dump(mode="json", exclude=mutable)
-        if before != after:
-            raise ToolFailure("REPORT_FACT_MISMATCH", "Narration changed a verified decision or fact")
-    return {}
