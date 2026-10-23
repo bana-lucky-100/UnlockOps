@@ -8,6 +8,12 @@ test('문장에서 플랫폼 이름(영문·한글)을 찾는다', () => {
   assert.deepEqual(guessPlatforms('스노우플레이크 써야 해요'), ['SNOWFLAKE'])
   assert.deepEqual(guessPlatforms('코파일럿 좌석 필요해요'), ['GITHUB'])
   assert.deepEqual(guessPlatforms('태블로 대시보드 게시'), ['TABLEAU_CLOUD'])
+  assert.deepEqual(guessPlatforms('스노우 플레이크'), ['SNOWFLAKE'])
+  assert.deepEqual(guessPlatforms('Snow Flake 웨어하우스'), ['SNOWFLAKE'])
+  assert.deepEqual(guessPlatforms('데이터 브릭스 노트북'), ['DATABRICKS'])
+  assert.deepEqual(guessPlatforms('깃헙 저장소'), ['GITHUB'])
+  assert.deepEqual(guessPlatforms('git 저장소'), ['GITHUB'])
+  assert.deepEqual(guessPlatforms('digital 리포트'), [])
 })
 test('브랜드 이름이 없을 때만 자원 단어로 추측하고, 여러 개면 모두 돌려준다', () => {
   assert.deepEqual(guessPlatforms('payment-core 저장소 쓰기 권한'), ['GITHUB'])
