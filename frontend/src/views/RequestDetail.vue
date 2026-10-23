@@ -12,7 +12,7 @@ import { checksOf, evidenceDocsOf, GROUP_LABEL } from '../lib/evidenceView.ts'
 import { decisionSummaryOf } from '../lib/decisionSummary.ts'
 import { usePolling } from '../lib/polling'
 import { aiMessageOf, approverEventsOf, isMidStep, judgmentOf, approverNoticeOf, approverSummaryOf, evidenceOf, noticeOf, proposalOf, requesterEventsOf, REJECT_CHIPS, stagesOf, summaryOf } from '../lib/requestView'
-import { isGuidanceComplete, isTerminal, needsRefresh, statusOf } from '../lib/status'
+import { isAlreadyHas, isGuidanceComplete, isTerminal, needsRefresh, statusOf } from '../lib/status'
 import { shortWhen } from '../lib/time'
 import { currentUser } from '../session'
 
@@ -487,8 +487,11 @@ const requesterHelp = {
           </section>
 
           <section v-if="p.status === 'DONE'" class="rd-success">
-            <h2>권한이 열렸어요</h2>
-            <p>{{ p.decided_at ? `${platform.label}에서 다시 조회해 반영을 확인했어요. 지금 바로 쓸 수 있어요.` : '이미 필요한 권한이 있어요. 그래도 안 되면 로그아웃 후 다시 로그인해 보세요.' }}</p>
+            <!-- 부여 완료 · 이미 보유 · 안내 완료를 같은 '열렸어요'로 쓰지 않는다. -->
+            <h2>{{ isAlreadyHas(p) ? '이미 권한이 있어요' : guidanceComplete ? '안내를 확인해 주세요' : '권한이 열렸어요' }}</h2>
+            <p>{{ isAlreadyHas(p) ? `${platform.label}에서 조회해 보니 필요한 권한을 이미 갖고 있어요. 바꾼 것은 없어요. 그래도 안 되면 로그아웃 후 다시 로그인해 보세요.`
+              : guidanceComplete ? '권한을 바꾸지 않고 방법을 안내했어요. 왼쪽 안내 내용을 확인해 주세요.'
+              : `${platform.label}에서 다시 조회해 반영을 확인했어요. 지금 바로 쓸 수 있어요.` }}</p>
           </section>
 
         </aside>

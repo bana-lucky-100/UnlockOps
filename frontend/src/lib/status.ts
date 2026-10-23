@@ -59,7 +59,13 @@ export function doneKind(p: StatusContext): string {
   return p.decided_at ? 'VERIFIED' : 'ALREADY_HAS_ACCESS'
 }
 
+/** 이미 필요한 권한이 있어 바꾼 것 없이 끝난 요청(v2는 DONE · GUIDANCE · ALREADY_HAS_ACCESS로 온다). '안내 완료'와 구분한다. */
+export function isAlreadyHas(p: StatusContext): boolean {
+  return p.status === 'DONE' && p.reason_code === 'ALREADY_HAS_ACCESS'
+}
+
 export function statusOf(p: StatusContext) {
+  if (isAlreadyHas(p)) return { ...STATUS.DONE, label: DONE_TEXT.ALREADY_HAS_ACCESS.badge }
   if (isGuidanceComplete(p)) return { label: '안내 완료', tone: 'ok' as const, terminal: true }
   if (isLegacyBudgetHold(p)) return { label: '보류', tone: 'review' as const, terminal: true }
   if (p.status === 'DONE') return { ...STATUS.DONE, label: DONE_TEXT[doneKind(p)].badge }

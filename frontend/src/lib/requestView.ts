@@ -1,5 +1,5 @@
 import type { Problem, Status } from '../api'
-import { doneKind, DONE_TEXT, isGuidanceComplete, isLegacyBudgetHold, stepText } from './status.ts'
+import { isAlreadyHas, doneKind, DONE_TEXT, isGuidanceComplete, isLegacyBudgetHold, stepText } from './status.ts'
 
 /**
  * 요청자 화면에 무엇을 보여줄지 정하는 규칙을 한곳에 둔다 (명세: 화면별 명세 · 판단 근거는 승인자에게만).
@@ -57,6 +57,7 @@ export function stagesOf(p: Problem): Stage[] {
 }
 
 export function summaryOf(p: Problem): string {
+  if (isAlreadyHas(p)) return DONE_TEXT.ALREADY_HAS_ACCESS.headline + '. 바꾼 것은 없어요.'
   if (isGuidanceComplete(p)) return '안내가 완료됐어요.'
   switch (p.status) {
     case 'RECEIVED': return '요청을 받았어요. 곧 AI가 확인을 시작해요.'
@@ -89,6 +90,7 @@ export function summaryOf(p: Problem): string {
  * 모르는 사유 코드면 서버 문장(diagnosis)을 그대로 쓴다.
  */
 export function judgmentOf(p: Problem, forApprover: boolean): string | null {
+  if (isAlreadyHas(p)) return REASONS.ALREADY_HAS_ACCESS.why
   // 안내 성공은 안내마다 내용이 달라서 서버 문장을 그대로 둔다(본문은 안내 내용 카드).
   if (isGuidanceComplete(p)) return p.diagnosis?.trim() || null
   if (!forApprover && (p.status === 'REJECTED' || p.status === 'ON_HOLD' || p.status === 'MANUAL_REVIEW')) return null

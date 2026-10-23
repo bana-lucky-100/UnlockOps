@@ -127,3 +127,11 @@ test('한 장 요약: 결론 · 숫자 · 왜 괜찮은지 · 승인 순서를 �
   assert.deepEqual(s.steps.map(x => `${x.who}:${x.state}`), ['윤부장:on', '송운영:wait', '자동:wait'])
   assert.equal(decisionSummaryOf(fromV2(report({ status: 'DONE', current_step: null })), 'x', null), null)
 })
+
+import { summaryOf, judgmentOf } from '../src/lib/requestView.ts'
+test('이미 보유는 안내 완료와 구분해 "이미 보유"로 보이고 해요체로 설명한다', () => {
+  const p = fromV2(report({ status: 'DONE', reason_code: 'ALREADY_HAS_ACCESS', result_type: 'GUIDANCE', current_step: null, message: '조회 결과 필요한 권한을 이미 보유하고 있습니다.' }))
+  assert.equal(statusOf(p).label, '이미 보유')
+  assert.match(summaryOf(p), /이미 보유하고 있어요/)
+  assert.match(judgmentOf(p, true), /있어요/)
+})
