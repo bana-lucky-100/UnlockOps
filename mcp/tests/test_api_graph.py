@@ -9,10 +9,10 @@ import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from unlockops.contracts import validate_output
-from unlockops.graph import build_graph
-from unlockops.models import Plan
-from unlockops.rules import source_hashes
+from unlockops.common.contracts import validate_output
+from unlockops.access.graph import build_graph
+from unlockops.common.models import Plan
+from unlockops.access.rules import source_hashes
 from unlockops_mcp import business
 from unlockops_mcp.backend_client import BackendClient
 from unlockops_mcp.policy import mcp as policy_mcp

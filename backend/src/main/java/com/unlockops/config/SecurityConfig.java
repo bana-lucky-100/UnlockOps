@@ -43,7 +43,7 @@ public class SecurityConfig {
                 .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
             .securityContext(context -> context.securityContextRepository(repository))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/health","/api/auth/csrf","/api/auth/login").permitAll()
+                .requestMatchers("/api/health","/api/auth/csrf","/api/auth/login","/api/auth/demo-login").permitAll()
                 .anyRequest().authenticated())
             .exceptionHandling(errors -> errors
                 .authenticationEntryPoint((req,res,e) -> { res.setStatus(401); res.setContentType("application/json"); res.setCharacterEncoding("UTF-8"); res.getWriter().write("{\"message\":\"로그인이 필요합니다.\"}"); })

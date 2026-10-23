@@ -5,9 +5,9 @@ import shutil
 
 import pytest
 
-from unlockops import rules
-from unlockops.models import ToolFailure
-from unlockops.settings import settings
+from unlockops.access import rules
+from unlockops.common.models import ToolFailure
+from unlockops.common.settings import settings
 from dataclasses import replace
 from unlockops_rag.search import DocumentIndex
 

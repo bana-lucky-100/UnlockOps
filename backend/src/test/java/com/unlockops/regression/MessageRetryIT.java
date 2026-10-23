@@ -79,7 +79,7 @@ class MessageRetryIT {
     }
 
     @BeforeEach void reset() {
-        jdbc.execute("TRUNCATE grant_receipts,problem_events,outbox,inbox_events,problems,retry_fault");
+        jdbc.execute("TRUNCATE access_execution_receipts,mock_entitlement_memberships,reclaim_scope_assignments,approval_steps,access_plan_versions,assignment_usage,retention_exceptions,reclaim_run_items,reclaim_notifications,reclaim_targets,reclaim_snapshot_items,access_assignments,grant_receipts,problem_events,outbox,inbox_events,problems,retry_fault");
         jdbc.execute("ALTER SEQUENCE retry_attempts RESTART WITH 1");
         new RabbitAdmin(rabbit).purgeQueue("unlockops.dead");
         problemId = UUID.randomUUID();
@@ -175,7 +175,7 @@ class MessageRetryIT {
         assertEquals(0, inboxCount(event));
         assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM problem_events WHERE problem_id=?", Integer.class, problemId));
         if (scenario != null) capture(scenario, event,
-            scenario.startsWith("02") ? "UNVERIFIED_COMPLETION" : "40001: serialization_failure (persistent)", 1);
+            scenario.startsWith("02") ? "INVALID_RESULT" : "40001: serialization_failure (persistent)", 1);
         Message dead = rabbit.receive("unlockops.dead", 10000);
         assertNotNull(dead);
         assertEquals(event, json.readTree(dead.getBody()));

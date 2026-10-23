@@ -20,3 +20,19 @@ MCP의 도구 정의는 `mcp/`에 두고 검색 로직만 이 폴더에서 관�
 ```sh
 .venv/bin/python -m pytest agent/tests/test_harness.py -q
 ```
+
+## Phase 2 정책 revision
+
+`revisions.py`는 서버가 반환한 회사 정책의 content/source_hash를 검사한 뒤 조항으로 나눕니다.
+회사·정책·revision·문서 ID·해시·본문별 불변 인덱스만 최대 32개 캐시합니다.
+v2 검색은 로컬 TF-IDF이며 정확 원문 조회를 함께 사용합니다. v1 외부 임베딩 설정을 사용하지 않습니다.
+작업 ID로 서버에서 정책을 선택하므로 다른 회사 corpus를 섞지 않으며 회수는 접수 시점의 정책을 고정합니다.
+현재 근거는 data/phase2 합성 문서를 seed한 DB revision입니다. 실제 문서·가격 교체 및 규칙 갱신은 후속 단계입니다.
+
+### 수신 규정 문서 revision 2
+
+`data/phase2/policies/policy_corpus.md`에 제공받은 10개 SaaS 규정·공식 요약 28개를 보관합니다.
+`corpus.py`가 메타데이터와 조항을 읽고 `scripts/import_phase2_policy.py`가 회사별 정책 묶음과 DB 적용 SQL을 생성합니다.
+정책 묶음의 DB revision/해시와 원문 조항의 ID/버전을 함께 유지하며, 승인 요청은 해당 플랫폼과 공통 규정만 검색합니다.
+원문을 추가하는 것만으로 실행 중 DB가 바뀌지는 않습니다. [적용 방법과 문서·구현 차이](../data/phase2/policies/README.md)에 따라 `apply.sql`을 적용해야 새 요청부터 revision 2를 사용합니다.
+현재 금액은 mock 계약 값을 유지하며, 원문의 정가 예시로 자동 변경하지 않습니다.

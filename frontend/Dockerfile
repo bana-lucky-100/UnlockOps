@@ -3,6 +3,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
+ARG RUN_TESTS=false
+RUN if [ "$RUN_TESTS" = "true" ]; then npm test; fi
 RUN npm run build
 FROM nginx:1.28-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf

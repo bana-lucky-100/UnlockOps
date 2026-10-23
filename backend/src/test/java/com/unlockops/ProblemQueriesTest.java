@@ -32,7 +32,7 @@ class ProblemQueriesTest {
         events = mock(ProblemEventRepository.class);
         approvals = mock(ApprovalRepository.class);
         policy = mock(GrantPolicy.class);
-        service = new ProblemService(problems, events, mock(JobService.class), ProblemFixtures.JSON, policy, true);
+        service = new ProblemService(problems, events, mock(JobService.class), policy, true);
         row = ProblemFixtures.row(id, requester, approver);
         when(problems.find(id)).thenAnswer(invocation -> Optional.of(ProblemFixtures.problem(row)));
         when(events.findByProblem(id)).thenReturn(List.of());

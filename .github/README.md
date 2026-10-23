@@ -57,7 +57,7 @@ Business MCP는 Spring 내부 API를 호출하며 업무 DB에 직접 접근하�
 
 ## 4. Agent 워크플로우
 
-현재는 **하나의 LangGraph 안에서 역할별 노드가 협력하는 구조**입니다. 아래 그래프는 `agent/unlockops/graph.py`의 현재 주 처리 경로를 기준으로 작성했습니다.
+현재는 **하나의 LangGraph 안에서 역할별 노드가 협력하는 구조**입니다. 아래 그래프는 `agent/unlockops/access/graph.py`의 현재 주 처리 경로를 기준으로 작성했습니다.
 
 ```mermaid
 flowchart TD
@@ -87,7 +87,7 @@ flowchart TD
 - **승인 대기**: 체크포인트를 저장하고 실행을 중단합니다. 지정 승인자의 승인 후 같은 요청을 이어서 처리합니다. 반려는 Spring에서 사유와 함께 기록하며 권한 실행으로 진행하지 않습니다.
 - **실행·검증**: 서버가 승인·자격을 재검증한 뒤 변경하고, 최신 권한을 다시 조회합니다. 실행과 검증은 각각 총 3회 이내에서 제한적으로 시도합니다.
 
-일반 안내는 현재 API 계약에 따라 `MANUAL_REVIEW / RAG_GUIDANCE`로 전달하며, 화면에는 안내와 담당자 검토 상태를 표시합니다. 실제 권한 반영이 확인된 경우에만 완료로 처리합니다.
+일반 안내 성공은 `DONE / result_type=GUIDANCE`, 권한 반영 확인은 `DONE / result_type=ACCESS_VERIFIED`로 구분합니다. 안내는 실제 권한 변경이나 오류 해결을 의미하지 않으며, 근거 부족·모델 장애는 `MANUAL_REVIEW`로 남습니다.
 
 ## 5. RAG와 MCP
 

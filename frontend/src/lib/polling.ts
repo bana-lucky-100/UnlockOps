@@ -9,6 +9,7 @@ export function usePolling(tick: () => Promise<boolean | void>, intervalMs = 250
   let timer: ReturnType<typeof setTimeout> | undefined
   let running = false
   let stopped = false
+  let disposed = false
   // 조회 중에 restart()가 오면 버리지 않고 기억했다가, 끝나는 즉시 다시 조회한다.
   let again = false
 
@@ -33,11 +34,11 @@ export function usePolling(tick: () => Promise<boolean | void>, intervalMs = 250
     clearTimeout(timer)
     if (!stopped) timer = setTimeout(run, intervalMs)
   }
-  function restart() { stopped = false; clearTimeout(timer); void run() }
+  function restart() { if (disposed) return; stopped = false; clearTimeout(timer); void run() }
   const onVisible = () => { if (!document.hidden && !stopped) restart() }
 
   onMounted(() => { document.addEventListener('visibilitychange', onVisible); void run() })
-  onBeforeUnmount(() => { stopped = true; clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible) })
+  onBeforeUnmount(() => { disposed = true; stopped = true; clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible) })
 
   return { restart }
 }

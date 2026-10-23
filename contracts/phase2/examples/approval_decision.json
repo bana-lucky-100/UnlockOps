@@ -1,0 +1,6 @@
+{
+  "action": "APPROVE",
+  "expected_plan_hash": "dd2c383930265afa6c82a2859d1c0ced36afba4de701f3edb53aeb11c3c4d8f4",
+  "expected_plan_version": 2,
+  "reason": null
+}

@@ -12,13 +12,46 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ProblemViewsTest {
+    @Test void historicalGuidanceIsNormalizedWithoutEditingAudit() {
+        var raw = ProblemFixtures.JSON.tree("""
+            {"status":"MANUAL_REVIEW","reasonCode":"RAG_GUIDANCE","proposal":"점검 안내"}
+            """);
+        var normalized = AgentResult.parse(raw, ProblemFixtures.JSON);
+        assertEquals(ProblemStatus.DONE, normalized.status());
+        assertEquals(ResultType.GUIDANCE, normalized.resultType());
+        assertNull(normalized.verificationOk());
+        assertEquals("MANUAL_REVIEW", raw.path("status").asText());
+        var envelope = ProblemFixtures.MAPPER.createObjectNode();
+        envelope.set("result", raw);
+        assertEquals("안내가 완료됐어요", ProblemViews.publicEvents(List.of(
+            new ProblemEvent(EventKind.ANALYZED, envelope, null))).getFirst().payload().message());
+    }
+
+    @Test void emptyGuidanceDoesNotBecomeDone() {
+        var raw = ProblemFixtures.JSON.tree("""
+            {"status":"MANUAL_REVIEW","reasonCode":"RAG_GUIDANCE","proposal":" "}
+            """);
+        assertEquals(ProblemStatus.MANUAL_REVIEW, AgentResult.parse(raw, ProblemFixtures.JSON).status());
+    }
+
+    @Test void completionCannotMisrepresentPermissionVerification() {
+        for (String payload : List.of(
+            "{\"status\":\"DONE\",\"result_type\":\"GUIDANCE\",\"verification_ok\":true}",
+            "{\"status\":\"DONE\",\"result_type\":\"ACCESS_VERIFIED\",\"verification_ok\":false}",
+            "{\"status\":\"MANUAL_REVIEW\",\"result_type\":\"GUIDANCE\"}")) {
+            var raw = (com.fasterxml.jackson.databind.node.ObjectNode) ProblemFixtures.JSON.tree(payload);
+            raw.put("reasonCode", "TEST").put("proposal", "안내");
+            assertThrows(IllegalArgumentException.class, () -> AgentResult.parse(raw, ProblemFixtures.JSON));
+        }
+    }
+
     @Test void requesterProjectionUsesAnAllowlistIncludingFutureColumns() {
         var row = ProblemFixtures.row(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
         row.put("thread_id", "private-thread").put("idempotency_key", "private-key").put("approved_plan_hash", "private-hash");
         JsonNode result = ProblemFixtures.MAPPER.valueToTree(ProblemViews.requester(ProblemFixtures.problem(row), null));
         Set<String> fields = StreamSupport.stream(((Iterable<String>) result::fieldNames).spliterator(), false).collect(Collectors.toSet());
         assertEquals(Set.of("id", "requester_id", "approver_id", "platform", "contents", "status", "reason_code", "diagnosis",
-            "proposal", "resource_id", "requested_role", "decision_reason", "decided_at", "verification_ok",
+            "result_type", "proposal", "resource_id", "requested_role", "decision_reason", "decided_at", "verification_ok",
             "created_at", "updated_at", "requester_name", "employee_no"), fields);
         assertFalse(result.toString().contains("private-"));
     }

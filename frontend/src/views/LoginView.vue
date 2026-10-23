@@ -2,32 +2,51 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '../api'
-import { homeOf, login } from '../session'
+import { demoLogin, homeOf, login } from '../session'
 
 const router = useRouter()
 const route = useRoute()
 
-// 시연 계정. 비밀번호는 .env.example의 시연 기본값과 같다(실제 회사 계정과 연결되지 않은 시연 환경 전용).
-const DEMO_PASSWORD = 'demo1234'
+// 시연 계정 로그인은 서버 설정을 사용한다. 비밀번호를 화면에 하드코딩하지 않는다.
 const accounts = [
-  { key: 'EMPLOYEE', loginId: 'kim_dev', title: '직원 · 김개발', desc: '개발팀 사원 · 결제 개편 TF · 권한 요청', initial: '김', tag: '직원', tone: 'blue', cta: '직원으로 로그인' },
-  { key: 'APPROVER', loginId: 'park_lead', title: '승인자 · 박리더', desc: '개발팀 차장 · 결제 개편 TF 리더 · 승인·거절', initial: '박', tag: '승인자', tone: 'green', cta: '승인자로 로그인' },
+  { key: 'EMPLOYEE', loginId: 'p2_a_requester', title: '직원 · 김개발', desc: 'A사 · 10개 플랫폼 권한 요청·처리 결과 확인', initial: '김', tag: '직원', tone: 'blue', cta: '직원으로 로그인' },
+  { key: 'APPROVER', loginId: 'p2_a_head', title: '승인자 · 윤부장', desc: 'A사 · 1차 승인 · 필요성·규정·비용 검토', initial: '윤', tag: '승인자', tone: 'green', cta: '승인자로 로그인' },
+  { key: 'OPERATOR', loginId: 'p2_a_operator', title: '권한 담당자 · 송운영', desc: 'A사 · 최종 승인·회수 점검·알림 확인', initial: '송', tag: '담당자', tone: 'green', cta: '담당자로 로그인' },
 ] as const
 
+const demoAccounts = ['a', 'b'].flatMap(company => [
+  { role: 'requester', label: '직원' }, { role: 'team_lead', label: '팀장' },
+  { role: 'head', label: '부서장' }, { role: 'operator', label: '권한 담당자' },
+  { role: 'it_head', label: 'IT 총괄' }, { role: 'figma_operator', label: 'Figma 담당자' },
+].map(item => ({ id: `p2_${company}_${item.role}`, label: `${company.toUpperCase()}사 · ${item.label}` })))
 const loginId = ref<string>(accounts[0].loginId)
-const password = ref(DEMO_PASSWORD)
+const password = ref('')
 const error = ref('')
 const busy = ref(false)
 const picked = computed(() => accounts.find(a => a.loginId === loginId.value.trim()) ?? null)
 
-function pick(a: typeof accounts[number]) {
-  loginId.value = a.loginId
-  password.value = DEMO_PASSWORD
+async function quickLogin(value: string) {
+  if (busy.value || !demoAccounts.some(x => x.id === value)) return
+  loginId.value = value
+  password.value = ''
   error.value = ''
+  busy.value = true
+  try {
+    const user = await demoLogin(value)
+    await router.replace(homeOf(user))
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '시연 로그인에 실패했습니다.'
+  } finally {
+    busy.value = false
+  }
 }
 
 async function submit() {
   if (busy.value) return
+  if (!password.value && demoAccounts.some(x => x.id === loginId.value.trim())) {
+    await quickLogin(loginId.value.trim())
+    return
+  }
   error.value = ''
   if (!loginId.value.trim() || !password.value) {
     error.value = '아이디와 비밀번호를 입력해 주세요'
@@ -76,14 +95,14 @@ async function submit() {
       <form class="lg-form" novalidate @submit.prevent="submit">
         <div>
           <h1>로그인</h1>
-          <p class="lg-sub">역할은 계정에 따라 자동으로 정해져요</p>
+          <p class="lg-sub">10개 플랫폼의 권한 요청·승인·회수 점검을 시작하세요</p>
         </div>
 
         <fieldset class="lg-accounts">
-          <legend>시연용 계정으로 채우기</legend>
+          <legend>역할을 선택하면 바로 로그인</legend>
           <button
             v-for="a in accounts" :key="a.key" type="button" class="lg-account" :class="a.tone"
-            :aria-pressed="picked?.key === a.key" @click="pick(a)"
+            :aria-pressed="picked?.key === a.key" :disabled="busy" @click="quickLogin(a.loginId)"
           >
             <span class="lg-avatar" aria-hidden="true">{{ a.initial }}</span>
             <span class="lg-who"><strong>{{ a.title }}</strong><span>{{ a.desc }}</span></span>
@@ -91,13 +110,19 @@ async function submit() {
           </button>
         </fieldset>
 
-        <label class="lg-field">
-          <span>아이디</span>
-          <input v-model="loginId" type="text" autocomplete="username" placeholder="예: kim_dev" :aria-invalid="!!error">
+        <label class="lg-field">다른 회사·담당 역할로 바로 로그인
+          <select :value="demoAccounts.some(x => x.id === loginId) ? loginId : ''" :disabled="busy" @change="quickLogin(($event.target as HTMLSelectElement).value)">
+            <option value="" disabled>회사와 담당 역할 선택</option>
+            <option v-for="account in demoAccounts" :key="account.id" :value="account.id">{{ account.label }}</option>
+          </select>
         </label>
         <label class="lg-field">
-          <span>비밀번호</span>
-          <input v-model="password" type="password" autocomplete="current-password" placeholder="비밀번호" :aria-invalid="!!error">
+          <span>아이디</span>
+          <input v-model="loginId" type="text" autocomplete="username" :disabled="busy" placeholder="예: p2_a_requester" :aria-invalid="!!error">
+        </label>
+        <label class="lg-field">
+          <span>비밀번호 (직접 로그인할 때 입력)</span>
+          <input v-model="password" type="password" autocomplete="current-password" :disabled="busy" placeholder="시연 계정은 입력하지 않아도 됩니다" :aria-invalid="!!error">
         </label>
 
         <p v-if="error" class="lg-err" role="alert">{{ error }}</p>

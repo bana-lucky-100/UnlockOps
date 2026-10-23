@@ -1,0 +1,876 @@
+{
+  "schema_version": 2,
+  "plan_canonical_json": "{\"approver_ids\":[\"d21e09b7-93ab-5928-877e-5effec838ccc\",\"d9d8734f-2dde-5efa-a225-63a3b069abdb\"],\"company_id\":\"26c56ede-d5bd-5fad-8591-d729af9eaee9\",\"cost_basis\":\"USAGE_ESTIMATE\",\"currency\":\"USD\",\"entitlement_id\":\"9acacff9-ee2e-5bc8-80e4-7ddbeec2d882\",\"entitlement_revision\":1,\"monthly_amount\":\"120.00\",\"platform\":\"SNOWFLAKE\",\"policy_id\":\"0673ccd9-4e9b-5e92-bb81-28b949ef5224\",\"policy_revision\":1,\"pricing_id\":\"17b04430-ca3f-5c86-8530-37a14ad0f934\",\"pricing_revision\":1,\"problem_id\":\"d31f86ab-2b97-594d-9e4c-bde2e04444e6\",\"requester_id\":\"32d5eff9-eddd-544e-b047-21624af078bd\",\"resource_id\":\"a23f44c5-5d61-5875-b36e-7d4c8e71b68c\",\"route_id\":\"ea0e585f-39df-536e-89db-ec3515b5bf74\",\"route_revision\":1,\"schema_version\":2}",
+  "plan_sha256": "dd2c383930265afa6c82a2859d1c0ced36afba4de701f3edb53aeb11c3c4d8f4",
+  "valid": [
+    {
+      "name": "plan",
+      "model": "GrantPlanV2",
+      "payload": {
+        "schema_version": 2,
+        "problem_id": "d31f86ab-2b97-594d-9e4c-bde2e04444e6",
+        "company_id": "26c56ede-d5bd-5fad-8591-d729af9eaee9",
+        "requester_id": "32d5eff9-eddd-544e-b047-21624af078bd",
+        "platform": "SNOWFLAKE",
+        "resource_id": "a23f44c5-5d61-5875-b36e-7d4c8e71b68c",
+        "entitlement_id": "9acacff9-ee2e-5bc8-80e4-7ddbeec2d882",
+        "entitlement_revision": 1,
+        "pricing_id": "17b04430-ca3f-5c86-8530-37a14ad0f934",
+        "pricing_revision": 1,
+        "monthly_amount": "120.00",
+        "currency": "USD",
+        "cost_basis": "USAGE_ESTIMATE",
+        "policy_id": "0673ccd9-4e9b-5e92-bb81-28b949ef5224",
+        "policy_revision": 1,
+        "route_id": "ea0e585f-39df-536e-89db-ec3515b5bf74",
+        "route_revision": 1,
+        "approver_ids": [
+          "d21e09b7-93ab-5928-877e-5effec838ccc",
+          "d9d8734f-2dde-5efa-a225-63a3b069abdb"
+        ]
+      }
+    },
+    {
+      "name": "approval_waiting",
+      "model": "AccessView",
+      "payload": {
+        "schema_version": 2,
+        "status": "WAITING_APPROVAL",
+        "reason_code": "ELIGIBLE",
+        "message": "IT 최종 승인 대기",
+        "current_step": 2,
+        "total_steps": 2,
+        "approval_steps": [
+          {
+            "step": 1,
+            "approver_id": "d21e09b7-93ab-5928-877e-5effec838ccc",
+            "status": "APPROVED",
+            "reason": null,
+            "acted_at": "2026-10-22T08:00:00+09:00"
+          },
+          {
+            "step": 2,
+            "approver_id": "d9d8734f-2dde-5efa-a225-63a3b069abdb",
+            "status": "WAITING",
+            "reason": null,
+            "acted_at": null
+          }
+        ],
+        "verification_ok": null,
+        "task_type": "ACCESS_REQUEST",
+        "problem_id": "d31f86ab-2b97-594d-9e4c-bde2e04444e6",
+        "result_type": null,
+        "plan_hash": "dd2c383930265afa6c82a2859d1c0ced36afba4de701f3edb53aeb11c3c4d8f4",
+        "plan_version": 1
+      }
+    },
+    {
+      "name": "scan_done_empty",
+      "model": "ReclaimRunView",
+      "payload": {
+        "schema_version": 2,
+        "status": "DONE",
+        "reason_code": "NO_NEW_CANDIDATES",
+        "message": "신규 회수 후보 없음",
+        "current_step": null,
+        "total_steps": 0,
+        "approval_steps": [],
+        "verification_ok": null,
+        "task_type": "RECLAIM_SCAN",
+        "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+        "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+        "as_of": "2026-10-22T09:00:00+09:00",
+        "scan_complete": true,
+        "needs_review_count": 0,
+        "new_candidate_count": 0,
+        "pending_notification_count": 0
+      }
+    },
+    {
+      "name": "scan_job",
+      "model": "ReclaimJob",
+      "payload": {
+        "schema_version": 2,
+        "event_id": "18623ece-65d0-592b-abfb-bbb98b6ceba5",
+        "task_type": "RECLAIM_SCAN",
+        "job_type": "RECLAIM_CHECK",
+        "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+        "trigger": "MANUAL_DEMO",
+        "scope_key": "phase2:A:paid-seats",
+        "scheduled_for": "2026-10-22T09:00:00+09:00"
+      }
+    },
+    {
+      "name": "candidate",
+      "model": "ReclaimCandidate",
+      "payload": {
+        "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+        "target_id": null,
+        "episode_id": null,
+        "platform": "GITHUB",
+        "candidate_status": "PENDING_REVIEW",
+        "candidate_reason_code": "TF_ENDED_UNUSED_30D",
+        "exclusion_reason_code": null,
+        "skip_reason_code": null,
+        "review_required": false,
+        "notified_at": null,
+        "read_at": null,
+        "action_taken": "NONE",
+        "generation_mode": "template",
+        "explanation": "TF 종료 후 미사용 30일 이상인 좌석으로 담당자 검토가 필요합니다.",
+        "policy_evidence": [
+          {
+            "doc_id": "P2-A-POLICY",
+            "article": "POL-06 제5조",
+            "version": "1",
+            "source_hash": "40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5",
+            "text": "프로젝트 지급 좌석은 TF 종료 후 연속 미사용 30일 이상이고 다른 활성 TF 이용 및 유효 유지 승인이 없으면 검토 후보로 제안한다."
+          }
+        ],
+        "fact_evidence": [
+          {
+            "source": "assignment_usage",
+            "record_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+            "observed_at": "2026-10-22T09:00:00+09:00"
+          }
+        ],
+        "cost_impact": {
+          "status": "ESTIMATED",
+          "monthly_amount": "19.00",
+          "currency": "USD",
+          "basis": "SYNTHETIC_CONTRACT"
+        }
+      }
+    },
+    {
+      "name": "scan_result",
+      "model": "ReclaimEvent",
+      "payload": {
+        "schema_version": 2,
+        "event_id": "8d1c3c12-c8a8-5746-bca2-f947e12e2174",
+        "job_event_id": "18623ece-65d0-592b-abfb-bbb98b6ceba5",
+        "task_type": "RECLAIM_SCAN",
+        "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+        "event_type": "RECLAIM_CHECKED",
+        "result": {
+          "schema_version": 2,
+          "status": "EXECUTING",
+          "reason_code": "SCAN_IN_PROGRESS",
+          "message": "점검 결과 반영 대기",
+          "current_step": null,
+          "total_steps": 0,
+          "approval_steps": [],
+          "verification_ok": null,
+          "task_type": "RECLAIM_SCAN",
+          "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+          "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+          "as_of": "2026-10-22T09:00:00+09:00",
+          "scan_complete": true,
+          "needs_review_count": 0,
+          "new_candidate_count": 1,
+          "pending_notification_count": 0
+        },
+        "targets": [
+          {
+            "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+            "target_id": null,
+            "episode_id": null,
+            "platform": "GITHUB",
+            "candidate_status": "PENDING_REVIEW",
+            "candidate_reason_code": "TF_ENDED_UNUSED_30D",
+            "exclusion_reason_code": null,
+            "skip_reason_code": null,
+            "review_required": false,
+            "notified_at": null,
+            "read_at": null,
+            "action_taken": "NONE",
+            "generation_mode": "template",
+            "explanation": "TF 종료 후 미사용 30일 이상인 좌석으로 담당자 검토가 필요합니다.",
+            "policy_evidence": [
+              {
+                "doc_id": "P2-A-POLICY",
+                "article": "POL-06 제5조",
+                "version": "1",
+                "source_hash": "40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5",
+                "text": "프로젝트 지급 좌석은 TF 종료 후 연속 미사용 30일 이상이고 다른 활성 TF 이용 및 유효 유지 승인이 없으면 검토 후보로 제안한다."
+              }
+            ],
+            "fact_evidence": [
+              {
+                "source": "assignment_usage",
+                "record_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+                "observed_at": "2026-10-22T09:00:00+09:00"
+              }
+            ],
+            "cost_impact": {
+              "status": "ESTIMATED",
+              "monthly_amount": "19.00",
+              "currency": "USD",
+              "basis": "SYNTHETIC_CONTRACT"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "hold",
+      "model": "AccessView",
+      "payload": {
+        "schema_version": 2,
+        "status": "ON_HOLD",
+        "reason_code": "BUDGET_INSUFFICIENT",
+        "message": "접수됨",
+        "current_step": null,
+        "total_steps": 0,
+        "approval_steps": [],
+        "verification_ok": null,
+        "task_type": "ACCESS_REQUEST",
+        "problem_id": "d31f86ab-2b97-594d-9e4c-bde2e04444e6",
+        "result_type": null
+      }
+    },
+    {
+      "name": "approval_decision",
+      "model": "ApprovalDecisionInput",
+      "payload": {
+        "action": "APPROVE",
+        "expected_plan_hash": "dd2c383930265afa6c82a2859d1c0ced36afba4de701f3edb53aeb11c3c4d8f4",
+        "expected_plan_version": 2,
+        "reason": null
+      }
+    },
+    {
+      "name": "scan_done_needs_review",
+      "model": "ReclaimRunView",
+      "payload": {
+        "schema_version": 2,
+        "status": "DONE",
+        "reason_code": "SCAN_COMPLETED",
+        "message": "점검 완료 · 추가 확인 1건",
+        "current_step": null,
+        "total_steps": 0,
+        "approval_steps": [],
+        "verification_ok": null,
+        "task_type": "RECLAIM_SCAN",
+        "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+        "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+        "as_of": "2026-10-22T09:00:00+09:00",
+        "scan_complete": true,
+        "needs_review_count": 1,
+        "new_candidate_count": 0,
+        "pending_notification_count": 0,
+        "summary": {
+          "needs_review_count": 1,
+          "new_candidate_count": 0,
+          "pending_notification_count": 0
+        },
+        "needs_review": [
+          {
+            "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+            "employee_name": "김개발",
+            "resource_name": "Copilot 좌석",
+            "missing": [
+              "USAGE_OBSERVATION"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "self_approval",
+      "model": "GrantPlanV2",
+      "payload": {
+        "schema_version": 2,
+        "problem_id": "d31f86ab-2b97-594d-9e4c-bde2e04444e6",
+        "company_id": "26c56ede-d5bd-5fad-8591-d729af9eaee9",
+        "requester_id": "32d5eff9-eddd-544e-b047-21624af078bd",
+        "platform": "SNOWFLAKE",
+        "resource_id": "a23f44c5-5d61-5875-b36e-7d4c8e71b68c",
+        "entitlement_id": "9acacff9-ee2e-5bc8-80e4-7ddbeec2d882",
+        "entitlement_revision": 1,
+        "pricing_id": "17b04430-ca3f-5c86-8530-37a14ad0f934",
+        "pricing_revision": 1,
+        "monthly_amount": "120.00",
+        "currency": "USD",
+        "cost_basis": "USAGE_ESTIMATE",
+        "policy_id": "0673ccd9-4e9b-5e92-bb81-28b949ef5224",
+        "policy_revision": 1,
+        "route_id": "ea0e585f-39df-536e-89db-ec3515b5bf74",
+        "route_revision": 1,
+        "approver_ids": [
+          "32d5eff9-eddd-544e-b047-21624af078bd"
+        ]
+      }
+    },
+    {
+      "name": "numeric_money",
+      "model": "GrantPlanV2",
+      "payload": {
+        "schema_version": 2,
+        "problem_id": "d31f86ab-2b97-594d-9e4c-bde2e04444e6",
+        "company_id": "26c56ede-d5bd-5fad-8591-d729af9eaee9",
+        "requester_id": "32d5eff9-eddd-544e-b047-21624af078bd",
+        "platform": "SNOWFLAKE",
+        "resource_id": "a23f44c5-5d61-5875-b36e-7d4c8e71b68c",
+        "entitlement_id": "9acacff9-ee2e-5bc8-80e4-7ddbeec2d882",
+        "entitlement_revision": 1,
+        "pricing_id": "17b04430-ca3f-5c86-8530-37a14ad0f934",
+        "pricing_revision": 1,
+        "monthly_amount": 120,
+        "currency": "USD",
+        "cost_basis": "USAGE_ESTIMATE",
+        "policy_id": "0673ccd9-4e9b-5e92-bb81-28b949ef5224",
+        "policy_revision": 1,
+        "route_id": "ea0e585f-39df-536e-89db-ec3515b5bf74",
+        "route_revision": 1,
+        "approver_ids": [
+          "d21e09b7-93ab-5928-877e-5effec838ccc",
+          "d9d8734f-2dde-5efa-a225-63a3b069abdb"
+        ]
+      }
+    },
+    {
+      "name": "unexpected_field",
+      "model": "GrantPlanV2",
+      "payload": {
+        "schema_version": 2,
+        "problem_id": "d31f86ab-2b97-594d-9e4c-bde2e04444e6",
+        "company_id": "26c56ede-d5bd-5fad-8591-d729af9eaee9",
+        "requester_id": "32d5eff9-eddd-544e-b047-21624af078bd",
+        "platform": "SNOWFLAKE",
+        "resource_id": "a23f44c5-5d61-5875-b36e-7d4c8e71b68c",
+        "entitlement_id": "9acacff9-ee2e-5bc8-80e4-7ddbeec2d882",
+        "entitlement_revision": 1,
+        "pricing_id": "17b04430-ca3f-5c86-8530-37a14ad0f934",
+        "pricing_revision": 1,
+        "monthly_amount": "120.00",
+        "currency": "USD",
+        "cost_basis": "USAGE_ESTIMATE",
+        "policy_id": "0673ccd9-4e9b-5e92-bb81-28b949ef5224",
+        "policy_revision": 1,
+        "route_id": "ea0e585f-39df-536e-89db-ec3515b5bf74",
+        "route_revision": 1,
+        "approver_ids": [
+          "d21e09b7-93ab-5928-877e-5effec838ccc",
+          "d9d8734f-2dde-5efa-a225-63a3b069abdb"
+        ],
+        "admin": true
+      }
+    },
+    {
+      "name": "approval_bypass",
+      "model": "AccessView",
+      "payload": {
+        "schema_version": 2,
+        "status": "WAITING_APPROVAL",
+        "reason_code": "ELIGIBLE",
+        "message": "IT 최종 승인 대기",
+        "current_step": 2,
+        "total_steps": 2,
+        "approval_steps": [
+          {
+            "step": 1,
+            "approver_id": "d21e09b7-93ab-5928-877e-5effec838ccc",
+            "status": "PENDING",
+            "reason": null,
+            "acted_at": null
+          },
+          {
+            "step": 2,
+            "approver_id": "d9d8734f-2dde-5efa-a225-63a3b069abdb",
+            "status": "WAITING",
+            "reason": null,
+            "acted_at": null
+          }
+        ],
+        "verification_ok": null,
+        "task_type": "ACCESS_REQUEST",
+        "problem_id": "d31f86ab-2b97-594d-9e4c-bde2e04444e6",
+        "result_type": null,
+        "plan_hash": "dd2c383930265afa6c82a2859d1c0ced36afba4de701f3edb53aeb11c3c4d8f4",
+        "plan_version": 1
+      }
+    },
+    {
+      "name": "incomplete_scan",
+      "model": "ReclaimRunView",
+      "payload": {
+        "schema_version": 2,
+        "status": "DONE",
+        "reason_code": "NO_NEW_CANDIDATES",
+        "message": "신규 회수 후보 없음",
+        "current_step": null,
+        "total_steps": 0,
+        "approval_steps": [],
+        "verification_ok": null,
+        "task_type": "RECLAIM_SCAN",
+        "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+        "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+        "as_of": "2026-10-22T09:00:00+09:00",
+        "scan_complete": false,
+        "needs_review_count": 0,
+        "new_candidate_count": 0,
+        "pending_notification_count": 0
+      }
+    },
+    {
+      "name": "notification_pending",
+      "model": "ReclaimRunView",
+      "payload": {
+        "schema_version": 2,
+        "status": "DONE",
+        "reason_code": "NO_NEW_CANDIDATES",
+        "message": "신규 회수 후보 없음",
+        "current_step": null,
+        "total_steps": 0,
+        "approval_steps": [],
+        "verification_ok": null,
+        "task_type": "RECLAIM_SCAN",
+        "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+        "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+        "as_of": "2026-10-22T09:00:00+09:00",
+        "scan_complete": true,
+        "needs_review_count": 0,
+        "new_candidate_count": 0,
+        "pending_notification_count": 1
+      }
+    },
+    {
+      "name": "new_candidates_reported_empty",
+      "model": "ReclaimRunView",
+      "payload": {
+        "schema_version": 2,
+        "status": "DONE",
+        "reason_code": "NO_NEW_CANDIDATES",
+        "message": "신규 회수 후보 없음",
+        "current_step": null,
+        "total_steps": 0,
+        "approval_steps": [],
+        "verification_ok": null,
+        "task_type": "RECLAIM_SCAN",
+        "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+        "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+        "as_of": "2026-10-22T09:00:00+09:00",
+        "scan_complete": true,
+        "needs_review_count": 0,
+        "new_candidate_count": 1,
+        "pending_notification_count": 0
+      }
+    },
+    {
+      "name": "scan_claims_grant",
+      "model": "ReclaimRunView",
+      "payload": {
+        "schema_version": 2,
+        "status": "DONE",
+        "reason_code": "NO_NEW_CANDIDATES",
+        "message": "신규 회수 후보 없음",
+        "current_step": null,
+        "total_steps": 0,
+        "approval_steps": [],
+        "verification_ok": true,
+        "task_type": "RECLAIM_SCAN",
+        "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+        "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+        "as_of": "2026-10-22T09:00:00+09:00",
+        "scan_complete": true,
+        "needs_review_count": 0,
+        "new_candidate_count": 0,
+        "pending_notification_count": 0
+      }
+    },
+    {
+      "name": "worker_claims_done",
+      "model": "ReclaimEvent",
+      "payload": {
+        "schema_version": 2,
+        "event_id": "8d1c3c12-c8a8-5746-bca2-f947e12e2174",
+        "job_event_id": "18623ece-65d0-592b-abfb-bbb98b6ceba5",
+        "task_type": "RECLAIM_SCAN",
+        "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+        "event_type": "RECLAIM_CHECKED",
+        "result": {
+          "schema_version": 2,
+          "status": "DONE",
+          "reason_code": "SCAN_COMPLETED",
+          "message": "점검 결과 반영 대기",
+          "current_step": null,
+          "total_steps": 0,
+          "approval_steps": [],
+          "verification_ok": null,
+          "task_type": "RECLAIM_SCAN",
+          "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+          "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+          "as_of": "2026-10-22T09:00:00+09:00",
+          "scan_complete": true,
+          "needs_review_count": 0,
+          "new_candidate_count": 1,
+          "pending_notification_count": 0
+        },
+        "targets": [
+          {
+            "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+            "target_id": null,
+            "episode_id": null,
+            "platform": "GITHUB",
+            "candidate_status": "PENDING_REVIEW",
+            "candidate_reason_code": "TF_ENDED_UNUSED_30D",
+            "exclusion_reason_code": null,
+            "skip_reason_code": null,
+            "review_required": false,
+            "notified_at": null,
+            "read_at": null,
+            "action_taken": "NONE",
+            "generation_mode": "template",
+            "explanation": "TF 종료 후 미사용 30일 이상인 좌석으로 담당자 검토가 필요합니다.",
+            "policy_evidence": [
+              {
+                "doc_id": "P2-A-POLICY",
+                "article": "POL-06 제5조",
+                "version": "1",
+                "source_hash": "40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5",
+                "text": "프로젝트 지급 좌석은 TF 종료 후 연속 미사용 30일 이상이고 다른 활성 TF 이용 및 유효 유지 승인이 없으면 검토 후보로 제안한다."
+              }
+            ],
+            "fact_evidence": [
+              {
+                "source": "assignment_usage",
+                "record_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+                "observed_at": "2026-10-22T09:00:00+09:00"
+              }
+            ],
+            "cost_impact": {
+              "status": "ESTIMATED",
+              "monthly_amount": "19.00",
+              "currency": "USD",
+              "basis": "SYNTHETIC_CONTRACT"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "wrong_run",
+      "model": "ReclaimEvent",
+      "payload": {
+        "schema_version": 2,
+        "event_id": "8d1c3c12-c8a8-5746-bca2-f947e12e2174",
+        "job_event_id": "18623ece-65d0-592b-abfb-bbb98b6ceba5",
+        "task_type": "RECLAIM_SCAN",
+        "run_id": "d2addf5d-58d2-5c9c-b286-8da86a0b0026",
+        "event_type": "RECLAIM_CHECKED",
+        "result": {
+          "schema_version": 2,
+          "status": "EXECUTING",
+          "reason_code": "SCAN_IN_PROGRESS",
+          "message": "점검 결과 반영 대기",
+          "current_step": null,
+          "total_steps": 0,
+          "approval_steps": [],
+          "verification_ok": null,
+          "task_type": "RECLAIM_SCAN",
+          "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+          "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+          "as_of": "2026-10-22T09:00:00+09:00",
+          "scan_complete": true,
+          "needs_review_count": 0,
+          "new_candidate_count": 1,
+          "pending_notification_count": 0
+        },
+        "targets": [
+          {
+            "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+            "target_id": null,
+            "episode_id": null,
+            "platform": "GITHUB",
+            "candidate_status": "PENDING_REVIEW",
+            "candidate_reason_code": "TF_ENDED_UNUSED_30D",
+            "exclusion_reason_code": null,
+            "skip_reason_code": null,
+            "review_required": false,
+            "notified_at": null,
+            "read_at": null,
+            "action_taken": "NONE",
+            "generation_mode": "template",
+            "explanation": "TF 종료 후 미사용 30일 이상인 좌석으로 담당자 검토가 필요합니다.",
+            "policy_evidence": [
+              {
+                "doc_id": "P2-A-POLICY",
+                "article": "POL-06 제5조",
+                "version": "1",
+                "source_hash": "40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5",
+                "text": "프로젝트 지급 좌석은 TF 종료 후 연속 미사용 30일 이상이고 다른 활성 TF 이용 및 유효 유지 승인이 없으면 검토 후보로 제안한다."
+              }
+            ],
+            "fact_evidence": [
+              {
+                "source": "assignment_usage",
+                "record_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+                "observed_at": "2026-10-22T09:00:00+09:00"
+              }
+            ],
+            "cost_impact": {
+              "status": "ESTIMATED",
+              "monthly_amount": "19.00",
+              "currency": "USD",
+              "basis": "SYNTHETIC_CONTRACT"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown_cost_zero",
+      "model": "ReclaimCandidate",
+      "payload": {
+        "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+        "target_id": null,
+        "episode_id": null,
+        "platform": "GITHUB",
+        "candidate_status": "PENDING_REVIEW",
+        "candidate_reason_code": "TF_ENDED_UNUSED_30D",
+        "exclusion_reason_code": null,
+        "skip_reason_code": null,
+        "review_required": false,
+        "notified_at": null,
+        "read_at": null,
+        "action_taken": "NONE",
+        "generation_mode": "template",
+        "explanation": "TF 종료 후 미사용 30일 이상인 좌석으로 담당자 검토가 필요합니다.",
+        "policy_evidence": [
+          {
+            "doc_id": "P2-A-POLICY",
+            "article": "POL-06 제5조",
+            "version": "1",
+            "source_hash": "40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5",
+            "text": "프로젝트 지급 좌석은 TF 종료 후 연속 미사용 30일 이상이고 다른 활성 TF 이용 및 유효 유지 승인이 없으면 검토 후보로 제안한다."
+          }
+        ],
+        "fact_evidence": [
+          {
+            "source": "assignment_usage",
+            "record_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+            "observed_at": "2026-10-22T09:00:00+09:00"
+          }
+        ],
+        "cost_impact": {
+          "status": "UNKNOWN",
+          "monthly_amount": "19.00",
+          "currency": "USD",
+          "basis": "SYNTHETIC_CONTRACT"
+        }
+      }
+    },
+    {
+      "name": "notification_without_delivery",
+      "model": "ReclaimCandidate",
+      "payload": {
+        "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+        "target_id": null,
+        "episode_id": null,
+        "platform": "GITHUB",
+        "candidate_status": "PENDING_REVIEW",
+        "candidate_reason_code": "TF_ENDED_UNUSED_30D",
+        "exclusion_reason_code": null,
+        "skip_reason_code": "ALREADY_NOTIFIED",
+        "review_required": false,
+        "notified_at": null,
+        "read_at": null,
+        "action_taken": "NONE",
+        "generation_mode": "template",
+        "explanation": "TF 종료 후 미사용 30일 이상인 좌석으로 담당자 검토가 필요합니다.",
+        "policy_evidence": [
+          {
+            "doc_id": "P2-A-POLICY",
+            "article": "POL-06 제5조",
+            "version": "1",
+            "source_hash": "40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5",
+            "text": "프로젝트 지급 좌석은 TF 종료 후 연속 미사용 30일 이상이고 다른 활성 TF 이용 및 유효 유지 승인이 없으면 검토 후보로 제안한다."
+          }
+        ],
+        "fact_evidence": [
+          {
+            "source": "assignment_usage",
+            "record_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+            "observed_at": "2026-10-22T09:00:00+09:00"
+          }
+        ],
+        "cost_impact": {
+          "status": "ESTIMATED",
+          "monthly_amount": "19.00",
+          "currency": "USD",
+          "basis": "SYNTHETIC_CONTRACT"
+        }
+      }
+    },
+    {
+      "name": "missing_policy",
+      "model": "ReclaimCandidate",
+      "payload": {
+        "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+        "target_id": null,
+        "episode_id": null,
+        "platform": "GITHUB",
+        "candidate_status": "PENDING_REVIEW",
+        "candidate_reason_code": "TF_ENDED_UNUSED_30D",
+        "exclusion_reason_code": null,
+        "skip_reason_code": null,
+        "review_required": false,
+        "notified_at": null,
+        "read_at": null,
+        "action_taken": "NONE",
+        "generation_mode": "template",
+        "explanation": "TF 종료 후 미사용 30일 이상인 좌석으로 담당자 검토가 필요합니다.",
+        "policy_evidence": [],
+        "fact_evidence": [
+          {
+            "source": "assignment_usage",
+            "record_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+            "observed_at": "2026-10-22T09:00:00+09:00"
+          }
+        ],
+        "cost_impact": {
+          "status": "ESTIMATED",
+          "monthly_amount": "19.00",
+          "currency": "USD",
+          "basis": "SYNTHETIC_CONTRACT"
+        }
+      }
+    },
+    {
+      "name": "hold_without_reason",
+      "model": "ApprovalDecisionInput",
+      "payload": {
+        "action": "HOLD",
+        "expected_plan_hash": "dd2c383930265afa6c82a2859d1c0ced36afba4de701f3edb53aeb11c3c4d8f4",
+        "expected_plan_version": 2,
+        "reason": ""
+      }
+    },
+    {
+      "name": "decision_missing_version",
+      "model": "ApprovalDecisionInput",
+      "payload": {
+        "action": "APPROVE",
+        "expected_plan_hash": "dd2c383930265afa6c82a2859d1c0ced36afba4de701f3edb53aeb11c3c4d8f4",
+        "reason": null
+      }
+    },
+    {
+      "name": "decision_invalid_version",
+      "model": "ApprovalDecisionInput",
+      "payload": {
+        "action": "APPROVE",
+        "expected_plan_hash": "dd2c383930265afa6c82a2859d1c0ced36afba4de701f3edb53aeb11c3c4d8f4",
+        "expected_plan_version": 0,
+        "reason": null
+      }
+    },
+    {
+      "name": "wrong_hold_reason",
+      "model": "AccessView",
+      "payload": {
+        "schema_version": 2,
+        "status": "ON_HOLD",
+        "reason_code": "ELIGIBLE",
+        "message": "접수됨",
+        "current_step": null,
+        "total_steps": 0,
+        "approval_steps": [],
+        "verification_ok": null,
+        "task_type": "ACCESS_REQUEST",
+        "problem_id": "d31f86ab-2b97-594d-9e4c-bde2e04444e6",
+        "result_type": null
+      }
+    },
+    {
+      "name": "missing_version",
+      "model": "GrantPlanV2",
+      "payload": {
+        "problem_id": "d31f86ab-2b97-594d-9e4c-bde2e04444e6",
+        "company_id": "26c56ede-d5bd-5fad-8591-d729af9eaee9",
+        "requester_id": "32d5eff9-eddd-544e-b047-21624af078bd",
+        "platform": "SNOWFLAKE",
+        "resource_id": "a23f44c5-5d61-5875-b36e-7d4c8e71b68c",
+        "entitlement_id": "9acacff9-ee2e-5bc8-80e4-7ddbeec2d882",
+        "entitlement_revision": 1,
+        "pricing_id": "17b04430-ca3f-5c86-8530-37a14ad0f934",
+        "pricing_revision": 1,
+        "monthly_amount": "120.00",
+        "currency": "USD",
+        "cost_basis": "USAGE_ESTIMATE",
+        "policy_id": "0673ccd9-4e9b-5e92-bb81-28b949ef5224",
+        "policy_revision": 1,
+        "route_id": "ea0e585f-39df-536e-89db-ec3515b5bf74",
+        "route_revision": 1,
+        "approver_ids": [
+          "d21e09b7-93ab-5928-877e-5effec838ccc",
+          "d9d8734f-2dde-5efa-a225-63a3b069abdb"
+        ]
+      }
+    },
+    {
+      "name": "false_verification_on_lookup_error",
+      "model": "AccessView",
+      "payload": {
+        "schema_version": 2,
+        "status": "FAILED",
+        "reason_code": "TOOL_CALL_FAILED",
+        "message": "접수됨",
+        "current_step": null,
+        "total_steps": 0,
+        "approval_steps": [],
+        "verification_ok": false,
+        "task_type": "ACCESS_REQUEST",
+        "problem_id": "d31f86ab-2b97-594d-9e4c-bde2e04444e6",
+        "result_type": null
+      }
+    },
+    {
+      "name": "review_reported_empty",
+      "model": "ReclaimRunView",
+      "payload": {
+        "schema_version": 2,
+        "status": "DONE",
+        "reason_code": "NO_NEW_CANDIDATES",
+        "message": "신규 회수 후보 없음",
+        "current_step": null,
+        "total_steps": 0,
+        "approval_steps": [],
+        "verification_ok": null,
+        "task_type": "RECLAIM_SCAN",
+        "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+        "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+        "as_of": "2026-10-22T09:00:00+09:00",
+        "scan_complete": true,
+        "needs_review_count": 1,
+        "new_candidate_count": 0,
+        "pending_notification_count": 0
+      }
+    },
+    {
+      "name": "scan_manual_review",
+      "model": "ReclaimRunView",
+      "payload": {
+        "schema_version": 2,
+        "status": "MANUAL_REVIEW",
+        "reason_code": "MISSING_SOURCE_EVIDENCE",
+        "message": "신규 회수 후보 없음",
+        "current_step": null,
+        "total_steps": 0,
+        "approval_steps": [],
+        "verification_ok": null,
+        "task_type": "RECLAIM_SCAN",
+        "run_id": "7f1bf5ed-d30f-5d94-b2d3-6f40088f5a22",
+        "snapshot_id": "47dc4122-8909-51af-968a-649c8a8cf771",
+        "as_of": "2026-10-22T09:00:00+09:00",
+        "scan_complete": true,
+        "needs_review_count": 0,
+        "new_candidate_count": 0,
+        "pending_notification_count": 0
+      }
+    }
+  ]
+}

@@ -6,8 +6,8 @@ import os
 import uvicorn
 
 from unlockops_rag.search import DocumentFormatError, DocumentIndex
-from unlockops.models import ToolFailure
-from unlockops.settings import settings
+from unlockops.common.models import ToolFailure
+from unlockops.common.settings import settings
 from .auth import TokenAuth
 from .contracts import READ_ONLY, ContractMCP
 
@@ -37,6 +37,10 @@ def search_policy(query: str, platform: str, limit: int = 5) -> dict[str, object
 def read_policy(doc_id: str, article: str = "") -> dict[str, object]:
     """지정한 규정 문서·조항의 원문을 정확히 읽습니다. 문서 ID는 파일 경로가 아닙니다."""
     return {"chunks": index().read(doc_id, article)}
+
+
+from .phase2_policy import register as register_phase2
+phase2_tools = register_phase2(mcp)
 
 
 if __name__ == "__main__":

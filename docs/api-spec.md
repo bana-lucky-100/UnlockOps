@@ -396,10 +396,11 @@ Spring이 Agent를 호출하는 HTTP API는 현재 없다. RabbitMQ로 작업과
 7. Worker → Spring: 최종 결과를 반영하고 화면에서 확인한다.
 
 상태: `RECEIVED / DIAGNOSING / WAITING_APPROVAL / EXECUTING / DONE / REJECTED / MANUAL_REVIEW / FAILED`.
-RAG 안내는 기존 서버 계약에 맞춰 `MANUAL_REVIEW / RAG_GUIDANCE`로 전달하며 proposal에 답변·출처를 담는다.
-plan·verification_ok는 null이다. 화면 상태는 담당자 검토로 표시되며 안내 완료 전용 상태는 추가하지 않는다.
+RAG 안내 성공은 `status=DONE / result_type=GUIDANCE / reason_code=RAG_GUIDANCE`이며 proposal에 답변·출처를 담는다.
+plan·verification_ok는 null이다. 권한 반영 완료는 `DONE / result_type=ACCESS_VERIFIED / verification_ok=true`이다.
+진행·거절·수동 검토·실패에는 result_type이 null이며, GET 목록·상세 응답에 result_type을 제공한다.
 추가 질문용 API는 없으며 정보 부족·대상 불명확은 `MANUAL_REVIEW`, 예산 부족은 `REJECTED`로 처리한다.
 
 구현 참조: `backend/src/main/java/com/unlockops/`의 Controller·Service·SecurityConfig,
-`mcp/unlockops_mcp/`、`agent/unlockops/contracts.py`、`worker/unlockops_worker/__main__.py`、`compose.yaml`。
+`mcp/unlockops_mcp/`、`agent/unlockops/common/contracts.py`、`worker/unlockops_worker/__main__.py`、`compose.yaml`。
 상세 MCP 입출력·오류 규칙은 [MCP 계약](contracts/mcp.md)을 참고한다.

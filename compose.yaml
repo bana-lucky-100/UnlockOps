@@ -37,6 +37,9 @@ services:
       RABBIT_PASSWORD: ${RABBITMQ_PASSWORD:-unlockops-local-only}
       DEMO_PASSWORD: ${DEMO_PASSWORD:-demo1234}
       DEMO_ENABLED: "true"
+      DEMO_PHASE2_SEED_PATH: /app/data/phase2/seed.sql
+      PHASE2_RECLAIM_SCHEDULE_ENABLED: ${PHASE2_RECLAIM_SCHEDULE_ENABLED:-false}
+      PHASE2_RECLAIM_CRON: ${PHASE2_RECLAIM_CRON:-0 0 9 * * *}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-replace-this-local-internal-api-token}
       ACCESS_MATRIX_PATH: /app/data/company-a-access-matrix.md
     volumes:
@@ -53,6 +56,8 @@ services:
     build: {context: ., dockerfile: infra/python.Dockerfile}
     command: [python, -m, unlockops_mcp.policy]
     environment:
+      BACKEND_INTERNAL_URL: http://backend:8080
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-replace-this-local-internal-api-token}
       MCP_TOKEN: ${MCP_TOKEN:-replace-this-local-mcp-token}
       EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}

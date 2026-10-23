@@ -1,10 +1,10 @@
 import pytest
 
-from unlockops.models import ToolFailure
-from unlockops.tools import ScopedTools
+from unlockops.common.models import ToolFailure
+from unlockops.common.tools import ScopedTools
 from conftest import FakeTools, ROOT
 from unlockops_rag.search import DocumentIndex
-from unlockops.settings import settings
+from unlockops.common.settings import settings
 
 
 @pytest.mark.parametrize("name,args",[
@@ -142,8 +142,8 @@ async def test_large_model_tool_batch_cannot_starve_mandatory_evidence(monkeypat
     from dataclasses import replace
     from types import SimpleNamespace
     from langgraph.checkpoint.memory import InMemorySaver
-    from unlockops.graph import build_graph
-    from unlockops.planner import raw_intent
+    from unlockops.access.graph import build_graph
+    from unlockops.access.planner import raw_intent
     from test_scenarios import job
 
     class BusyModel:
@@ -162,9 +162,9 @@ async def test_large_model_tool_batch_cannot_starve_mandatory_evidence(monkeypat
         """모델 호출 없이 데모 규칙으로 요청 의도를 만든다."""
         return raw_intent(contents)
 
-    monkeypatch.setattr("unlockops.graph.interpret", parse)
-    monkeypatch.setattr("unlockops.planner.settings", replace(settings, mode="llm"))
-    monkeypatch.setattr("unlockops.planner.model", BusyModel)
+    monkeypatch.setattr("unlockops.access.graph.interpret", parse)
+    monkeypatch.setattr("unlockops.access.planner.settings", replace(settings, mode="llm"))
+    monkeypatch.setattr("unlockops.access.planner.model", BusyModel)
     tools = FakeTools()
     result = await build_graph(tools, InMemorySaver()).ainvoke(
         {"job": job("GITHUB", "payment-core push가 안 돼요")},
@@ -185,7 +185,7 @@ async def test_large_model_tool_batch_cannot_starve_mandatory_evidence(monkeypat
 async def test_mandatory_tool_failure_never_produces_approval():
     """필수 사실 조회에 실패하면 승인 계획을 만들거나 권한을 변경하지 않는다."""
     from langgraph.checkpoint.memory import InMemorySaver
-    from unlockops.graph import build_graph
+    from unlockops.access.graph import build_graph
     from test_scenarios import job
 
     class MissingFacts(FakeTools):

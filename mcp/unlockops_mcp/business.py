@@ -7,9 +7,9 @@ import uvicorn
 
 from unlockops_rag.search import DocumentFormatError, DocumentIndex
 from .backend_client import BackendClient
-from unlockops.models import ToolFailure
-from unlockops.rules import source_hashes
-from unlockops.settings import settings
+from unlockops.common.models import ToolFailure
+from unlockops.access.rules import source_hashes
+from unlockops.common.settings import settings
 from .auth import TokenAuth
 from .contracts import APPROVED_WRITE, READ_ONLY, ContractMCP
 
@@ -111,6 +111,10 @@ def grant_permission(problem_id: str, idempotency_key: str) -> dict[str, object]
 def verify_permission(employee_id: str, resource_id: str, requested_role: str) -> dict[str, object]:
     """실행 후 실제 유효 권한을 별도로 다시 조회합니다. 필요한 권한이 없으면 verified=false를 반환합니다."""
     return repo.verify(employee_id, resource_id, requested_role)
+
+
+from .phase2_business import register as register_phase2
+phase2_tools = register_phase2(mcp)
 
 
 if __name__ == "__main__":

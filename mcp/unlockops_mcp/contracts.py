@@ -7,8 +7,8 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import ValidationError
 
-from unlockops.contracts import INPUTS, OUTPUTS, error_payload, validate_input, validate_output
-from unlockops.models import ToolFailure
+from unlockops.common.contracts import INPUTS, OUTPUTS, error_payload, validate_input, validate_output
+from unlockops.common.models import ToolFailure
 
 
 # @mcp.tool에서 도구 성격을 명시한다. 힌트이며 실제 승인·범위 검사를 대신하지 않는다.

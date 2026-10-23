@@ -63,7 +63,7 @@ class GrantExecutionIT {
     UUID employee, approver, seat, department;
 
     @BeforeEach void reset() {
-        jdbc.execute("TRUNCATE grant_receipts,problem_events,outbox,inbox_events,problems RESTART IDENTITY");
+        jdbc.execute("TRUNCATE access_execution_receipts,mock_entitlement_memberships,reclaim_scope_assignments,approval_steps,access_plan_versions,assignment_usage,retention_exceptions,reclaim_run_items,reclaim_notifications,reclaim_targets,reclaim_snapshot_items,access_assignments,grant_receipts,problem_events,outbox,inbox_events,problems RESTART IDENTITY");
         employee = user("kim_dev"); approver = user("yoon_head");
         seat = jdbc.queryForObject("SELECT id FROM resources WHERE external_id='copilot-seat'", UUID.class);
         department = facts.profile(employee).departmentId();

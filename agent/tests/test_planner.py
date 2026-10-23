@@ -4,11 +4,11 @@ from dataclasses import replace
 
 import pytest
 
-from unlockops import planner
+from unlockops.access import planner
 from pydantic import ValidationError
 
-from unlockops.models import Intent
-from unlockops.planner import model, raw_intent
+from unlockops.common.models import Intent
+from unlockops.access.planner import model, raw_intent
 
 
 @pytest.mark.parametrize("contents,expected", [

@@ -7,4 +7,5 @@ import java.util.UUID;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record UserProfileResponse(UUID id, String loginId, String employeeNo, String name,
-                                  UserRole role, JobGrade jobGrade, JobFamily jobFamily, String department) {}
+                                  UserRole role, JobGrade jobGrade, JobFamily jobFamily, String department,
+                                  int workflowVersion, boolean canReclaim) {}

@@ -6,15 +6,15 @@ import {
   noticeOf, proposalOf, requesterEventsOf, stagesOf, summaryOf,
 } from '../src/lib/requestView.ts'
 
-// API가 기존 계약으로 반환하는 안내 성공: 권한 부여 계획이나 실행 영수증은 없다.
+// 서버가 완료 상태와 완료 대상을 명시한다. 안내는 권한 반영을 뜻하지 않는다.
 const guidance = {
-  status: 'MANUAL_REVIEW', reason_code: 'RAG_GUIDANCE',
+  status: 'DONE', result_type: 'GUIDANCE', reason_code: 'RAG_GUIDANCE',
   diagnosis: '조회 결과 필요한 권한을 이미 보유하고 있습니다.',
   proposal: '조회한 현재 권한은 Write입니다.\n\n1. push는 Write 이상이 필요합니다.\n근거: GH-OFF-01:summary',
   resource_id: null, requested_role: null, verification_ok: null, decided_at: null,
   events: [
     { kind: 'PROGRESS', payload: { message: '요청을 분석하고 있습니다.' }, created_at: '2026-10-21T05:23:16Z' },
-    { kind: 'ANALYZED', payload: { message: '담당자 검토가 필요합니다.' }, created_at: '2026-10-21T05:23:17Z' },
+    { kind: 'ANALYZED', payload: { message: '안내가 완료됐어요' }, created_at: '2026-10-21T05:23:17Z' },
   ],
 }
 
@@ -39,7 +39,7 @@ test('requester and approver timelines describe guidance completion without rewr
   const requester = requesterEventsOf(guidance)
   assert.equal(requester[0].text, guidance.events[0].payload.message)
   assert.equal(requester.at(-1).text, '안내가 완료됐어요')
-  const rawResult = { status: 'MANUAL_REVIEW', reasonCode: 'RAG_GUIDANCE' }
+  const rawResult = { status: 'DONE', result_type: 'GUIDANCE', reasonCode: 'RAG_GUIDANCE' }
   const raw = {
     ...guidance,
     events: [
@@ -50,25 +50,25 @@ test('requester and approver timelines describe guidance completion without rewr
   const approver = approverEventsOf(raw)
   assert.match(approver[0].text, /검토/)
   assert.equal(approver.at(-1).text, '안내가 완료됐어요')
-  assert.equal(rawResult.status, 'MANUAL_REVIEW')
+  assert.equal(rawResult.status, 'DONE')
 })
 
-test('missing guidance or genuine manual review never becomes a successful completion', () => {
-  for (const patch of [
-    { proposal: undefined }, { proposal: null }, { proposal: ' \n ' },
-    { reason_code: 'RESOURCE_NOT_UNIQUE' }, { reason_code: 'ANSWER_NOT_GROUNDED' },
-    { reason_code: 'MODEL_UNAVAILABLE' }, { reason_code: undefined },
-  ]) {
-    const problem = { ...guidance, ...patch }
-    assert.equal(isGuidanceComplete(problem), false)
-    assert.equal(statusOf(problem).label, '담당자 검토')
-    assert.equal(groupOf(problem), 'waiting')
-    assert.equal(needsRefresh(problem), true)
-    assert.equal(aiMessageOf(problem), null)
-    assert.equal(proposalOf(problem, 'GitHub'), null)
-    assert.ok(noticeOf(problem))
-    assert.ok(approverNoticeOf(problem))
-  }
+test('manual review remains pending even when its reason and text look like guidance', () => {
+  const problem = { ...guidance, status: 'MANUAL_REVIEW', result_type: null }
+  assert.equal(isGuidanceComplete(problem), false)
+  assert.equal(statusOf(problem).label, '담당자 검토')
+  assert.equal(groupOf(problem), 'waiting')
+  assert.equal(needsRefresh(problem), true)
+  assert.equal(aiMessageOf(problem), null)
+  assert.equal(proposalOf(problem, 'GitHub'), null)
+  assert.ok(noticeOf(problem))
+  assert.ok(approverNoticeOf(problem))
+})
+
+test('completion meaning is independent of reason codes and display text', () => {
+  assert.equal(isGuidanceComplete({ ...guidance, reason_code: 'NEW_GUIDANCE_REASON' }), true)
+  assert.equal(isGuidanceComplete({ ...guidance, result_type: 'ACCESS_VERIFIED' }), false)
+  assert.equal(isGuidanceComplete({ ...guidance, result_type: null }), false)
 })
 
 test('guidance content cannot override pending, rejected, or failed workflow states', () => {

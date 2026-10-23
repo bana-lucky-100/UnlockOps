@@ -1,0 +1,23 @@
+{
+  "schema_version": 2,
+  "problem_id": "d31f86ab-2b97-594d-9e4c-bde2e04444e6",
+  "company_id": "26c56ede-d5bd-5fad-8591-d729af9eaee9",
+  "requester_id": "32d5eff9-eddd-544e-b047-21624af078bd",
+  "platform": "SNOWFLAKE",
+  "resource_id": "a23f44c5-5d61-5875-b36e-7d4c8e71b68c",
+  "entitlement_id": "9acacff9-ee2e-5bc8-80e4-7ddbeec2d882",
+  "entitlement_revision": 1,
+  "pricing_id": "17b04430-ca3f-5c86-8530-37a14ad0f934",
+  "pricing_revision": 1,
+  "monthly_amount": "120.00",
+  "currency": "USD",
+  "cost_basis": "USAGE_ESTIMATE",
+  "policy_id": "0673ccd9-4e9b-5e92-bb81-28b949ef5224",
+  "policy_revision": 1,
+  "route_id": "ea0e585f-39df-536e-89db-ec3515b5bf74",
+  "route_revision": 1,
+  "approver_ids": [
+    "d21e09b7-93ab-5928-877e-5effec838ccc",
+    "d9d8734f-2dde-5efa-a225-63a3b069abdb"
+  ]
+}

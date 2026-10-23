@@ -1,0 +1,1236 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "UnlockOps Phase 2 server API",
+    "version": "2.0.0"
+  },
+  "paths": {
+    "/api/v2/problems": {
+      "post": {
+        "summary": "권한 요청 접수",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema.json#/$defs/AccessView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema.json#/$defs/AccessRequestInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ]
+      },
+      "get": {
+        "summary": "본인 요청·담당 승인 목록",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "./schema.json#/$defs/AccessView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v2/problems/{problem_id}": {
+      "get": {
+        "summary": "권한 요청 상태 조회",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema.json#/$defs/AccessView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "problem_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/problems/{problem_id}/decisions": {
+      "post": {
+        "summary": "현재 승인 단계 결정",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema.json#/$defs/AccessView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema.json#/$defs/ApprovalDecisionInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "problem_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/problems/{problem_id}/resume": {
+      "post": {
+        "summary": "보류·수동 검토 재개 후 최신 조건 재분석",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema.json#/$defs/AccessView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "problem_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/reclaim/overview": {
+      "get": {
+        "summary": "허용 범위의 마지막 점검·후보·미읽음 알림",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "last_run",
+                    "active_run",
+                    "summary",
+                    "targets"
+                  ],
+                  "properties": {
+                    "last_run": {
+                      "anyOf": [
+                        {
+                          "$ref": "./schema.json#/$defs/ReclaimRunView"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "active_run": {
+                      "anyOf": [
+                        {
+                          "$ref": "./schema.json#/$defs/ReclaimRunView"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "summary": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "Final server aggregates; null before first scan or when the latest result is unconfirmed.",
+                      "properties": {
+                        "review_target_count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "new_candidate_count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "newly_notified_count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "needs_review_count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "unread_count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "unknown_cost_target_count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "monthly_saving_by_currency": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string",
+                            "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{2}$"
+                          }
+                        }
+                      }
+                    },
+                    "targets": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "./schema.json#/$defs/ReclaimCandidate"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/reclaim/runs": {
+      "post": {
+        "summary": "시연용 회수 점검 접수",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "./schema.json#/$defs/ReclaimRunView"
+                    }
+                  ],
+                  "description": "Existing run reuses its actual status. Reuse may be indicated in a response header."
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema.json#/$defs/ReclaimStartInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ]
+      }
+    },
+    "/api/reclaim/runs/{run_id}": {
+      "get": {
+        "summary": "회수 실행 조회",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema.json#/$defs/ReclaimRunView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/reclaim/targets/{target_id}": {
+      "get": {
+        "summary": "저장된 후보 상세 조회",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema.json#/$defs/ReclaimCandidate"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "target_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/reclaim/notifications/{notification_id}/read": {
+      "patch": {
+        "summary": "본인 알림 읽음, 최초 read_at 보존",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "read_at"
+                  ],
+                  "properties": {
+                    "read_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/problems/summaries": {
+      "get": {
+        "summary": "허용된 요청의 화면용 목록: workflow·요청자·플랫폼·내용·접수 시각",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v2/problems/catalog": {
+      "get": {
+        "summary": "현재 회사의 선택 가능한 자원·권한 항목",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v2/problems/{problem_id}/report": {
+      "get": {
+        "summary": "승인 계획·근거·이력",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "problem_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/reclaim/scopes": {
+      "get": {
+        "summary": "실행·조회가 허용된 전체 플랫폼 범위",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/reclaim/runs/{run_id}/items": {
+      "get": {
+        "summary": "미확인 행을 포함한 실행별 판정",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "./schema.json#/$defs/ReclaimCandidate"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/reclaim/notifications": {
+      "get": {
+        "summary": "본인에게 전달된 범위 내 알림",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/internal/v2/problems/{problem_id}/context": {
+      "get": {
+        "summary": "요청·회사별 자원·정책·계정 사실",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "problem_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/internal/v2/problems/{problem_id}/assessment": {
+      "post": {
+        "summary": "서버 정책 판정·가격·승인 경로 미리보기, 상태 변경 없음",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "problem_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "job_event_id",
+                  "entitlement_id"
+                ],
+                "properties": {
+                  "job_event_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "entitlement_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v2/problems/{problem_id}/execute": {
+      "post": {
+        "summary": "모의 권한 부여·예산·영수증 원자 처리",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "problem_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "job_event_id",
+                  "plan_hash",
+                  "idempotency_key"
+                ],
+                "properties": {
+                  "job_event_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "plan_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "idempotency_key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v2/problems/{problem_id}/verify": {
+      "post": {
+        "summary": "별도 요청에서 모의 제공자 상태 재조회, 상태 변경 없음",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "problem_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "job_event_id",
+                  "plan_hash",
+                  "idempotency_key"
+                ],
+                "properties": {
+                  "job_event_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "plan_hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "idempotency_key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v2/reclaim/context": {
+      "post": {
+        "summary": "고정된 점검 문맥",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema.json#/$defs/ReclaimContextRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v2/reclaim/candidates": {
+      "post": {
+        "summary": "고정된 후보 페이지",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema.json#/$defs/CandidatePage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema.json#/$defs/CandidatePageRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v2/reclaim/notification-history": {
+      "post": {
+        "summary": "실행 스냅샷 내 할당의 알림 이력",
+        "description": "Implemented server handler. Asynchronous completion requires running the v2 Worker and MCP services.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "serviceToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema.json#/$defs/NotificationHistoryRequest"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "JSESSIONID"
+      },
+      "serviceToken": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

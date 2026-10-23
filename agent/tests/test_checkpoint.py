@@ -1,8 +1,8 @@
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Command
 
-from unlockops.graph import build_graph
-from unlockops.models import Plan
+from unlockops.access.graph import build_graph
+from unlockops.common.models import Plan
 from conftest import FakeTools
 from test_scenarios import job
 

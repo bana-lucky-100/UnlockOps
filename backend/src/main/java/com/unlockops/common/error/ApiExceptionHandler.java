@@ -10,6 +10,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ApiExceptionHandler.class);
     public record CodedError(String message, String code, boolean retryable) {}
 
     @ExceptionHandler(PolicySourceUnavailableException.class)
@@ -34,6 +35,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> unexpected(Exception e) {
+        log.error("Unhandled exception", e);
         return ResponseEntity.internalServerError().body(new ApiError("서버 처리 중 오류가 발생했습니다."));
     }
 }

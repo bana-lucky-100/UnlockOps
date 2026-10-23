@@ -1,0 +1,39 @@
+name: Phase 2 baseline evaluation
+
+# Deliberately manual: this builds the complete mock stack, not every code edit.
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Evaluation scope
+        type: choice
+        options: [smoke, full]
+        default: smoke
+
+permissions:
+  contents: read
+
+jobs:
+  evaluation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Run isolated mock evaluation
+        env:
+          EVAL_SUITE: ${{ inputs.suite }}
+        run: python3 scripts/evaluate_phase2.py --run --suite "$EVAL_SUITE"
+      - name: Publish result in job summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              for path in Path('test-results/phase2').glob('*/report.json'):
+                  report = json.loads(path.read_text())
+                  out.write('```json\n' + json.dumps(report, ensure_ascii=False, indent=2) + '\n```\n')
+                  print(path.read_text())
+          PY

@@ -9,10 +9,10 @@ import pytest
 
 from conftest import FakeTools, ROOT
 from test_scenarios import job
-from unlockops import graph as graph_module
-from unlockops import permission_proposal
+from unlockops.access import graph as graph_module
+from unlockops.access import permission_proposal
 from unlockops_rag.search import DocumentIndex
-from unlockops.rules import required_sources
+from unlockops.access.rules import required_sources
 
 
 def citations():
@@ -149,7 +149,7 @@ async def test_stale_rag_evidence_stops_before_permission_model(monkeypatch):
 
 async def test_existing_rag_document_controls_model_input_and_grant_ceiling(tmp_path, monkeypatch):
     """기존 Markdown만 수정해도 LLM 입력과 실제 실행 상한 양쪽에 반영되는지 확인한다."""
-    from unlockops import rules
+    from unlockops.access import rules
 
     # 실제 프로젝트 원문을 수정하지 않도록 임시 폴더에 복사한 뒤 상한을 Write에서 Read로 낮춘다.
     for filename in ("company-a-access-matrix.md", "policy_corpus.md"):
@@ -180,15 +180,15 @@ async def test_existing_rag_document_controls_model_input_and_grant_ceiling(tmp_
 @pytest.mark.parametrize("case,expected_handling,expected_status", [
     ("approval", "APPROVAL", "WAITING_APPROVAL"),
     ("not_member", "REJECT", "REJECTED"),
-    ("already_has_access", "ANSWER", "MANUAL_REVIEW"),
-    ("guide", "ANSWER", "MANUAL_REVIEW"),
+    ("already_has_access", "ANSWER", "DONE"),
+    ("guide", "ANSWER", "DONE"),
 ])
 async def test_permission_assessment_and_common_response_work_together(
     monkeypatch, case, expected_handling, expected_status,
 ):
     """권한 제안과 사용자 설명을 별도로 호출하고, 검증된 판정·근거 이력을 함께 보존한다."""
-    from unlockops import answering
-    from unlockops.answering import AnswerDraft, AnswerReview, AnswerStep, Citation
+    from unlockops.access import answering
+    from unlockops.access.answering import AnswerDraft, AnswerReview, AnswerStep, Citation
 
     contexts = []
 

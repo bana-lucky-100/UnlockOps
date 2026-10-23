@@ -3,11 +3,25 @@
 B팀 담당입니다. 원본 `python/unlockops`에서 에이전트 코드를 옮겼습니다.
 현재는 하나의 LangGraph에 진단·승인·실행 흐름이 연결되어 있으며 두 독립 Agent로 분리되어 있지는 않습니다.
 
+## 폴더 구성
+
+| 경로 | 역할 |
+| --- | --- |
+| `unlockops/access/` | 기존 안내·권한 판단·승인 대기·권한 부여·검증 흐름 |
+| `unlockops/common/` | 작업·결과 모델, MCP 계약·클라이언트, 공통 설정 |
+| `tests/` | 기존 흐름과 서비스 간 연동을 검증하는 테스트 |
+
+worker는 `unlockops.access.graph`에서 그래프를 만들고, worker와 MCP 서버는
+`unlockops.common`의 모델·계약·설정을 사용합니다. MCP의 권한 정책 검사는
+기존처럼 `unlockops.access.rules`의 원문 해시 함수를 재사용합니다.
+`reclaim`은 아직 구현하지 않아 폴더를 만들지 않았습니다.
+이번 폴더 분리는 실행 프로세스나 승인 정책을 바꾸지 않으며, 그래프 노드 이름·체크포인트 상태·큐 메시지 계약을 유지합니다.
+
 ## 실습 코드처럼 읽는 순서
 
-1. `graph.py`의 `AgentState`: 노드들이 공유하는 작업 기록입니다. `total=False`이므로 처음부터 모든 필드가 필요하지 않습니다.
-2. `planner.py`의 `model()`: LLM 연결 설정입니다. `@lru_cache(maxsize=1)`로 연결 객체만 재사용하며 답변은 캐시하지 않습니다. 데모 모드에서는 외부 모델을 호출하지 않습니다.
-3. `graph.py`의 `interpret_node` 등: 각 함수는 State를 읽고 변경할 필드만 dict로 반환합니다.
+1. `unlockops/access/graph.py`의 `AgentState`: 노드들이 공유하는 작업 기록입니다. `total=False`이므로 처음부터 모든 필드가 필요하지 않습니다.
+2. `unlockops/access/planner.py`의 `model()`: LLM 연결 설정입니다. `@lru_cache(maxsize=1)`로 연결 객체만 재사용하며 답변은 캐시하지 않습니다. 데모 모드에서는 외부 모델을 호출하지 않습니다.
+3. `unlockops/access/graph.py`의 `interpret_node` 등: 각 함수는 State를 읽고 변경할 필드만 dict로 반환합니다.
 4. `route_after_scope`, `route_after_judge`, `route_after_execute`, `route_after_verify`: 다음 노드 이름을 반환하는 분기 함수입니다.
 5. `build_graph()`: 실습처럼 `add_node`, `add_edge`, `add_conditional_edges`, `compile` 순서로 연결을 확인합니다.
 
@@ -23,16 +37,16 @@ LLM 환경변수 변경은 worker 재시작 후 반영합니다.
 
 | 파일 | 수정할 내용 |
 | --- | --- |
-| `unlockops/graph.py` | AgentState, 노드, 분기, 승인 interrupt, 실행·검증 재시도 |
-| `unlockops/planner.py` | 규칙 기반 의도 추출, LLM 프롬프트·읽기 도구 선택 |
-| `unlockops/answering.py` | 검색 문서를 활용한 안내 생성, 인용 원문 검사, LLM 내용 검토 |
-| `unlockops/response_context.py` | 조회 사실·확정 판정·회사 규정·작성 기준을 답변 입력으로 정리 |
-| `unlockops/tools.py` | 두 MCP 클라이언트, timeout, 사용자·자원·플랫폼 범위 제한 |
-| `unlockops/models.py` | Platform, Status, Job, Plan, Result |
-| `unlockops/contracts.py` | MCP 도구별 입력·응답 모델, 공통 오류 정규화; 두 서버와 공유 |
-| `unlockops/rules.py` | 기존 회사 권한표의 상한·승인자 기준 조회, 실제 자격·RAG 근거 검사; MCP도 재사용 |
-| `unlockops/permission_proposal.py` | LLM의 권한·이유·근거 ID 제안과 검증. 사용자 답변 생성과 분리 |
-| `unlockops/settings.py` | 루트 .env 로딩, 데이터·체크포인트 경로, MCP 주소 |
+| `unlockops/access/graph.py` | AgentState, 노드, 분기, 승인 interrupt, 실행·검증 재시도 |
+| `unlockops/access/planner.py` | 규칙 기반 의도 추출, LLM 프롬프트·읽기 도구 선택 |
+| `unlockops/access/answering.py` | 검색 문서를 활용한 안내 생성, 인용 원문 검사, LLM 내용 검토 |
+| `unlockops/access/response_context.py` | 조회 사실·확정 판정·회사 규정·작성 기준을 답변 입력으로 정리 |
+| `unlockops/common/tools.py` | 두 MCP 클라이언트, timeout, 사용자·자원·플랫폼 범위 제한 |
+| `unlockops/common/models.py` | Platform, Status, Job, Plan, Result |
+| `unlockops/common/contracts.py` | MCP 도구별 입력·응답 모델, 공통 오류 정규화; 두 서버와 공유 |
+| `unlockops/access/rules.py` | 기존 회사 권한표의 상한·승인자 기준 조회, 실제 자격·RAG 근거 검사; MCP도 재사용 |
+| `unlockops/access/permission_proposal.py` | LLM의 권한·이유·근거 ID 제안과 검증. 사용자 답변 생성과 분리 |
+| `unlockops/common/settings.py` | 루트 .env 로딩, 데이터·체크포인트 경로, MCP 주소 |
 | `tests/` | 시나리오, 승인 전 변경 차단, 체크포인트 재개, 패키지 이식 검증 |
 
 작업 흐름은 `interpret → scope → context → gather → judge → prepare_response → compose_response` 후 처리 경로로 나뉩니다.
@@ -79,11 +93,11 @@ LLM 모드는 모든 판정 경로에서 같은 입력으로 생성·인용 검�
 선택 플랫폼의 검색 근거가 없거나 검토를 통과하지 못하면 `MANUAL_REVIEW`로 종료합니다.
 일반 안내의 모델 생성·검토 호출 장애는 answer_node에서 처리하여 `MANUAL_REVIEW / MODEL_UNAVAILABLE`로 종료합니다.
 
-안내는 기존 서버 계약의 `MANUAL_REVIEW / RAG_GUIDANCE`로 전달하며 plan과 verification_ok는 null입니다.
-proposal에 답변과 출처를 담고, 내부 handling은 ANSWER로 기록합니다.
-화면 상태와 공개 이력은 기존 담당자 검토 표시로 남습니다. 안내 완료 전용 상태는 서버 담당자와
-계약을 합의한 뒤 별도로 도입할 수 있습니다. 백엔드·DB·프론트 변경 없이 기존 proposal 표시를 사용합니다.
-권한 반영 완료인 `DONE`의 verification_ok=true 검사와 실행 영수증 검사는 유지합니다.
+안내 성공은 `DONE / result_type=GUIDANCE / reasonCode=RAG_GUIDANCE`로 전달하며 plan과 verification_ok는 null입니다.
+proposal에 답변과 출처를 담고, 내부 handling은 ANSWER로 기록합니다. 화면과 공개 이력 모두 안내 완료입니다.
+권한 반영 완료는 `DONE / result_type=ACCESS_VERIFIED`이며 verification_ok=true가 필요합니다.
+실행 작업의 DONE에는 서버의 실행 영수증 검사도 유지합니다. 안내 실패는 MANUAL_REVIEW이며 result_type은 null입니다.
+이전 체크포인트의 안내 성공과 검증된 DONE은 Result 입력 경계에서 새 계약으로 정규화합니다.
 
 gather는 필수 사실·규정을 먼저 조회한 뒤 LLM 선택 조회를 실행합니다. 실제 읽기 호출 한도는
 분석당 30회(context 포함), 선택 조회 시도는 캐시·범위 오류를 포함해 최대 10회입니다.
@@ -117,3 +131,14 @@ uv --cache-dir .cache/uv sync --extra test
 
 VS Code의 `UnlockOps: Python current test`로 테스트 파일에 중단점을 걸 수 있습니다.
 실제 worker 디버깅은 [공통 안내](../docs/debugging.md)를 참고하세요.
+
+## Phase 2: 별도 승인·회수 그래프
+
+위 설명은 기존 v1 흐름입니다. v2는 `access/phase2_graph.py`(분석), `access/phase2_execution.py`(실행),
+`reclaim/graph.py`(회수 점검)로 분리합니다. 사람 승인 상태는 Spring이 관리하며 v1 interrupt를 재사용하지 않습니다.
+분석은 회사 정책 revision을 검색·원문 확인하고 서버 assessment의 판정·계획에 설명을 보완합니다.
+실행은 최신 서버 승인 계획·해시·키를 확인한 뒤 모의 부여와 독립 검증을 수행합니다.
+회수는 불변 스냅샷의 모든 행과 알림 이력을 읽고 설명만 보완합니다. 회수 쓰기 도구는 허용하지 않습니다.
+`common/phase2_tools.py`는 MCP 계약, `phase2_runtime.py`는 작업 범위·오류 경계,
+`phase2_reporting.py`는 근거 기반 설명 생성·검토와 고정 문구 fallback을 담당합니다.
+최종 상태·가격·승인자·알림은 서버가 확정합니다. 자세한 의도·검증 상태는 [구현 기록](../IMPLEMENTATION.md)을 참고하세요.

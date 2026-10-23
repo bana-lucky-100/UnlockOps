@@ -48,6 +48,26 @@ class AgentResultRecoveryTest {
 
     void apply() { service.apply(ProblemFixtures.JSON.read(envelope, AgentEvent.class), envelope); }
 
+    @Test void guidanceCompletesAnalysisWithoutPermissionVerification() {
+        var result = envelope.putObject("result").put("status", "DONE").put("result_type", "GUIDANCE")
+            .put("reasonCode", "RAG_GUIDANCE").put("proposal", "점검 안내입니다.");
+        apply();
+        verify(problems).applyAnalysis(eq(problemId), argThat(update ->
+            update.result().status() == ProblemStatus.DONE
+                && update.result().resultType() == com.unlockops.problem.model.ResultType.GUIDANCE
+                && update.result().verificationOk() == null && update.plan() == null));
+    }
+
+    @Test void guidanceCannotCompleteAnExecutionJob() {
+        when(problems.lock(problemId)).thenReturn(Optional.of(ProblemFixtures.problem(
+            ProblemFixtures.row(problemId, requester, approver).put("status", "EXECUTING"))));
+        envelope.put("job_type", "EXECUTE").put("kind", "EXECUTED");
+        envelope.putObject("result").put("status", "DONE").put("result_type", "GUIDANCE")
+            .put("reasonCode", "RAG_GUIDANCE").put("proposal", "안내만 제공했습니다.");
+        assertThrows(com.unlockops.messaging.service.InvalidAgentMessageException.class, this::apply);
+        verify(problems, never()).applyExecution(any(), any());
+    }
+
     @Test void databaseFailureDuringPlanValidationEscapesForTransactionRollbackAndRetry() {
         var failure = new CannotAcquireLockException("temporary database contention");
         when(policy.validatePlan(any(), any())).thenThrow(failure);

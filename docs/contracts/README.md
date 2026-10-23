@@ -1,4 +1,4 @@
-# API와 큐 계약 v2
+# API와 큐 계약 v3
 
 Agent와 두 MCP 서버 사이의 도구별 입출력·오류 형식은 [MCP 도구 계약](mcp.md)에 정리합니다.
 
@@ -44,7 +44,7 @@ Agent와 두 MCP 서버 사이의 도구별 입출력·오류 형식은 [MCP 도
 
 ### 요청자 응답
 
-명시적인 허용 목록: id, requester_id, approver_id, platform, contents, status, reason_code,
+명시적인 허용 목록: id, requester_id, approver_id, platform, contents, status, result_type, reason_code,
 diagnosis, proposal, resource_id, requested_role, decision_reason, decided_at, verification_ok,
 created_at, updated_at, requester_name, employee_no. 목록은 해당 필드, 상세는 공개 events를 추가합니다.
 evidence, plan, plan_hash, approved_plan_hash, thread_id, idempotency_key 및 원본 JSON은 반환하지 않습니다.
@@ -70,7 +70,7 @@ failed는 현재 FAILED입니다. 승인 후 실패하면 approved와 failed에 
 V3 마이그레이션은 기존 ON_HOLD 행과 INSUFFICIENT_BUDGET 코드를 변환하고 상태 CHECK를 8개로 바꿉니다.
 적용된 V1/V2와 감사 이력은 수정하지 않습니다. 구 큐 결과·체크포인트는 Python 발행 및 Spring 수신 시 새 상태·코드로 정규화합니다.
 
-RAG 안내는 기존 계약의 `MANUAL_REVIEW / RAG_GUIDANCE`로 전달합니다. plan·verification_ok는 null이며
+RAG 안내 성공은 `DONE / result_type=GUIDANCE / reasonCode=RAG_GUIDANCE`로 전달합니다. plan·verification_ok는 null이며
 proposal에 안내문과 출처 ID를 담습니다. evidence에는 원문 청크와
 `{kind:"answer_citation",chunk_id,quote}` 인용 항목을 보존하고, 인용·내용 검증은 에이전트에서 수행합니다.
 검색 근거·생성 내용이 불충분해도 MANUAL_REVIEW로 처리하되 reasonCode로 구분합니다.
@@ -86,9 +86,29 @@ proposal에 안내문과 출처 ID를 담습니다. evidence에는 원문 청크
 `MANUAL_REVIEW / MODEL_UNAVAILABLE`, 기존 판정 유지 경로는 compose_response 진행 이벤트의
 `grounded=false`, `reason_code=MODEL_UNAVAILABLE`로 구분합니다.
 내부 handling=ANSWER는 답변 생성 경로를 뜻하며
-외부 상태의 완료를 뜻하지 않습니다. 화면 상태와 공개 이력은 기존 담당자 검토 안내로 표시됩니다.
-서버·DB 상태·HTTP 응답 형식·프론트는 변경하지 않습니다. 기존 proposal 표시를 사용하며,
-DONE에는 기존 권한 반영 검증이 필요합니다.
+외부 상태의 완료를 뜻하지 않습니다. 생성·검증을 통과해야 DONE / GUIDANCE가 됩니다.
+
+| status | result_type | 의미·검증 |
+|---|---|---|
+| DONE | GUIDANCE | 안내 제공 완료. 비어 있지 않은 proposal, plan·verification_ok=null |
+| DONE | ACCESS_VERIFIED | 실제 권한 확인 완료. verification_ok=true; EXECUTE 작업이면 실행 영수증 필수 |
+| 그 외 상태 | null | 진행·대기·거절·검토·실패. 사유는 reason_code(큐에서는 reasonCode)로 구분 |
+
+새 결과의 DONE에는 result_type이 필수입니다. 실행 작업은 GUIDANCE로 완료할 수 없습니다.
+V5는 기존 안내 성공 행을 DONE / GUIDANCE로, 기존 DONE을 ACCESS_VERIFIED로 변환합니다.
+원본 감사 이벤트는 수정하지 않습니다. 이전 큐·체크포인트에서 result_type 필드가 없는 경우에만
+유효한 구 안내 성공(본문 있음, 계획·검증 값 없음)과 verification_ok=true인 DONE을 정규화합니다.
+빈 안내 본문은 완료로 승격하지 않습니다. 서버를 V5와 함께 먼저 배포한 뒤 새 worker·프론트를 배포해야 합니다.
+구 worker 메시지는 새 서버가 수신할 수 있지만 새 GUIDANCE 메시지는 구 서버가 수신할 수 없습니다.
+
+### 승인 처리 책임
+
+기존 decision API의 입력·응답은 유지합니다. ApprovalDecisionService는 권한·자격을 검증하고 사람 결정을 기록합니다.
+ApprovedExecutionService는 저장된 요청을 다시 잠금 조회하고 ApprovalCompletionPolicy의 승인 완료 판정,
+지정 승인자·계획 해시·실행 키를 검사한 뒤 EXECUTING으로 전환하고 EXECUTE outbox를 저장합니다.
+두 서비스는 같은 트랜잭션을 사용하며 실행 서비스는 MANDATORY로 단독 트랜잭션 없는 호출을 막습니다.
+현재 필수 승인은 한 번입니다. Phase 2의 단계별 승인 저장·배정과 정책 확장은 별도 구현이며,
+이 리팩터링 자체가 다단계 승인을 제공하지는 않습니다.
 
 ## RabbitMQ
 
@@ -121,7 +141,7 @@ EXECUTE에는 서버가 기록한 idempotency_key와 plan_hash가 들어갑니�
 
 ```json
 {"event_id":"uuid","problem_id":"uuid","job_type":"ANALYZE","kind":"ANALYZED",
- "result":{"status":"WAITING_APPROVAL","reasonCode":"ELIGIBLE","summary":"승인이 필요합니다",
+ "result":{"status":"WAITING_APPROVAL","result_type":null,"reasonCode":"ELIGIBLE","summary":"승인이 필요합니다",
  "diagnosis":"현재 권한 부족","proposal":"Write 부여 제안","evidence":[],"nextAction":"승인 검토",
  "plan":{"problem_id":"uuid","requester_id":"uuid","platform":"GITHUB","resource_id":"uuid",
  "resource_key":"payment-core","requested_role":"Write"},"verification_ok":null,"agent_mode":"demo"}}

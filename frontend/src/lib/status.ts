@@ -12,11 +12,11 @@ export const STATUS: Record<Status, { label: string; tone: 'run'|'warn'|'review'
   FAILED:           { label: '실패',        tone: 'bad',  terminal: true },
 }
 
-type StatusContext = Pick<Problem, 'status' | 'reason_code' | 'proposal'>
+type StatusContext = Pick<Problem, 'status' | 'result_type'>
 
-/** 서버는 안내 성공도 MANUAL_REVIEW로 전달한다. 안내 본문까지 있어야 완료로 표시한다. */
+/** 완료 여부는 status, 완료 대상은 result_type으로 판단한다. */
 export function isGuidanceComplete(p: StatusContext): boolean {
-  return p.status === 'MANUAL_REVIEW' && p.reason_code === 'RAG_GUIDANCE' && !!p.proposal?.trim()
+  return p.status === 'DONE' && p.result_type === 'GUIDANCE'
 }
 
 export function statusOf(p: StatusContext) {
@@ -25,11 +25,10 @@ export function statusOf(p: StatusContext) {
 
 /**
  * 홈 · 내 요청의 묶음. 요청자 입장에서 나눈다.
- * 안내 성공은 '끝난 요청', 나머지 MANUAL_REVIEW는 '확인 대기'에 넣는다(표시만, 상태값은 그대로).
+ * DONE은 '끝난 요청', MANUAL_REVIEW는 '확인 대기'에 넣는다.
  */
 export type StatusGroup = 'progress'|'waiting'|'finished'
 export function groupOf(p: StatusContext): StatusGroup {
-  if (isGuidanceComplete(p)) return 'finished'
   const { status } = p
   if (status === 'WAITING_APPROVAL' || status === 'MANUAL_REVIEW') return 'waiting'
   return STATUS[status].terminal ? 'finished' : 'progress'
@@ -40,7 +39,6 @@ export function groupOf(p: StatusContext): StatusGroup {
  * 담당자가 처리하면 결과가 바뀌므로, 열려 있는 화면은 계속 확인한다(탭이 가려지면 쉰다).
  */
 export function needsRefresh(p: StatusContext) {
-  if (isGuidanceComplete(p)) return false
   const { status } = p
   return !STATUS[status].terminal || status === 'MANUAL_REVIEW'
 }

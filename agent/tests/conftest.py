@@ -42,7 +42,7 @@ class FakeTools:
 
     async def call(self,name,args):
         """도구 호출을 기록하고 외부 연결 없이 정해진 조회·부여 결과를 반환한다."""
-        from unlockops.models import ToolFailure
+        from unlockops.common.models import ToolFailure
         self.calls.append((name,deepcopy(args)))
         if name=="get_employee_profile": return deepcopy(self.profile)
         if name=="resolve_resource":

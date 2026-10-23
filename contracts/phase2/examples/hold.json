@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "status": "ON_HOLD",
+  "reason_code": "BUDGET_INSUFFICIENT",
+  "message": "접수됨",
+  "current_step": null,
+  "total_steps": 0,
+  "approval_steps": [],
+  "verification_ok": null,
+  "task_type": "ACCESS_REQUEST",
+  "problem_id": "d31f86ab-2b97-594d-9e4c-bde2e04444e6",
+  "result_type": null
+}
