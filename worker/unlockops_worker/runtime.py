@@ -1,6 +1,7 @@
 """Workflow routing and durable replay for access analysis, execution and reclaim."""
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
 from contextlib import AsyncExitStack
@@ -68,11 +69,20 @@ class LazyMCP:
 
     async def open(self):
         """Enter MCP cancel scopes in the same Worker task that will close them."""
-        if self.tools is None:
+        if self.tools is not None:
+            return
+        attempts = settings.max_execution_attempts
+        for attempt in range(attempts):
             try:
                 self.tools = await self.stack.enter_async_context(MCPTools())
+                return
+            except ToolFailure as error:
+                failure = error
             except Exception:
-                raise ToolFailure("MCP_UNAVAILABLE", "MCP connection could not be established", True) from None
+                failure = ToolFailure("MCP_UNAVAILABLE", "MCP connection could not be established", True)
+            if not failure.retryable or attempt + 1 == attempts:
+                raise failure from None
+            await asyncio.sleep(min(2 ** attempt, 2))
 
     async def call(self, name, arguments):
         await self.open()
@@ -93,12 +103,13 @@ async def run_job(job, saver, tools=None):
         if "result_event" in snapshot.values:
             return validate_event(snapshot.values["result_event"], job) if snapshot.values["result_event"] else None
         value = None if snapshot.values else {"job": serialized, "events": []}
+        # Open and close MCP/AnyIO scopes in this parent task. Exhausted
+        # connection retries propagate for delivery retry, without persisting
+        # WORKER_ERROR or replacing an existing graph checkpoint.
+        # Completed checkpoint replay above never opens a connection.
+        if isinstance(selected_tools, LazyMCP):
+            await selected_tools.open()
         try:
-            # Graph nodes run in child tasks. MCP/AnyIO scopes must be opened
-            # here, not lazily inside a node and closed in this parent task.
-            # Completed checkpoint replay above still needs no MCP connection.
-            if isinstance(selected_tools, LazyMCP):
-                await selected_tools.open()
             await graph.ainvoke(value, config)
         except (OSError, ConnectionError, sqlite3.Error):
             # Checkpoint storage failures must be redelivered, not converted into a durable business failure.
