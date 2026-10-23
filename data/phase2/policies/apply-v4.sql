@@ -5,13 +5,13 @@ LOCK TABLE policy_revisions, pricing_revisions, approval_route_revisions, reclai
 DO $v4$
 BEGIN
   IF NOT EXISTS(SELECT 1 FROM companies WHERE id='26c56ede-d5bd-5fad-8591-d729af9eaee9' AND code='P2_A' AND is_mock)
-    OR NOT EXISTS(SELECT 1 FROM policy_revisions WHERE policy_id='0673ccd9-4e9b-5e92-bb81-28b949ef5224' AND revision=2 AND source_hash='42af1572e3d8f7145658781b8fd4610a5307c51fa245e17ee3c9ba995a270f26')
+    OR NOT EXISTS(SELECT 1 FROM policy_revisions WHERE policy_id='0673ccd9-4e9b-5e92-bb81-28b949ef5224' AND revision=2 AND source_hash='a5289c99e3c86403805c38866171b145e6f075d4470d4e2276276cdf39ff6d21')
     OR EXISTS(SELECT 1 FROM policy_revisions WHERE company_id='26c56ede-d5bd-5fad-8591-d729af9eaee9' AND (policy_id<>'0673ccd9-4e9b-5e92-bb81-28b949ef5224' OR revision>3)) THEN
     RAISE EXCEPTION 'Unexpected source policy: import revision 2 before scenario v4';
   END IF;
   INSERT INTO policy_revisions(policy_id,revision,company_id,doc_id,article,source_path,source_hash,content,is_mock)
     VALUES('0673ccd9-4e9b-5e92-bb81-28b949ef5224',3,'26c56ede-d5bd-5fad-8591-d729af9eaee9','P2-A-POLICY','POL-01~14 / OFF / FLOW',
-      'data/phase2/policies/company-a-policy-v3.md','754b11c4159efe7995c22c362dae1c7418e60c14ba764a3f352fd1cec46c17bc','# A사 Phase 2 정책 묶음 · revision 3
+      'data/phase2/policies/company-a-policy-v3.md','7be11f2bdb27b12cfa3f4b405871a37e526787f85a2c6ce18ffe8cf2b72a1ec3','# A사 Phase 2 정책 묶음 · revision 3
 
 수신 원문: data/phase2/policies/policy_corpus.md
 원문 SHA-256: 5e1a78226662b90b9dfb10865bfde4d67a1eb6274b654bf25308c3bf594c1912
@@ -33,7 +33,7 @@ v4 Figma 시연 단가는 Professional Full 월 16.00 USD입니다. 잔여 예�
 ## FLOW | COMMON | 3 | A사 승인 경로
 
 부서장 → SaaS 담당자. 사람의 순차 승인이 모두 끝나야 실행할 수 있습니다.
-담당자는 회사·부서·플랫폼의 서버 매핑으로 확인합니다. 
+담당자는 회사·부서·플랫폼의 서버 매핑으로 확인합니다.
 본인 승인과 승인자 추측을 금지합니다. 보류 후 재개하면 새 회차에서 다시 승인받습니다.
 
 ## BASELINE | COMMON | 3 | 회수 점검의 구현 기준
@@ -728,7 +728,7 @@ Figma 좌석은 Full, Dev, Collab, View 네 가지이다. Full 좌석은 Figma D
 - 이 문서는 원문을 우리 말로 요약·재작성한 것이다. 최신 내용은 원문 링크를 확인한다.
 ',true)
     ON CONFLICT(policy_id,revision) DO NOTHING;
-  IF NOT EXISTS(SELECT 1 FROM policy_revisions WHERE policy_id='0673ccd9-4e9b-5e92-bb81-28b949ef5224' AND revision=3 AND source_hash='754b11c4159efe7995c22c362dae1c7418e60c14ba764a3f352fd1cec46c17bc' AND content='# A사 Phase 2 정책 묶음 · revision 3
+  IF NOT EXISTS(SELECT 1 FROM policy_revisions WHERE policy_id='0673ccd9-4e9b-5e92-bb81-28b949ef5224' AND revision=3 AND source_hash='7be11f2bdb27b12cfa3f4b405871a37e526787f85a2c6ce18ffe8cf2b72a1ec3' AND content='# A사 Phase 2 정책 묶음 · revision 3
 
 수신 원문: data/phase2/policies/policy_corpus.md
 원문 SHA-256: 5e1a78226662b90b9dfb10865bfde4d67a1eb6274b654bf25308c3bf594c1912
@@ -750,7 +750,7 @@ v4 Figma 시연 단가는 Professional Full 월 16.00 USD입니다. 잔여 예�
 ## FLOW | COMMON | 3 | A사 승인 경로
 
 부서장 → SaaS 담당자. 사람의 순차 승인이 모두 끝나야 실행할 수 있습니다.
-담당자는 회사·부서·플랫폼의 서버 매핑으로 확인합니다. 
+담당자는 회사·부서·플랫폼의 서버 매핑으로 확인합니다.
 본인 승인과 승인자 추측을 금지합니다. 보류 후 재개하면 새 회차에서 다시 승인받습니다.
 
 ## BASELINE | COMMON | 3 | 회수 점검의 구현 기준

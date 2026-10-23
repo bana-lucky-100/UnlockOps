@@ -51,7 +51,7 @@ def company_bundle(company, documents, source_hash):
 ## FLOW | COMMON | 2 | {company}사 승인 경로
 
 {flow}. 사람의 순차 승인이 모두 끝나야 실행할 수 있습니다.
-담당자는 회사·부서·플랫폼의 서버 매핑으로 확인합니다. {'Figma 단계는 지정 Figma 담당자입니다.' if company == 'B' else ''}
+담당자는 회사·부서·플랫폼의 서버 매핑으로 확인합니다.{' Figma 단계는 지정 Figma 담당자입니다.' if company == 'B' else ''}
 본인 승인과 승인자 추측을 금지합니다. 보류 후 재개하면 새 회차에서 다시 승인받습니다.
 
 ## BASELINE | COMMON | 2 | 회수 점검의 구현 기준
