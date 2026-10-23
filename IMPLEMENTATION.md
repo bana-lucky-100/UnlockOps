@@ -786,3 +786,17 @@ R-04의 '이미 전달한 알림' 시드는 후보와 알림만 준비하고 당
 - 로컬 결과: `test-results/phase2/213c94e9-07b9-43cf-adc7-7d330e192638/report.json`, `existing-seed-repair.json`. 검증은 별도 UUID 스택에서 실행했으며 사용자 실행 중 DB에는 적용하지 않았다. 실제 SaaS·실제 모델 호출·브라우저 클릭은 미검증이다.
 
 기존 시연 DB 적용은 수정 seed 재적용 또는 `DEMO_SEED_PATH`를 사용하는 백엔드 재시작으로 수행한다. 정책 revision 3을 이전 revision으로 되돌릴 필요가 없다. 절차는 `data/phase2/README.md`에 기록했다. 전체 회수 조회 구조 개선과 기존 미해결 CR-03 등은 별도 작업으로 유지한다.
+
+## 권한 추가와 라이선스 비용 분리 — 2026-10-23
+
+앞선 E-02 조건 보강은 기존 잘못된 비용 가정을 보존한 평가 개선이었다. 이번 변경은 실제 서버의 비용 판단과 실행 예산 반영을 수정한다.
+
+- `AccessCosting`을 추가했다. 가격표의 참고 단가와 이번 요청의 예산 반영액을 분리하고 PERMISSION_ONLY / PURCHASE_SEAT / USAGE_ALLOCATION으로 판단한다. 기존 라이선스가 확인된 Notion・Tableau 권한 추가는 단가 20/70이어도 0원을 계획한다. 모호한 ROLE+SEAT_MONTHLY를 좌석 구매로 해석하지 않는다.
+- V10은 immutable 정책・권한에 연결된 `access_cost_rules`, 회사・사용자・플랫폼・조직 범위・라이선스 코드별 `saas_license_facts`를 추가한다. 관측 누락・UNKNOWN・만료・미래 시각은 수동 검토다. 권한만 요청했는데 라이선스가 없으면 자동 구매하지 않는다. 좌석 미보유와 신규 구매 필요까지 확인돼야 단가를 적용한다. 미배정 좌석・업그레이드・일할 청구 자동 계산은 지원하지 않는다.
+- 승인 단계와 최종 실행은 계산된 예산 반영액을 사용한다. 실행은 예산・라이선스 사실을 잠그고 최신 계획을 비교한다. 모의 좌석 확보 시 라이선스 관측도 같은 트랜잭션에서 COVERED로 갱신하며 멱등 영수증을 유지한다. 실제 SaaS 결제를 호출하지 않는다.
+- `review_facts.cost_assessment`와 Python 도구 계약・보고서 지침을 보강했다. 참고 단가・이번 추가 비용・내부 예산 배정과 관측 범위를 설명한다. 사용량 예산은 실제 청구액과 구분한다. 공개 상태・사유・계획 계약은 유지한다.
+- 수신 corpus와 배포된 정책 revision 1~3은 보존했다. `scripts/align_access_costs.py`가 회사 정책・가격・승인 경로・회수 규칙 revision 4 및 명시적인 비용 규칙・합성 라이선스 사실을 생성한다. DemoSeed는 누락된 revision 4를 자동 준비하며 현재 예산・기존 관측을 초기화하지 않는다.
+- 현재 평가 원본은 `scenarios-current.json`이다. E-02는 기존 Notion 멤버의 편집 권한 추가(0원), P-05는 기존 Explorer의 프로젝트 권한 추가(0원)로 수정했다. 예산 부족은 Copilot 신규 구매 19 > 잔여 10의 BUDGET-INSUFFICIENT로 분리했다. full 33건・smoke 9건이며 재사용 사례는 가격을 0으로 조작하지 않고 조직 범위 라이선스 보유를 준비한다. 원래 v4는 비교 자료로 남긴다.
+- 검증: Java `mvn -o ... test` **49 tests passed** (Mockito JVM 시작 agent 사용). 실제 planner의 8조건에는 참고 단가 20/70・예산 10・라이선스 보유 시 승인 대기와 plan 0원이 포함된다. Python Agent/MCP/live 검사 **232 passed, 1 skipped**, 평가 준비 오프라인 **6 tests passed**. 업무/HTTP 계약・정책 import・v4 및 비용 생성물 검사와 diff 공백 검사 통과. full 33건・smoke 9건 준비 확인.
+- `AccessCostsIT`에 V10・policy revision 4 import/reapply, Notion/Tableau 승인 후 0원 실행, Copilot 예산 보류와 신규 구매 후 19달러 단일 차감・관측 갱신 검증을 추가했다. 테스트 소스는 컴파일됐으나 Docker 소켓 접근 거부로 실제 PostgreSQL/전체 HTTP 통합 실행은 미검증이다. Docker가 허용되는 환경에서 `cd backend && mvn verify -Pregression -Dit.test=AccessCostsIT` 또는 격리 smoke/full로 확인한다.
+- 실행 중 DB에는 아직 적용하지 않았다. 새 backend/agent 이미지를 함께 빌드・기동해야 V10과 demo revision 4가 준비된다. 기존 승인 계획이 바뀐 비용 기준과 다르면 재분석・재승인이 필요하다.

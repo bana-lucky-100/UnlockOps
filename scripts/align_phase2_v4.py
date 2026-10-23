@@ -104,6 +104,16 @@ END $v4$;''')
     cases=[]
     for original in catalog['scenarios']:
         case={**original,'input_text':prompts.get(original['id'],''),'expected_evidence':evidence.get(original['id'],[])}
+        if case['id']=='E-02':
+            # These are fixture requirements, not facts inferred from the request text.
+            case['preconditions']={
+                'entitlement_code':'EDITOR','entitlement_kind':'ROLE','access_scope':'TF',
+                'monthly_amount':'20.00','currency':'USD','cost_basis':'SEAT_MONTHLY',
+                'remaining_budget':'10.00','policy_revision':3,'pricing_revision':3,
+                'source_kind':'PUBLIC_LIST_PRICE','tf_member':True,'account_exists':True,
+                'license_active':True,'work_scope_assigned':True,'already_assigned':False,
+            }
+            case['decision_rule']='BUDGET_EXCEEDED'
         if case['id'].startswith('R-') and case['id']!='R-04':case['expected_evidence']=[['POL-06','제5조']]
         cases.append(case)
     files[ROOT/'data/phase2/scenarios-v4.json']=json.dumps({'scenario_version':'v4','policy_revision':3,'figma_monthly_amount':'16.00','scenarios':cases},ensure_ascii=False,indent=2)+'\n'

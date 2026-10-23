@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 UUID_RE = re.compile(r"\b[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\b")
 LITERAL = re.compile(r"'((?:''|[^'])*)'", re.S)
 BASE = datetime.fromisoformat("2026-10-22T09:00:00+09:00")
-SMOKE = {"E-01", "E-02", "E-04", "B-02", "R-01", "R-04", "X-10", "X-08b-USAGE"}
+SMOKE = {"E-01", "E-02", "E-04", "B-02", "R-01", "R-04", "X-10", "X-08b-USAGE", "BUDGET-INSUFFICIENT"}
 EXTRA = [
     {"id": "X-08", "company": "A", "platform": "GITHUB", "expected_status": "DONE", "expected_reason_code": "NO_NEW_CANDIDATES", "overrides": {}, "reclaim_fixture": "R-02"},
     {"id": "X-12", "company": "A", "platform": "GITHUB", "expected_status": "WAITING_APPROVAL", "expected_reason_code": "ELIGIBLE", "overrides": {}, "input_text": "GitHub Copilot 좌석과 Jira 프로젝트 권한을 한 번에 신청합니다."},
@@ -37,11 +37,36 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
     shift = now.date() - BASE.date()
     catalog = json.loads((ROOT / "data/phase2/catalog.json").read_text())
     seed = (ROOT / "data/phase2/seed.sql").read_text()
-    v4 = json.loads((ROOT / 'data/phase2/scenarios-v4.json').read_text())
+    v4 = json.loads((ROOT / 'data/phase2/scenarios-current.json').read_text())
     for item in catalog['catalog']:
         if item['platform'] == 'FIGMA': item['monthly_amount'] = v4['figma_monthly_amount']
-    imports = [(ROOT / 'data/phase2/policies' / name).read_text() for name in ('apply.sql', 'apply-v4.sql')]
-    definitions = v4['scenarios'] + EXTRA
+        if item['platform'] in {'NOTION', 'TABLEAU_CLOUD'}: item['monthly_amount'] = '0.00'
+    imports = [(ROOT / 'data/phase2/policies' / name).read_text() for name in ('apply.sql', 'apply-v4.sql', 'apply-costs.sql')]
+    # Budget holds belong to an actual seat purchase, not a licensed page edit.
+    seat_case = next(s for s in v4['scenarios'] if s['id'] == 'E-01')
+    conditions = {
+        'entitlement_code': 'COPILOT_SEAT', 'entitlement_kind': 'SEAT', 'access_scope': 'SEAT',
+        'monthly_amount': '19.00', 'unit_monthly_amount': '19.00', 'currency': 'USD',
+        'cost_basis': 'SEAT_MONTHLY', 'remaining_budget': '10.00', 'policy_revision': 4,
+        'pricing_revision': 4, 'source_kind': 'PUBLIC_LIST_PRICE', 'tf_member': False,
+        'account_exists': True, 'license_active': True, 'work_scope_assigned': True,
+        'already_assigned': False, 'operation': 'PURCHASE_SEAT', 'license_coverage': 'NOT_COVERED',
+    }
+    boundaries = []
+    for case_id, budget in [('BUDGET-INSUFFICIENT', '10.00'), ('BUDGET-EQUAL', '19.00'), ('BUDGET-ABOVE', '30.00'), ('BUDGET-FREE', '10.00')]:
+        free = case_id == 'BUDGET-FREE'
+        hold = case_id == 'BUDGET-INSUFFICIENT'
+        required = {**conditions, 'remaining_budget': budget}
+        overrides = {'budget': budget}
+        if free:
+            required.update(monthly_amount='0.00', cost_basis='NO_ADDITIONAL_COST', license_coverage='COVERED')
+            overrides['license_coverage'] = 'COVERED'
+        boundaries.append({**seat_case, 'id': case_id, 'overrides': overrides, 'preconditions': required,
+                           'decision_rule': 'BUDGET_EXCEEDED' if hold else 'NO_ADDITIONAL_COST' if free else 'BUDGET_SUFFICIENT',
+                           'expected_evidence': [['POL-06', '제2조']],
+                           'expected_status': 'ON_HOLD' if hold else 'WAITING_APPROVAL',
+                           'expected_reason_code': 'BUDGET_INSUFFICIENT' if hold else 'ELIGIBLE'})
+    definitions = v4['scenarios'] + EXTRA + boundaries
     if suite == "smoke":
         definitions = [s for s in definitions if s["id"] in SMOKE]
     elif suite != "full":
@@ -104,10 +129,12 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
             statements.append(f"UPDATE tf_members SET active=false WHERE user_id={quote(requester)} AND tf_id={quote(company['active_tf_id'])};")
         if overrides.get("already_assigned"):
             statements.append("INSERT INTO access_assignments(id,company_id,user_id,resource_id,entitlement_id,entitlement_revision,granted_at) VALUES(" + ",".join(quote(x) for x in [str(uuid5(case_namespace, "existing")), co, requester, item["resource_id"], item["entitlement_id"]]) + ",1,now());")
+        if overrides.get('license_coverage'):
+            statements.append(f"UPDATE saas_license_facts SET coverage={quote(overrides['license_coverage'])},purchase_required=false WHERE company_id={quote(co)} AND user_id={quote(requester)} AND platform={quote(scenario['platform'])};")
         if scenario["id"] == "X-08b-COST":
             # Two simultaneous price families are ambiguous: UNKNOWN, never 0.00.
             columns = "revision,company_id,entitlement_id,entitlement_revision,monthly_amount,currency,cost_basis,source_kind,source_reference,effective_from,effective_until,policy_id,policy_revision"
-            statements.append(f"INSERT INTO pricing_revisions(pricing_id,{columns}) SELECT {quote(uuid5(case_namespace, 'ambiguous-price'))},{columns} FROM pricing_revisions WHERE pricing_id={quote(item['pricing_id'])} AND revision=3;")
+            statements.append(f"INSERT INTO pricing_revisions(pricing_id,{columns}) SELECT {quote(uuid5(case_namespace, 'ambiguous-price'))},{columns} FROM pricing_revisions WHERE pricing_id={quote(item['pricing_id'])} AND revision=4;")
         if scenario["id"] == "X-06":
             # The only mapped operator has left: the route cannot name an approver, so no one is guessed.
             statements.append(f"UPDATE users SET employment_status='LEFT' WHERE id={quote(company['users']['operator'])};")
@@ -115,7 +142,7 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
             content = "정책 원문을 확인할 수 없습니다."
             digest = hashlib.sha256(content.encode()).hexdigest()
             # A new, unusable source revision exercises missing evidence without deleting immutable history.
-            statements.append(f"INSERT INTO policy_revisions(policy_id,revision,company_id,doc_id,article,source_path,source_hash,content,is_mock) SELECT policy_id,4,company_id,doc_id,article,source_path,{quote(digest)},{quote(content)},true FROM policy_revisions WHERE policy_id={quote(company['policy_id'])} AND revision=3;")
+            statements.append(f"INSERT INTO policy_revisions(policy_id,revision,company_id,doc_id,article,source_path,source_hash,content,is_mock) SELECT policy_id,5,company_id,doc_id,article,source_path,{quote(digest)},{quote(content)},true FROM policy_revisions WHERE policy_id={quote(company['policy_id'])} AND revision=4;")
         body = {"schema_version": 2, "platform": scenario["platform"], "contents": scenario.get("input_text") or f"{scenario['platform']} 업무 권한을 신청합니다.", "resource_id": item["resource_id"]}
         if scenario["id"] == "B-02":
             body.update(contents=scenario["input_text"], resource_id=overrides["resource_id"])
@@ -128,7 +155,8 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
             companies=mapped["companies"], company_data=company, input=body,
             login_prefix=f"p2_{tag}_{scenario['company'].lower()}_",
             other_login=f"p2_{tag}_{'b' if scenario['company']=='A' else 'a'}_it_head",
-            initial_budget=budget, monthly_amount="0.00" if scenario["id"] == "B-02" else item["monthly_amount"],
+            initial_budget=budget, monthly_amount="0.00" if scenario["id"] == "B-02" else '0.00' if overrides.get('license_coverage') == 'COVERED' else item["monthly_amount"],
+            fixture_entitlement_id=overrides.get('entitlement_id', item['entitlement_id']),
             scope_id=fixture["scope_id"] if fixture else None,
             expected_assignments=[f["assignment_id"] for key, f in mapped["reclaim_fixtures"].items() if fixture and f["scope_id"] == fixture["scope_id"]],
         )

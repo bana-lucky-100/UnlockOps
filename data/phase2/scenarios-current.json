@@ -1,0 +1,434 @@
+{
+  "scenario_version": "v4",
+  "policy_revision": 4,
+  "figma_monthly_amount": "16.00",
+  "scenarios": [
+    {
+      "id": "E-01",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {},
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "개발 업무에 필요한 GitHub Copilot 좌석을 신청합니다.",
+      "expected_evidence": [
+        [
+          "POL-06",
+          "제1조"
+        ],
+        [
+          "POL-06",
+          "제2조"
+        ],
+        [
+          "GH-OFF-03"
+        ]
+      ]
+    },
+    {
+      "id": "E-02",
+      "company": "A",
+      "platform": "NOTION",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {
+        "budget": "10.00"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "결제 개편 TF의 Notion Business 문서 편집 권한을 신청합니다.",
+      "expected_evidence": [
+        [
+          "POL-06",
+          "제2조"
+        ],
+        [
+          "POL-08",
+          "제3조"
+        ]
+      ],
+      "preconditions": {
+        "entitlement_code": "EDITOR",
+        "entitlement_kind": "ROLE",
+        "access_scope": "TF",
+        "monthly_amount": "0.00",
+        "currency": "USD",
+        "cost_basis": "NO_ADDITIONAL_COST",
+        "remaining_budget": "10.00",
+        "policy_revision": 4,
+        "pricing_revision": 4,
+        "source_kind": "PUBLIC_LIST_PRICE",
+        "tf_member": true,
+        "account_exists": true,
+        "license_active": true,
+        "work_scope_assigned": true,
+        "already_assigned": false,
+        "unit_monthly_amount": "20.00",
+        "operation": "PERMISSION_ONLY",
+        "license_coverage": "COVERED"
+      },
+      "decision_rule": "NO_ADDITIONAL_COST"
+    },
+    {
+      "id": "E-03",
+      "company": "A",
+      "platform": "SLACK",
+      "expected_status": "DONE",
+      "expected_reason_code": "ALREADY_HAS_ACCESS",
+      "overrides": {
+        "already_assigned": true
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "Slack 대상 채널 참여 권한을 신청합니다.",
+      "expected_evidence": [
+        [
+          "POL-06",
+          "제4조"
+        ]
+      ]
+    },
+    {
+      "id": "E-04",
+      "company": "A",
+      "platform": "JIRA",
+      "expected_status": "REJECTED",
+      "expected_reason_code": "HUMAN_REJECTED",
+      "overrides": {
+        "reject_step": 1
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "Jira PAY 프로젝트 작업 권한을 신청합니다.",
+      "expected_evidence": []
+    },
+    {
+      "id": "E-05",
+      "company": "A",
+      "platform": "NOTION",
+      "expected_status": "REJECTED",
+      "expected_reason_code": "HUMAN_REJECTED",
+      "overrides": {
+        "reject_step": 2
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "결제 개편 TF의 Notion 문서 편집 권한을 신청합니다.",
+      "expected_evidence": []
+    },
+    {
+      "id": "P-01",
+      "company": "A",
+      "platform": "SNOWFLAKE",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {},
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "추천 모델 분석용 Snowflake 웨어하우스 USAGE 권한이 필요합니다.",
+      "expected_evidence": [
+        [
+          "POL-09",
+          "제2조"
+        ],
+        [
+          "SN-OFF-01"
+        ]
+      ]
+    },
+    {
+      "id": "P-02",
+      "company": "A",
+      "platform": "DATABRICKS",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {
+        "budget": "300.00"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "Databricks 추천 모델 프로젝트의 노트북 편집 권한과 지정 작업 실행 권한을 신청합니다.",
+      "expected_evidence": [
+        [
+          "POL-10",
+          "제2조"
+        ],
+        [
+          "DB-OFF-01"
+        ]
+      ]
+    },
+    {
+      "id": "P-03",
+      "company": "A",
+      "platform": "SALESFORCE",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {},
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "Salesforce 담당 고객과 영업 기회 조회 및 수정 권한을 신청합니다.",
+      "expected_evidence": [
+        [
+          "POL-11",
+          "제2조"
+        ],
+        [
+          "SF-OFF-01"
+        ]
+      ]
+    },
+    {
+      "id": "P-04",
+      "company": "A",
+      "platform": "DATADOG",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {},
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "Datadog 결제 서비스 로그와 대시보드 조회 권한을 신청합니다.",
+      "expected_evidence": [
+        [
+          "POL-12",
+          "제2조"
+        ],
+        [
+          "DD-OFF-01"
+        ]
+      ]
+    },
+    {
+      "id": "P-05",
+      "company": "A",
+      "platform": "TABLEAU_CLOUD",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {
+        "budget": "200.00"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "Tableau Cloud 매출 프로젝트 대시보드 편집 권한과 게시 권한을 신청합니다.",
+      "expected_evidence": [
+        [
+          "POL-13",
+          "제2조"
+        ],
+        [
+          "TB-OFF-01"
+        ]
+      ],
+      "preconditions": {
+        "entitlement_code": "PROJECT_PUBLISHER",
+        "entitlement_kind": "ROLE",
+        "access_scope": "GENERAL",
+        "monthly_amount": "0.00",
+        "currency": "USD",
+        "cost_basis": "NO_ADDITIONAL_COST",
+        "remaining_budget": "200.00",
+        "policy_revision": 4,
+        "pricing_revision": 4,
+        "source_kind": "PUBLIC_LIST_PRICE",
+        "tf_member": false,
+        "account_exists": true,
+        "license_active": true,
+        "work_scope_assigned": true,
+        "already_assigned": false,
+        "unit_monthly_amount": "70.00",
+        "operation": "PERMISSION_ONLY",
+        "license_coverage": "COVERED"
+      }
+    },
+    {
+      "id": "P-06",
+      "company": "B",
+      "platform": "FIGMA",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {},
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "Figma 결제 개편 TF 파일 편집 권한과 Full 좌석을 신청합니다.",
+      "expected_evidence": [
+        [
+          "POL-14",
+          "제2조"
+        ],
+        [
+          "FG-OFF-01"
+        ]
+      ]
+    },
+    {
+      "id": "B-01",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "REJECTED",
+      "expected_reason_code": "POLICY_NOT_ELIGIBLE",
+      "overrides": {
+        "job_family": "NON_DEV"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "GitHub Copilot 좌석을 신청합니다.",
+      "expected_evidence": [
+        [
+          "POL-06",
+          "제1조"
+        ]
+      ]
+    },
+    {
+      "id": "B-02",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "LEAST_PRIVILEGE_PROPOSED",
+      "overrides": {
+        "requested": "Admin",
+        "proposed": "Read",
+        "resource_kind": "REPOSITORY",
+        "resource_id": "a7dc201e-eeec-5d0b-ba35-adaa8638cd51",
+        "entitlement_id": "017d9d6f-114b-5b29-8374-8744da916273"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "GitHub 결제 개편 TF 저장소 Admin 권한을 신청하지만 목적은 코드 열람뿐입니다.",
+      "expected_evidence": [
+        [
+          "POL-01",
+          "제2조"
+        ],
+        [
+          "POL-03",
+          "제4조"
+        ],
+        [
+          "POL-07",
+          "제1조"
+        ]
+      ]
+    },
+    {
+      "id": "B-03",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "MANUAL_REVIEW",
+      "expected_reason_code": "MISSING_SOURCE_EVIDENCE",
+      "overrides": {
+        "policy_missing": true
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "GitHub Copilot 사용에 필요한 권한을 신청합니다.",
+      "expected_evidence": []
+    },
+    {
+      "id": "B-04",
+      "company": "A",
+      "platform": "SLACK",
+      "expected_status": "REJECTED",
+      "expected_reason_code": "NOT_TF_MEMBER",
+      "overrides": {
+        "membership": false
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "결제 개편 TF 비공개 Slack 채널 참여 권한을 신청합니다.",
+      "expected_evidence": []
+    },
+    {
+      "id": "B-05",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "MANUAL_REVIEW",
+      "expected_reason_code": "OUT_OF_SCOPE",
+      "overrides": {
+        "request": "DB 배포 권한"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "DB 배포 권한을 신청합니다.",
+      "expected_evidence": []
+    },
+    {
+      "id": "R-01",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "DONE",
+      "expected_reason_code": "SCAN_COMPLETED",
+      "overrides": {
+        "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+        "scope_id": "0d912540-be76-5d6e-b547-070c89b1e15f"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "",
+      "expected_evidence": [
+        [
+          "POL-06",
+          "제5조"
+        ]
+      ]
+    },
+    {
+      "id": "R-02",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "DONE",
+      "expected_reason_code": "NO_NEW_CANDIDATES",
+      "overrides": {
+        "assignment_id": "04dcc52b-5749-5c30-8fae-4d628056fb2c",
+        "scope_id": "3a42ac8a-1965-5fda-b51c-d0b69a928ac6"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "",
+      "expected_evidence": [
+        [
+          "POL-06",
+          "제5조"
+        ]
+      ]
+    },
+    {
+      "id": "R-03",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "DONE",
+      "expected_reason_code": "NO_NEW_CANDIDATES",
+      "overrides": {
+        "assignment_id": "5163ef58-4dbb-5cdc-a9cd-eb918a60b714",
+        "scope_id": "647fdcdf-0b99-5826-962b-3d89f8df5ef6"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "",
+      "expected_evidence": [
+        [
+          "POL-06",
+          "제5조"
+        ]
+      ]
+    },
+    {
+      "id": "R-04",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "DONE",
+      "expected_reason_code": "NO_NEW_CANDIDATES",
+      "overrides": {
+        "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237",
+        "scope_id": "0780aaec-c4a9-5a11-bbae-2a6218a58a1e"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN",
+      "input_text": "",
+      "expected_evidence": []
+    }
+  ],
+  "cost_model_version": 1
+}

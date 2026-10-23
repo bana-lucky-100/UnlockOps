@@ -16,7 +16,8 @@ public class AccessPlanningService {
     public AccessPlanningService(WorkflowStore db) { this.db=db; }
     /** Read-only reporting facts. They never participate in approval or execution authorization. */
     public record ReviewFacts(String checked_at,String resource_name,String entitlement_code,String entitlement_kind,
-        String access_scope,Boolean tf_member,String monthly_amount,String currency,String remaining_budget,String price_source_kind) {}
+        String access_scope,Boolean tf_member,String monthly_amount,String currency,String remaining_budget,String price_source_kind,
+        AccessCosting.Facts cost_assessment) {}
     public record Assessment(Status status,String reason,String message,GrantPlanV2 plan,List<PolicyEvidence> evidence,ReviewFacts review_facts) {
         public Assessment(Status status,String reason,String message,GrantPlanV2 plan,List<PolicyEvidence> evidence) {
             this(status,reason,message,plan,evidence,null);
@@ -110,13 +111,15 @@ public class AccessPlanningService {
         if(db.exists("SELECT EXISTS(SELECT 1 FROM access_assignments WHERE user_id=? AND entitlement_id=? AND status='ACTIVE')",requester,entitlementId))
             return "SEAT".equals(str(ent,"kind")) ? stop(Status.REJECTED,"DUPLICATE_SEAT","이미 좌석을 보유하고 있습니다.") :
                 stop(Status.DONE,"ALREADY_HAS_ACCESS","조회 결과 필요한 권한을 이미 보유하고 있습니다.");
+        var cost=AccessCosting.assess(db,p,ent,price,policy);
+        if(!cost.known()) return stop(Status.MANUAL_REVIEW,cost.reason(),cost.message());
         var routes=db.rows("SELECT to_jsonb(r) FROM approval_route_revisions r WHERE company_id=? AND code='DEFAULT' ORDER BY revision DESC",company);
         if(routes.isEmpty()) return stop(Status.MANUAL_REVIEW,"APPROVER_UNAVAILABLE","승인 경로가 없습니다.");
         var route=routes.getFirst();
         if(routes.stream().anyMatch(x->!uuid(x,"route_id").equals(uuid(route,"route_id"))) || !uuid(route,"policy_id").equals(uuid(policy,"policy_id")) || route.path("policy_revision").intValue()!=policy.path("revision").intValue())
             return stop(Status.MANUAL_REVIEW,"MISSING_SOURCE_EVIDENCE","정책과 승인 경로 버전이 다릅니다.");
         var roles=new ArrayList<String>();route.path("steps").forEach(x->roles.add(x.asText()));
-        BigDecimal amount=price.path("monthly_amount").decimalValue();
+        BigDecimal amount=new BigDecimal(cost.facts().budget_monthly_amount());
         if(!route.path("extra_step_threshold").isNull()) {
             if(!str(price,"currency").equals(str(route,"currency"))) return stop(Status.MANUAL_REVIEW,"BUDGET_UNAVAILABLE","승인 기준 통화와 가격 통화가 다릅니다.");
             if(amount.compareTo(route.path("extra_step_threshold").decimalValue())>=0) roles.add("IT_HEAD");
@@ -138,10 +141,10 @@ public class AccessPlanningService {
         var remaining=budgets.getFirst().path("remaining_monthly_amount").decimalValue();
         var reviewFacts=new ReviewFacts(OffsetDateTime.now(ZoneId.of("Asia/Seoul")).toString(),str(ent,"resource_name"),
             str(ent,"code"),str(ent,"kind"),str(ent,"access_scope"),"TF".equals(str(ent,"access_scope"))?true:null,
-            amount.setScale(2).toPlainString(),str(price,"currency"),remaining.setScale(2).toPlainString(),str(price,"source_kind"));
+            amount.setScale(2).toPlainString(),str(price,"currency"),remaining.setScale(2).toPlainString(),str(price,"source_kind"),cost.facts());
         if(remaining.compareTo(amount)<0)
             return new Assessment(Status.ON_HOLD,"BUDGET_INSUFFICIENT","잔여 예산이 부족하여 보류되었습니다.",null,List.of(),reviewFacts);
-        var plan=db.checked(new GrantPlanV2(2,str(p,"id"),company.toString(),requester.toString(),Platform.valueOf(platform),str(ent,"resource_id"),entitlementId.toString(),ent.path("revision").intValue(),str(price,"pricing_id"),price.path("revision").intValue(),amount.setScale(2).toPlainString(),str(price,"currency"),str(price,"cost_basis"),str(policy,"policy_id"),policy.path("revision").intValue(),str(route,"route_id"),route.path("revision").intValue(),approvers),GrantPlanV2.class);
+        var plan=db.checked(new GrantPlanV2(2,str(p,"id"),company.toString(),requester.toString(),Platform.valueOf(platform),str(ent,"resource_id"),entitlementId.toString(),ent.path("revision").intValue(),str(price,"pricing_id"),price.path("revision").intValue(),amount.setScale(2).toPlainString(),str(price,"currency"),cost.facts().cost_basis(),str(policy,"policy_id"),policy.path("revision").intValue(),str(route,"route_id"),route.path("revision").intValue(),approvers),GrantPlanV2.class);
         var evidence=List.of(new PolicyEvidence(str(policy,"doc_id"),str(policy,"article"),str(policy,"revision"),str(policy,"source_hash"),str(policy,"content")));
         return new Assessment(Status.WAITING_APPROVAL,"ELIGIBLE","정책·직무·예산을 확인했습니다. 예상 예산 영향은 "+remaining.setScale(2).toPlainString()+" → "+remaining.subtract(amount).setScale(2).toPlainString()+" "+str(price,"currency")+"입니다. 순서대로 승인을 기다립니다.",plan,evidence,reviewFacts);
     }

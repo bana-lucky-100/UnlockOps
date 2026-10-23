@@ -43,7 +43,13 @@ class AccessPlanningReviewTest {
         route.putArray("steps").add("DEPARTMENT_HEAD").add("SAAS_OPERATOR");
         var problem=(ObjectNode)plan.deepCopy();
         problem.put("id",plan.path("problem_id").asText());
-        for(int remaining:List.of(150,10)) {
+        // Explicit decisions cover insufficient, exact, surplus and zero added cost.
+        for(var vector:List.of(new int[]{120,150,1},new int[]{120,10,0},new int[]{20,10,0},
+                new int[]{20,20,1},new int[]{20,30,1},new int[]{0,10,1},new int[]{20,10,1,1},new int[]{70,10,1,1})) {
+            int amount=vector[0],remaining=vector[1];boolean waiting=vector[2]==1;
+            boolean coveredPermission=vector.length==4;
+            int budgetAmount=coveredPermission?0:amount;
+            price.put("monthly_amount",amount).put("cost_basis",coveredPermission?"SEAT_MONTHLY":amount==0?"NO_ADDITIONAL_COST":"USAGE_ESTIMATE");
             var jdbc=mock(JdbcTemplate.class);
             var db=new WorkflowStore(jdbc,new Jsons(mapper)) {
                 @Override public JsonNode one(String sql,Object... args) {
@@ -51,6 +57,8 @@ class AccessPlanningReviewTest {
                     throw new AssertionError(sql);
                 }
                 @Override public List<JsonNode> rows(String sql,Object... args) {
+                    if(sql.contains("FROM access_cost_rules"))return coveredPermission?List.of(mapper.createObjectNode().put("operation","PERMISSION_ONLY").put("billing_scope","target-workspace").put("required_license","BUSINESS")):List.of();
+                    if(sql.contains("FROM saas_license_facts"))return List.of(mapper.createObjectNode().put("coverage","COVERED").put("observed_at",java.time.OffsetDateTime.now().minusMinutes(1).toString()).put("source_reference","test:license"));
                     if(sql.contains("FROM policy_revisions"))return List.of(policy);
                     if(sql.contains("FROM pricing_revisions"))return List.of(price);
                     if(sql.contains("FROM saas_context_facts"))return List.of(facts);
@@ -70,16 +78,21 @@ class AccessPlanningReviewTest {
                 @Override public JsonNode entitlement(UUID company,UUID id) {return ent;}
             };
             var result=planner.assess(problem,UUID.fromString(plan.path("entitlement_id").asText()));
-            assertEquals(remaining==150?Status.WAITING_APPROVAL:Status.ON_HOLD,result.status());
+            assertEquals(waiting?Status.WAITING_APPROVAL:Status.ON_HOLD,result.status());
+            assertEquals(waiting?"ELIGIBLE":"BUDGET_INSUFFICIENT",result.reason());
             assertEquals(remaining+".00",result.review_facts().remaining_budget());
-            assertEquals("120.00",result.review_facts().monthly_amount());
+            assertEquals(budgetAmount+".00",result.review_facts().monthly_amount());
+            assertEquals(amount+".00",result.review_facts().cost_assessment().unit_monthly_amount());
             assertTrue(result.review_facts().tf_member());
             assertEquals("SYNTHETIC_CONTRACT",result.review_facts().price_source_kind());
             var serialized=mapper.valueToTree(result);
             assertEquals("analysis-warehouse",serialized.path("review_facts").path("resource_name").asText());
             assertFalse(serialized.path("review_facts").path("checked_at").asText().isBlank());
-            if(remaining==150)assertEquals(vectors.path("plan_sha256").asText(),db.codec.planHash(result.plan()));
-            else assertNull(result.plan());
+            if(waiting) {
+                assertNotNull(result.plan());
+                assertEquals(budgetAmount+".00",result.plan().monthlyAmount());
+                if(amount==120 && remaining==150)assertEquals(vectors.path("plan_sha256").asText(),db.codec.planHash(result.plan()));
+            } else assertNull(result.plan());
             verifyNoInteractions(jdbc);
         }
     }

@@ -49,9 +49,18 @@ def review_input(state):
         if observed["tf_member"] is True:
             lines.append("서버에서 대상 TF 구성원 자격을 확인했습니다.")
         amount, currency = observed["monthly_amount"], observed["currency"]
-        basis = plan["cost_basis"] if plan else "서버 예상 비용"
-        labels = {"SEAT_MONTHLY": "월 좌석 비용", "USAGE_ESTIMATE": "월 사용량 예상 비용", "NO_ADDITIONAL_COST": "추가 비용"}
+        cost = observed.get('cost_assessment')
+        basis = cost['cost_basis'] if cost else plan["cost_basis"] if plan else "서버 예상 비용"
+        labels = {"SEAT_MONTHLY": "월 추가 좌석 비용", "USAGE_ESTIMATE": "월 사용량 예산 배정", "NO_ADDITIONAL_COST": "추가 비용"}
         lines.append(f"{labels.get(basis, basis)}: {amount} {currency}. 예산 검토: {observed['remaining_budget']} → {facts['projected_budget']} {currency} (실제 차감 전).")
+        if cost:
+            lines.append(f"참고 단가: {cost['unit_monthly_amount']} {currency}. 단가는 이번 요청의 추가 비용과 구분합니다.")
+            if cost['license_coverage'] == 'COVERED':
+                lines.append("대상 조직·워크스페이스에서 필요한 라이선스 보유를 확인했습니다. 이 요청으로 라이선스를 다시 구매하지 않습니다.")
+            if cost['operation'] == 'PERMISSION_ONLY':
+                lines.append("기존 이용 범위 내 권한만 추가하며 추가 비용은 0입니다. 정책 검토와 순차 승인은 그대로 필요합니다.")
+            elif cost['operation'] == 'USAGE_ALLOCATION':
+                lines.append("이 금액은 사용량에 대한 내부 예산 배정이며 권한 자체의 구매 비용이나 실제 SaaS 청구액이 아닙니다.")
         source = {"SYNTHETIC_CONTRACT": "시연 가정", "PUBLIC_LIST_PRICE": "제공 자료의 정가 기록", "CONTRACT": "계약 근거"}[observed["price_source_kind"]]
         lines.append(f"단가 출처: {source}. 확인 시각: {observed['checked_at']}.")
     elif plan:
