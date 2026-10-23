@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SaasMark from '../components/SaasMark.vue'
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ApiError, type ApprovalSummary, type Problem } from '../api'
@@ -55,10 +56,36 @@ function toggleAll() {
   selected.value = allOn.value ? [] : pending.value.map(p => p.id)
 }
 
+// v2 승인함 목록에는 권한 항목이 없어, 카드 제목을 상세와 같은 권한 이름으로 맞추려고 대기 건만 한 번씩 상세를 받아 둔다.
+// 건수 제한 없이 모두 조회하되, 서버에 한꺼번에 몰리지 않게 동시에 ROLE_FETCH_LIMIT건씩만 보낸다.
+// 실패한 건은 조회 표시를 지워 다음 갱신(load) 때 다시 시도한다.
+const ROLE_FETCH_LIMIT = 4
+const roles = ref<Record<string, string>>({})
+const roleQueue: string[] = []
+let roleInFlight = 0
+function fillRoles() {
+  for (const it of pending.value) {
+    if (it.requested_role || it.id in roles.value) continue
+    roles.value = { ...roles.value, [it.id]: '' }
+    roleQueue.push(it.id)
+  }
+  pumpRoles()
+}
+function pumpRoles() {
+  while (roleInFlight < ROLE_FETCH_LIMIT && roleQueue.length) {
+    const id = roleQueue.shift()!
+    roleInFlight++
+    getProblem(id)
+      .then(d => { roles.value = { ...roles.value, [id]: d.requested_role ?? '' } })
+      .catch(() => { const next = { ...roles.value }; delete next[id]; roles.value = next })
+      .finally(() => { roleInFlight--; pumpRoles() })
+  }
+}
 async function load() {
   try {
     const list = await listForApprover()
     items.value = list
+    fillRoles()
     summary.value = await approvalSummary(list)
     loadError.value = ''
     const waiting = new Set(pending.value.map(p => p.id))
@@ -205,7 +232,7 @@ const help = {
         <h3 id="ah-cf-h">이 {{ targets.length }}건을 승인할까요? <span>승인하면 바로 권한이 부여돼요</span></h3>
         <ul>
           <li v-for="t in targets" :key="t.id">
-            <span class="ah-tag" :style="{ '--c': platformOf(t.platform).color, '--s': platformOf(t.platform).soft }">{{ platformOf(t.platform).label }}</span>
+            <span class="ah-tag" :style="{ '--c': platformOf(t.platform).color, '--s': platformOf(t.platform).soft }"><SaasMark :platform="t.platform" :size="14" />{{ platformOf(t.platform).label }}</span>
             <strong class="ah-en">{{ t.resource }}</strong>
             <span class="ah-role">{{ t.role }}</span>
             <span class="ah-cf-who">{{ t.requester }}</span>
@@ -231,13 +258,13 @@ const help = {
           >{{ selected.includes(p.id) ? '✓' : '' }}</button>
           <div class="ah-req-main">
             <div class="ah-req-meta">
-              <span class="ah-tag">{{ platformOf(p.platform).label }}</span>
+              <span class="ah-tag"><SaasMark :platform="p.platform" :size="14" />{{ platformOf(p.platform).label }}</span>
               <strong>{{ p.requester_name }}</strong>
               <span class="ah-en">{{ p.employee_no }}</span> · {{ ago(p.updated_at) }} 대기
             </div>
             <!-- 목록 응답에는 자원 이름이 없어서 권한만 보여 준다. 자원은 상세(승인 카드)에서 확인한다. -->
             <!-- v2 목록 요약에는 권한 항목이 없어서, 있으면 쉬운 이름 · 없으면 플랫폼 이름으로 쓴다. -->
-            <p class="ah-req-title"><span class="ah-role">{{ roleText(p.platform, p.requested_role) ?? p.requested_role ?? platformOf(p.platform).label }}</span> 권한 요청</p>
+            <p class="ah-req-title"><span class="ah-role">{{ roleText(p.platform, p.requested_role || roles[p.id]) ? `${platformOf(p.platform).label} ${roleText(p.platform, p.requested_role || roles[p.id])}` : (p.requested_role || roles[p.id] || platformOf(p.platform).label) }}</span> 권한 요청</p>
             <p class="ah-req-quote">“{{ p.contents }}”</p>
           </div>
           <div v-if="judgmentOf(p, true) || p.diagnosis" class="ah-ai">
@@ -329,7 +356,7 @@ const help = {
 .ah-req-main { flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .ah-req-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--uo-muted); }
 .ah-req-meta strong { font-size: 14px; color: var(--uo-ink); }
-.ah-tag { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--s); color: var(--c); }
+.ah-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 3px 9px 3px 6px; border-radius: 999px; background: var(--s); color: var(--c); }
 .ah-req-title { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.4; }
 .ah-role { color: var(--uo-primary-ink); }
 .ah-req-quote { margin: 0; font-size: 14px; line-height: 1.5; color: var(--uo-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError } from '../api'
 import AppShell from '../components/AppShell.vue'
-import { CANDIDATE_REASON_TEXT, daysSince, EXCLUSION_TEXT, isAlreadyNotified, isNewInRun, isPartial, isRunning, latestReport, needsReviewCount, needsReviewRow, runNow, type RevocationCandidate, type RevocationReport } from '../lib/revocation.ts'
+import { CANDIDATE_REASON_TEXT, daysSince, EXCLUSION_TEXT, isAlreadyNotified, isNewInRun, isPartial, isRunning, latestReport, needsReviewCount, needsReviewRow, revoke, runNow, type RevocationCandidate, type RevocationReport } from '../lib/revocation.ts'
 import { DONE_TEXT } from '../lib/status.ts'
 import { REASONS } from '../lib/requestView.ts'
 import { usd } from '../lib/costImpact.ts'
-import { saasBadge } from '../lib/saasBadge.ts'
+import SaasMark from '../components/SaasMark.vue'
 
 // S-04 오늘의 회수 점검 (IT 권한 관리 · 최종 승인자).
 // 읽는 순서: 언제 점검했나 → 얼마나 줄일 수 있나(요약 숫자) → 누구의 어떤 권한인가(표) → 왜(사유 · 근거).
-// 실제 회수는 하지 않는다. 다시 점검은 결과를 대신하지 않는 보조 동작이라 상태 줄 안의 작은 버튼으로 둔다.
+// 회수는 서버가 can_revoke를 준 후보만, 확인 창을 거쳐 실행한다. 다시 점검은 결과를 대신하지 않는 보조 동작이라 상태 줄 안의 작은 버튼으로 둔다.
 const report = ref<RevocationReport | null>(null)
 const mock = ref(false)
 const loading = ref(true)
@@ -73,6 +73,57 @@ async function runScan() {
   try { ({ report: report.value, mock: mock.value } = await runNow()); tab.value = 'NEW' } catch (e) { fail(e) } finally { running.value = false }
 }
 onMounted(load)
+
+// 회수 실행: 사람이 확인 창에서 한 번 더 결정한다. 실패하면 창을 닫지 않고 이유를 보여 준다.
+const confirming = ref<RevocationCandidate | null>(null)
+const revoking = ref(false)
+const revokeError = ref('')
+const done = ref('')
+// 버튼과 안내 문구는 같은 조건을 쓴다: 서버가 허용 · 아직 판단 대기 · 회수 대상 id가 있는 후보만.
+function revocable(c: RevocationCandidate) { return !!c.can_revoke && c.candidate_status === 'PENDING_REVIEW' && !!c.target_id }
+const canRevokeAny = computed(() => all.value.some(revocable))
+// 확인 창: 열 때 창 안으로 초점을 옮기고, 열린 동안 Tab을 창 안에 가두고, 닫을 때 원래 버튼으로 돌려준다.
+const modalBox = ref<HTMLElement | null>(null)
+let opener: HTMLElement | null = null
+async function askRevoke(c: RevocationCandidate) {
+  opener = document.activeElement as HTMLElement | null
+  confirming.value = c; revokeError.value = ''; done.value = ''
+  await nextTick()
+  modalBox.value?.querySelector<HTMLElement>('.rv-btn-ghost')?.focus()
+}
+function closeRevoke() {
+  if (revoking.value) return // 요청 중에는 닫지 않는다(진행 중인 회수를 놓치지 않게)
+  confirming.value = null
+  opener?.focus(); opener = null
+}
+function trapTab(e: KeyboardEvent) {
+  const items = Array.from(modalBox.value?.querySelectorAll<HTMLElement>('button:not([disabled])') ?? [])
+  if (!items.length) return
+  const first = items[0], last = items[items.length - 1]
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+}
+async function doRevoke() {
+  const c = confirming.value
+  if (!c || revoking.value) return
+  revoking.value = true; revokeError.value = ''
+  try {
+    await revoke(c.target_id!)
+    done.value = `${c.user_name || '대상자'}님의 ${c.platform} 권한을 회수했어요${c.cost_known !== false ? ` · 월 ${usd(c.monthly_cost)} 절감` : ''}`
+    revoking.value = false; closeRevoke()
+    await load()
+    tab.value = 'ALL' // 회수된 후보는 '전체'에만 남으므로, 완료 배지가 보이는 탭으로 옮긴다
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) {
+      // 409는 이미 회수됨만이 아니다(사용 재개 · 유지 승인 · 점검 미완료 · 키 충돌). 이미 회수됨만 그렇게 말하고, 나머지는 서버 이유를 그대로 보인다.
+      // 어느 경우든 최신 상태를 다시 불러오고, 창을 닫으므로 안내는 창 밖(하단 안내)에 남긴다.
+      done.value = e.code === 'ALREADY_REVOKED' ? '이미 회수된 후보예요. 목록을 다시 불러왔어요.' : `회수하지 않았어요 · ${e.message}`
+      revoking.value = false; closeRevoke(); await load(); tab.value = 'ALL'
+    } else revokeError.value = e instanceof ApiError && e.status >= 500
+      ? '회수 결과를 확인하지 못했어요. 목록을 다시 불러와 현재 상태를 확인해 주세요.'
+      : `회수하지 못했어요. ${(e as Error)?.message ?? ''}`
+  } finally { revoking.value = false }
+}
 // 10. 점검이 진행 중(접수 · 선별 · 결과 저장)인 보고서를 받으면 끝날 때까지 3초마다 다시 불러온다. 화면을 떠나면 멈춘다.
 let follow: number | undefined
 watch(report, () => {
@@ -87,7 +138,7 @@ const help = {
   howto: [
     { t: '[지금 다시 점검]으로 점검해요', d: 'TF가 끝났거나 오래 쓰지 않은 유료 권한을 찾아요. 자동 점검(매일 09:00)은 담당 범위를 켜야 돌아가요(기본은 꺼짐)' },
     { t: '새로 찾은 후보만 먼저 보여 줘요', d: '이미 알린 후보는 다시 알리지 않아요. "이미 알린 후보" 탭에서 따로 볼 수 있어요' },
-    { t: '회수는 사람이 결정해요', d: '이 화면은 후보와 근거, 줄일 수 있는 금액까지만 보여 줘요. 실제 회수는 기존 절차로 진행해 주세요' },
+    { t: '회수는 사람이 결정해요', d: '후보와 근거, 줄일 수 있는 금액을 보고 [회수하기]를 누르면 확인 창에서 한 번 더 확인한 뒤 회수해요. 회수 버튼은 실행 권한이 있는 담당자에게, 아직 처리되지 않은 후보에만 보여요' },
   ],
   faqs: [
     { q: '어떤 기준으로 후보가 되나요?', a: 'TF가 끝난 뒤 30일 넘게 쓰지 않았고, 다른 TF 소속이나 유지 승인이 없는 유료 권한이에요 (시연용 가정 기준).' },
@@ -138,7 +189,7 @@ const help = {
           <div class="rv-kpi" :class="{ hero: monthly > 0 }">
             <div class="kh"><p class="k">월 절감 예상</p><span class="ki" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6" /></svg></span></div>
             <p class="v"><span class="rv-num">{{ usd(monthly) }}</span></p>
-            <p class="d">회수하면 매달 줄어드는 금액</p>
+            <p class="d">{{ fresh.length + notified.length > 1 ? `아직 회수 안 된 후보 ${fresh.length + notified.length}건을 모두 회수하면` : '회수하면 매달 줄어드는 금액' }}</p>
           </div>
           <div class="rv-kpi">
             <div class="kh"><p class="k">연간 환산</p><span class="ki" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg></span></div>
@@ -164,7 +215,9 @@ const help = {
           </div>
           <p class="rv-note">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
-            실제 회수는 하지 않아요. 기존 절차로 진행해 주세요
+            <template v-if="mock">실제 회수는 하지 않아요. 기존 절차로 진행해 주세요</template>
+            <template v-else-if="canRevokeAny">[회수하기]를 누르면 확인 후 바로 권한을 회수해요</template>
+            <template v-else>현재 회수 가능한 후보가 없어요</template>
           </p>
         </div>
 
@@ -179,7 +232,7 @@ const help = {
 
         <table v-else class="rv-table">
           <thead>
-            <tr><th>대상자</th><th>SaaS · 권한</th><th>마지막 사용</th><th class="num">월 비용</th><th>사유와 근거</th><th>상태</th></tr>
+            <tr><th>대상자</th><th>SaaS · 권한</th><th>마지막 사용</th><th class="num">월 비용</th><th>사유와 근거</th><th>상태</th><th v-if="canRevokeAny" class="rv-act-h"><span class="sr-only">처리</span></th></tr>
           </thead>
           <tbody>
             <tr v-for="c in rows" :key="c.id">
@@ -191,7 +244,7 @@ const help = {
               </td>
               <td>
                 <div class="rv-saas">
-                  <span class="rv-logo" :style="{ background: saasBadge(c.platform).bg, color: saasBadge(c.platform).fg }" aria-hidden="true">{{ saasBadge(c.platform).mono }}</span>
+                  <SaasMark :name="c.platform" :size="34" tile />
                   <div><b>{{ c.platform }}</b><span class="rv-meta">{{ c.resource }}</span></div>
                 </div>
               </td>
@@ -199,15 +252,25 @@ const help = {
               <td class="num"><template v-if="c.cost_known !== false"><b class="rv-num">{{ usd(c.monthly_cost) }}</b><span class="rv-meta">/ 월</span></template><span v-else class="rv-meta">비용 미확인</span></td>
               <td class="rv-why">
                 <p>{{ c.reason }}</p>
-                <span v-if="CANDIDATE_REASON_TEXT[c.candidate_reason_code]" class="rv-ref">{{ CANDIDATE_REASON_TEXT[c.candidate_reason_code] }}</span>
-                <span class="rv-ref">{{ c.policy_ref }}</span>
+                <div class="rv-refs">
+                  <span v-if="CANDIDATE_REASON_TEXT[c.candidate_reason_code]" class="rv-ref">{{ CANDIDATE_REASON_TEXT[c.candidate_reason_code] }}</span>
+                  <span v-if="c.policy_ref" class="rv-ref law">{{ c.policy_ref }}</span>
+                </div>
               </td>
               <td>
-                <span v-if="c.candidate_status === 'RETAINED'" class="rv-badge kept">유지 승인</span>
+                <span v-if="c.candidate_status === 'RECLAIMED'" class="rv-badge done">회수 완료<template v-if="c.reclaimed_at"> · {{ when(c.reclaimed_at) }}</template></span>
+                <span v-else-if="c.candidate_status === 'RETAINED'" class="rv-badge kept">유지 승인</span>
                 <span v-else-if="c.candidate_status === 'EXCLUDED'" class="rv-badge kept">제외 · {{ EXCLUSION_TEXT[c.exclusion_reason_code ?? ''] ?? '조건 미충족' }}</span>
                 <span v-else-if="isNewInRun(c, run)" class="rv-badge new">신규</span>
                 <span v-else-if="c.notified_at" class="rv-badge sent">알림 {{ when(c.notified_at) }}</span>
                 <span v-else class="rv-badge kept">알림 전</span>
+              </td>
+              <!-- 상태(배지)와 동작(버튼)을 다른 칸에 둔다. 배지는 읽는 것, 버튼은 누르는 것이라 모양도 다르게. -->
+              <td v-if="canRevokeAny" class="rv-act">
+                <button v-if="revocable(c)" type="button" class="rv-revoke" :aria-label="`${c.user_name || '대상자'} ${c.platform} 권한 회수`" @click="askRevoke(c)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 9.6-2M5 11h14v10H5z" /></svg>
+                  회수하기
+                </button>
               </td>
             </tr>
           </tbody>
@@ -227,6 +290,25 @@ const help = {
           </li>
         </ul>
       </section>
+    </div>
+    <p v-if="done" class="rv-done" role="status">{{ done }}</p>
+    <div v-if="confirming" class="rv-modal" role="dialog" aria-modal="true" aria-labelledby="rv-modal-t" @keydown.esc="closeRevoke" @keydown.tab="trapTab">
+      <button type="button" class="rv-scrim" aria-label="닫기" tabindex="-1" :disabled="revoking" @click="closeRevoke" />
+      <div ref="modalBox" class="rv-modal-box">
+        <h2 id="rv-modal-t">이 권한을 회수할까요?</h2>
+        <dl class="rv-modal-dl">
+          <dt>대상자</dt><dd>{{ confirming.user_name || '이름 미제공' }}</dd>
+          <dt>SaaS</dt><dd>{{ confirming.platform }}<template v-if="confirming.resource"> · {{ confirming.resource }}</template></dd>
+          <dt>줄어드는 비용</dt><dd><template v-if="confirming.cost_known !== false">월 {{ usd(confirming.monthly_cost) }}</template><template v-else>비용 미확인</template></dd>
+          <dt>근거</dt><dd>{{ confirming.policy_ref || '—' }}</dd>
+        </dl>
+        <p class="rv-modal-note">회수하면 이 사용자는 바로 쓸 수 없어요. 다시 필요하면 새로 요청해야 해요.</p>
+        <p v-if="revokeError" class="rv-modal-err" role="alert">{{ revokeError }}</p>
+        <div class="rv-modal-act">
+          <button type="button" class="rv-btn-ghost" :disabled="revoking" @click="closeRevoke">취소</button>
+          <button type="button" class="rv-btn-danger" :disabled="revoking" @click="doRevoke">{{ revoking ? '회수 중…' : '회수하기' }}</button>
+        </div>
+      </div>
     </div>
   </AppShell>
 </template>
@@ -298,10 +380,33 @@ const help = {
 .rv-idle.l1 { color: var(--uo-ink-2); } .rv-idle.l2 { color: var(--uo-review); } .rv-idle.l3 { color: var(--uo-bad); }
 .rv-why { max-width: 420px; }
 .rv-why p { margin: 0; line-height: 1.5; color: var(--uo-ink-2); }
-.rv-ref { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 600; color: var(--uo-primary-ink); background: var(--uo-primary-soft); border-radius: 6px; padding: 2px 8px; }
+.rv-refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rv-ref { display: inline-block; font-size: 11px; font-weight: 600; color: var(--uo-primary-ink); background: var(--uo-primary-soft); border-radius: 6px; padding: 3px 8px; }
+.rv-ref.law { color: var(--uo-ink-2); background: #fff; border: 1px solid var(--uo-line); }
 .rv-badge { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .rv-badge.new { background: var(--uo-primary-soft); color: var(--uo-primary-ink); }
 .rv-badge.sent { background: #F0F2F8; color: var(--uo-muted); }
+.rv-badge.done { background: #FDECEC; color: #B42318; }
+.rv-act-h { width: 1%; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.rv-act { text-align: right; white-space: nowrap; }
+.rv-revoke { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 0; border-radius: 10px; background: #B42318; color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 6px rgba(180,35,24,0.25); }
+.rv-revoke:hover, .rv-revoke:focus-visible { background: #912018; }
+.rv-revoke:focus-visible { outline: 2px solid #B42318; outline-offset: 2px; }
+.rv-done { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); margin: 0; padding: 12px 20px; border-radius: 12px; background: var(--uo-ink); color: #fff; font-size: 14px; font-weight: 600; z-index: 40; }
+.rv-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.rv-scrim { position: absolute; inset: 0; border: 0; padding: 0; background: rgba(20,26,51,0.4); cursor: pointer; }
+.rv-modal-box { position: relative; width: 440px; max-width: 100%; background: #fff; border-radius: 20px; padding: 28px; box-shadow: 0 20px 60px rgba(20,26,51,0.25); }
+.rv-modal-box h2 { margin: 0 0 16px; font-size: 20px; font-weight: 700; }
+.rv-modal-dl { display: grid; grid-template-columns: 96px 1fr; gap: 8px 12px; margin: 0 0 16px; font-size: 14px; }
+.rv-modal-dl dt { color: var(--uo-muted); } .rv-modal-dl dd { margin: 0; font-weight: 600; }
+.rv-modal-note { margin: 0 0 12px; font-size: 14px; line-height: 1.6; color: var(--uo-ink-2); background: #FFF6E5; border-radius: 10px; padding: 10px 12px; }
+.rv-modal-err { margin: 0 0 12px; font-size: 14px; color: var(--uo-bad); font-weight: 600; }
+.rv-modal-act { display: flex; justify-content: flex-end; gap: 8px; }
+.rv-btn-ghost, .rv-btn-danger { height: 40px; padding: 0 18px; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.rv-btn-ghost { border: 1px solid var(--uo-line); background: #fff; color: var(--uo-ink-2); }
+.rv-btn-danger { border: 0; background: #B42318; color: #fff; }
+.rv-btn-ghost:disabled, .rv-btn-danger:disabled { opacity: .6; cursor: default; }
 .rv-badge.kept { background: var(--uo-ok-bg); color: var(--uo-ok); }
 
 .rv-empty { padding: 48px 16px; text-align: center; }

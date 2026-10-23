@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SaasMark from '../components/SaasMark.vue'
 import { computed, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { ApiError, type Problem } from '../api'
@@ -56,7 +57,11 @@ const stages = computed(() => p.value ? stagesOf(p.value) : [])
 const summary = computed(() => !p.value ? '' : isRequester.value ? summaryOf(p.value) : approverSummaryOf(p.value))
 // 안내 성공은 요청자도 진단을 본다. 실제 검토 필요 · 거절의 판단 근거는 승인자에게만 표시한다.
 // 판단 문장은 reason_code로 만든다(서버 문장은 모르는 사유 코드일 때만). 요청자 · 승인자 문장이 다르다.
-const aiMessage = computed(() => !p.value ? null : isRequester.value ? aiMessageOf(p.value) : judgmentOf(p.value, true))
+// 승인 대기인데 지금 내 차례가 아니면(이미 내 단계를 승인했거나 아직 앞 단계) '승인하면 …'이 아니라 진행 상황을 말한다.
+const aiMessage = computed(() => !p.value ? null : isRequester.value ? aiMessageOf(p.value)
+  : p.value.status === 'WAITING_APPROVAL' && p.value.reason_code === 'ELIGIBLE' && isV2() && !myTurn(p.value)
+    ? '규정과 예산 조건을 모두 충족해요. 다른 단계 승인을 기다리고 있어요.'
+    : judgmentOf(p.value, true))
 // 승인자는 plan의 자원 이름(resource_key)까지 받는다. 요청자 응답에는 plan이 없다.
 const resourceName = computed(() => (!isRequester.value && p.value?.plan?.resource_key) || '')
 const proposal = computed(() => {
@@ -135,7 +140,10 @@ const costLine = computed(() => {
   return { big: `월 −${usd(c.monthly_cost)}`, sub: c.budget_before !== null && c.budget_after !== null ? `부서 잔여 ${usd(c.budget_before)} → ${usd(c.budget_after)}` : '' }
 })
 // 승인자 화면 맨 위 한 장 요약(결론 → 숫자 → 왜 괜찮은지 → 승인 순서). 승인 대기 · 보류일 때만.
-const decision = computed(() => !isRequester.value && p.value ? decisionSummaryOf(p.value, titleText.value, cost.value?.impact ?? null) : null)
+const decision = computed(() => !isRequester.value && p.value ? decisionSummaryOf(p.value, titleText.value, cost.value?.impact ?? null, currentUser.value?.id) : null)
+// 한 장 요약이 있고 조건을 모두 맞췄으면 조건 목록은 접어 둔다(요약은 역할·비용·승인 순서만 담으므로 나머지 근거는 펼쳐서 확인).
+// 못 맞춘 조건이 있으면 처음부터 펼쳐 보인다.
+const showChecks = computed(() => !decision.value || checks.value.some(c => !c.ok && !c.info))
 function jumpCost() {
   const el = document.getElementById('cost-card')
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -177,6 +185,9 @@ const rejReason = computed(() => [rejPick.value, rejText.value.trim()].filter(Bo
 function pickChip(t: string) { rejPick.value = rejPick.value === t ? '' : t; rejErr.value = false }
 function cancelReject() { rejecting.value = false; rejErr.value = false }
 
+const toast = ref('')
+let toastTimer: number | undefined
+function flash(msg: string) { toast.value = msg; window.clearTimeout(toastTimer); toastTimer = window.setTimeout(() => { toast.value = '' }, 4500) }
 async function decide(approved: boolean, hold = false) {
   const x = p.value
   if (!x || deciding.value) return
@@ -187,6 +198,9 @@ async function decide(approved: boolean, hold = false) {
     // 승인 카드에 보이는 계획(plan_hash)에 대해서만 결정한다. 그사이 계획이 바뀌면 서버가 409로 막는다.
     await sendDecision(x, approved ? 'APPROVE' : hold ? 'HOLD' : 'REJECT', approved ? memo.value.trim() : rejReason.value)
     rejecting.value = false
+    const lastStep = (x.total_steps ?? 1) <= (x.current_step ?? 1)
+    flash(approved ? (lastStep ? '승인했어요 · 권한을 부여하고 다시 조회해 확인할게요' : `${x.current_step ?? 1}단계 승인했어요 · 다음 승인자에게 넘어갔어요`)
+      : hold ? '보류했어요 · 요청자에게 사유를 보냈어요' : '거절했어요 · 요청자에게 사유를 보냈어요')
   } catch (e) {
     const status = e instanceof ApiError ? e.status : 0
     decideError.value = status === 409 ? '그사이 이미 처리됐거나 승인 내용이 바뀌었어요. 최신 내용을 다시 불러왔어요. 확인하고 다시 결정해 주세요.'
@@ -228,10 +242,14 @@ const requesterHelp = {
       <div>
         <RouterLink :to="back" class="rd-back">← {{ isRequester ? '홈으로' : '승인함으로' }}</RouterLink>
         <h1 v-if="p && platform">{{ titleText }}</h1>
-        <p v-if="p && (resourceName || (roleKo && p.requested_role))" class="rd-codes">
-          <template v-if="resourceName">대상 <span class="rd-en">{{ resourceName }}</span></template><template v-if="resourceName && roleKo"> · </template><template v-if="roleKo">권한 <span class="rd-en">{{ p.requested_role }}</span></template>
+        <!-- 사람이 먼저 읽는 줄(누가 · 언제) → 승인 대상을 코드로 확인하는 회색 줄(대상 자원 · 권한 코드 · 요청 번호). -->
+        <p v-if="p" class="rd-meta">
+          <template v-if="isRequester">내가</template><template v-else><b>{{ p.requester_name }}</b><template v-if="p.employee_no"> ({{ p.employee_no }})</template> 님이</template>
+          {{ shortWhen(p.created_at) }}에 요청했어요
         </p>
-        <p v-if="p" class="rd-meta"><span class="rd-en">{{ shortId }}</span> · {{ p.requester_name }}<template v-if="!isRequester && p.employee_no"> ({{ p.employee_no }})</template> · {{ shortWhen(p.created_at) }} 요청</p>
+        <p v-if="p" class="rd-codes rd-en">
+          <template v-if="resourceName">{{ resourceName }} · </template><template v-if="p.requested_role">{{ p.requested_role }} · </template>{{ shortId }}
+        </p>
       </div>
       <span v-if="p" class="rd-badge" :class="statusOf(p).tone"><svg v-if="statusOf(p).tone === 'review'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -2px"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 19a5.5 5.5 0 0 1 11 0" /></svg>{{ statusOf(p).label }}</span>
     </div>
@@ -273,7 +291,7 @@ const requesterHelp = {
             <article class="rd-perm" :style="{ '--tc': platform.color }">
               <div class="rd-perm-head">
                 <span class="rd-ptag" :style="{ background: platform.soft, color: platform.color }">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="platform.icon" /></svg>{{ platform.label }}
+                  <SaasMark :platform="p.platform" :size="16" />{{ platform.label }}
                 </span>
                 <span class="rd-pstate" :class="perm.tone">{{ perm.label }}</span>
               </div>
@@ -288,7 +306,7 @@ const requesterHelp = {
               <h2 id="rd-dg">{{ guidanceComplete && !isRequester ? '요청 내용과 안내' : aiMessage || proposal ? '요청 내용과 판단안' : '요청 내용' }}</h2>
               <div class="rd-facts" aria-label="요청 정보">
                 <span class="rd-ptag" :style="{ background: platform.soft, color: platform.color }">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="platform.icon" /></svg>{{ platform.label }}
+                  <SaasMark :platform="p.platform" :size="15" />{{ platform.label }}
                 </span>
                 <span v-if="resourceName" class="rd-fact rd-en">{{ resourceName }}</span>
                 <span v-if="p.requested_role" class="rd-fact">{{ p.requested_role }}</span>
@@ -310,21 +328,32 @@ const requesterHelp = {
 
 
           <section v-if="evidence.facts.length || docs.length" id="ev-top" class="rd-card" aria-labelledby="rd-bs">
-            <h2 id="rd-bs">판단 근거 <span class="rd-only">승인자에게만 보여요</span></h2>
+            <h2 id="rd-bs">{{ showChecks || checks.length ? '판단 근거' : '규정 원문' }} <span class="rd-only">승인자에게만 보여요</span></h2>
             <p v-if="who && checks.length" class="rd-who">요청자 <b>{{ who }}</b></p>
             <dl v-if="evidence.facts.length && !checks.length" class="rd-facts-dl">
               <template v-for="f in evidence.facts" :key="f.k"><dt>{{ f.k }}</dt><dd>{{ f.v }}</dd></template>
             </dl>
-            <ul v-if="checks.length" class="rd-checks" aria-label="규칙이 확인한 조건">
+            <ul v-if="checks.length && showChecks" class="rd-checks" aria-label="규칙이 확인한 조건">
               <li v-for="c in checks" :key="c.text" :class="c.info ? 'ck-info' : c.ok ? 'ck-ok' : 'ck-no'">
                 <span class="rd-ck-ic" aria-hidden="true">{{ c.info ? '' : c.ok ? '✓' : '✕' }}</span>
                 <span class="rd-ck-t"><span class="sr-only">{{ c.info ? '참고' : c.ok ? '충족' : '미충족' }}: </span>{{ c.text }}<span v-if="c.detail" class="rd-ck-d rd-en">{{ c.detail }}</span></span>
                 <button v-if="c.ref" type="button" class="rd-ck-ref" @click="jumpTo(c.ref)">원문 <span class="rd-en">{{ c.ref }}</span></button>
               </li>
             </ul>
+            <details v-if="checks.length && !showChecks" class="rd-checks-fold">
+              <summary>충족한 조건 {{ checks.filter(c => c.ok && !c.info).length }}개 <em>펼쳐 보기</em><svg class="rd-doc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></summary>
+              <ul class="rd-checks" aria-label="규칙이 확인한 조건">
+                <li v-for="c in checks" :key="c.text" :class="c.info ? 'ck-info' : c.ok ? 'ck-ok' : 'ck-no'">
+                  <span class="rd-ck-ic" aria-hidden="true">{{ c.info ? '' : c.ok ? '✓' : '✕' }}</span>
+                  <span class="rd-ck-t"><span class="sr-only">{{ c.info ? '참고' : c.ok ? '충족' : '미충족' }}: </span>{{ c.text }}<span v-if="c.detail" class="rd-ck-d rd-en">{{ c.detail }}</span></span>
+                  <button v-if="c.ref" type="button" class="rd-ck-ref" @click="jumpTo(c.ref)">원문 <span class="rd-en">{{ c.ref }}</span></button>
+                </li>
+              </ul>
+            </details>
             <!-- 규정 원문: 기본은 접어 둔다. 회사 권한표 → 사내 규정 → 공식 도움말 순. -->
             <div v-if="docs.length" class="rd-docs">
-              <p class="rd-docs-k">규정 원문 <span>{{ docs.length }}건</span><em>필요할 때만 펼쳐 보세요</em></p>
+              <p v-if="showChecks" class="rd-docs-k">규정 원문 <span>{{ docs.length }}건</span><em>필요할 때만 펼쳐 보세요</em></p>
+              <p v-else class="rd-docs-k">규정 원문 <span>{{ docs.length }}건</span><em>요약의 근거예요. 필요할 때만 펼쳐 보세요</em></p>
               <template v-for="(d, di) in docs" :key="d.id">
                 <p v-if="di === 0 || docs[di - 1].group !== d.group" class="rd-grp">{{ GROUP_LABEL[d.group] }}</p>
                 <details :id="`ev-${d.id}`" class="rd-doc" :class="{ flash: flashDoc === d.id }" :open="openDocs.has(d.id)"
@@ -497,6 +526,7 @@ const requesterHelp = {
         </aside>
       </div>
     </template>
+    <p v-if="toast" class="rd-toast" role="status">{{ toast }}</p>
   </AppShell>
 </template>
 
@@ -504,9 +534,9 @@ const requesterHelp = {
 .rd-top { margin: 28px 0 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .rd-back { font-size: 14px; font-weight: 600; color: var(--uo-primary); text-decoration: none; }
 .rd-top h1 { margin: 10px 0 0; font-size: 30px; font-weight: 700; letter-spacing: -0.01em; }
-.rd-meta { margin: 6px 0 0; font-size: 14px; color: var(--uo-muted); }
-.rd-codes { margin: 4px 0 0; font-size: 13px; color: var(--uo-ink-2); }
-.rd-codes .rd-en { font-weight: 600; color: var(--uo-ink); }
+.rd-meta { margin: 8px 0 0; font-size: 15px; color: var(--uo-ink-2); }
+.rd-meta b { font-weight: 700; color: var(--uo-ink); }
+.rd-codes { margin: 4px 0 0; font-size: 12px; color: var(--uo-muted); letter-spacing: 0.01em; }
 .rd-code-sm { display: block; margin-top: 4px; font-size: 12px; color: var(--uo-muted); }
 .rd-perm-role .rd-code-sm { display: inline; margin: 0 0 0 6px; }
 .rd-en { font-family: var(--uo-font-en); }
@@ -564,6 +594,10 @@ const requesterHelp = {
 .rd-anchor { scroll-margin-top: 24px; }
 .rd-sum { border-left: 6px solid var(--uo-ok, #1A7340); display: flex; flex-direction: column; gap: 8px; }
 .rd-sum.review { border-left-color: var(--uo-review); }
+.rd-sum.done { border-left-color: var(--uo-primary); }
+.rd-sum.done .rd-sum-badge { background: var(--uo-primary-soft); color: var(--uo-primary-ink); }
+.rd-sum.done .rd-sum-h { color: var(--uo-ink); }
+.rd-toast { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); margin: 0; padding: 12px 20px; border-radius: 12px; background: var(--uo-ink); color: #fff; font-size: 14px; font-weight: 600; z-index: 40; max-width: calc(100% - 32px); }
 .rd-sum-badge { align-self: flex-start; font-size: 13px; font-weight: 700; border-radius: 999px; padding: 3px 12px; background: var(--uo-ok-bg, #E6F4EC); color: var(--uo-ok, #1A7340); }
 .rd-sum.review .rd-sum-badge { background: var(--uo-review-bg); color: var(--uo-review); }
 .rd-sum-h { margin: 4px 0 0; font-size: 22px; font-weight: 800; line-height: 1.4; letter-spacing: -0.01em; }
@@ -632,6 +666,13 @@ const requesterHelp = {
 .rd-ck-ref:hover { color: var(--uo-primary-ink); text-decoration: underline; }
 .rd-ck-ref:focus-visible { outline: 2px solid var(--uo-primary); outline-offset: 2px; border-radius: 4px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.rd-checks-fold { margin: 0 0 14px; padding: 0; border: 1px solid var(--uo-line); border-radius: 12px; }
+.rd-checks-fold > summary { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 14px; line-height: 1.4; font-size: 14px; font-weight: 700; color: var(--uo-ink); cursor: pointer; list-style: none; }
+.rd-checks-fold > summary::-webkit-details-marker { display: none; }
+.rd-checks-fold > summary em { font-style: normal; font-weight: 400; color: var(--uo-muted); }
+.rd-checks-fold > summary .rd-doc-chev { margin-left: auto; transition: transform .15s; }
+.rd-checks-fold[open] > summary .rd-doc-chev { transform: rotate(180deg); }
+.rd-checks-fold > .rd-checks { margin: 0; border: 0; border-top: 1px solid var(--uo-line); border-radius: 0 0 12px 12px; }
 .rd-docs-k { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: var(--uo-muted); }
 .rd-docs-k em { margin-left: 8px; font-style: normal; font-weight: 400; }
 .rd-docs-k span { margin-left: 4px; font-weight: 600; color: var(--uo-ink-2); }

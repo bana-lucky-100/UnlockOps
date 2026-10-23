@@ -24,7 +24,8 @@ export interface Problem {
 
 /** 화면이 401(로그인 필요) · 403(권한 없음) · 409(이미 처리됨)를 구분해 안내할 수 있도록 상태 코드를 함께 던진다. */
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) { super(message) }
+  // code: 서버가 구분 코드를 주는 오류(예: 회수 409의 ALREADY_REVOKED). 없으면 undefined.
+  constructor(message: string, readonly status: number, readonly code?: string) { super(message) }
 }
 
 let csrf = { token: '', headerName: 'X-XSRF-TOKEN' }
@@ -45,7 +46,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   })
   if (!response.ok) {
     const body = await response.json().catch(() => ({message: '요청을 처리하지 못했습니다.'}))
-    throw new ApiError(body.message || '요청을 처리하지 못했습니다.', response.status)
+    throw new ApiError(body.message || '요청을 처리하지 못했습니다.', response.status, typeof body.code === 'string' ? body.code : undefined)
   }
   return response.status === 204 ? undefined as T : response.json()
 }

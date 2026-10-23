@@ -124,7 +124,7 @@ test('한 장 요약: 결론 · 숫자 · 왜 괜찮은지 · 승인 순서를 �
   assert.equal(s.headline, 'Snowflake 웨어하우스 이용 권한을 승인해도 돼요')
   assert.deepEqual(s.numbers.map(n => n.big), ['월 $120', '$500 → $380', '24%'])
   assert.ok(s.checks.some(c => c.text.includes('$380 남아요')))
-  assert.deepEqual(s.steps.map(x => `${x.who}:${x.state}`), ['윤부장:on', '송운영:wait', '자동:wait'])
+  assert.deepEqual(s.steps.map(x => `${x.who}:${x.state}`), ['1차 승인:on', '최종 승인:wait', '자동:wait'])
   assert.equal(decisionSummaryOf(fromV2(report({ status: 'DONE', current_step: null })), 'x', null), null)
 })
 
@@ -183,4 +183,36 @@ test('개요에 이름 · 사용일이 없으면 지어내지 않고 정보 없�
   assert.equal(r2.candidates[0].user_name, '김지성')
   assert.equal(r2.candidates[0].resource, 'Copilot')
   assert.equal(r2.candidates[0].usage_known, true)
+})
+
+test('회수 버튼은 서버가 can_revoke를 준 후보에만 열린다', () => {
+  const base = { candidate_status: 'PENDING_REVIEW', explanation: 'x', policy_evidence: [], cost_impact: { status: 'ESTIMATED', monthly_amount: '19.00', currency: 'USD' }, platform: 'GITHUB' }
+  const r = fromOverview({ last_run: null, active_run: null, summary: null, targets: [{ ...base, assignment_id: 'a' }, { ...base, assignment_id: 'b', can_revoke: true }, { ...base, assignment_id: 'c', candidate_status: 'RECLAIMED', reclaimed_at: '2026-10-23T15:20:00+09:00' }] })
+  assert.deepEqual(r.candidates.map(c => c.can_revoke), [false, true, false])
+  assert.equal(r.candidates[2].candidate_status, 'RECLAIMED')
+  assert.equal(r.candidates[2].reclaimed_at, '2026-10-23T15:20:00+09:00')
+})
+
+test('헤더 프로필은 로그인 카드와 같은 이니셜 · 색을 쓴다', async () => {
+  const { personaAvatar } = await import('../src/lib/persona.ts')
+  assert.equal(personaAvatar({ login_id: 'p2_a_head', name: '김동빈' }).initial, '동')
+  assert.equal(personaAvatar({ login_id: 'p2_a_operator', name: '신형철' }).fg, '#2B3480')
+  assert.equal(personaAvatar({ login_id: 'p2_b_requester', name: '박요청(B)' }).initial, '요')
+  assert.equal(personaAvatar({ name: '😀' }).initial, '😀')
+})
+
+test('이미 내 단계를 승인했으면 요약은 승인했어요 · 다음 승인자로 바뀐다', async () => {
+  const { decisionSummaryOf } = await import('../src/lib/decisionSummary.ts')
+  const p = { status: 'WAITING_APPROVAL', requester_name: '김지성', current_step: 2, total_steps: 2, requested_role: 'ANALYST', evidence: [],
+    approvers: [{ id: 'h', name: '김동빈' }, { id: 'o', name: '신형철' }],
+    approval_steps: [{ step: 1, approver_id: 'h', status: 'APPROVED' }, { step: 2, approver_id: 'o', status: 'WAITING' }] }
+  const mine = decisionSummaryOf(p, 'Snowflake 권한', null, 'h')
+  assert.equal(mine.tone, 'done')
+  assert.match(mine.sub, /다음 단계\(2\/2\)/)
+  assert.doesNotMatch(mine.sub, /신형철/)
+  const ops = decisionSummaryOf(p, 'Snowflake 권한', null, 'o')
+  assert.equal(ops.tone, 'ok')
+  assert.deepEqual(ops.steps.map(s => s.who), ['1차 승인', '최종 승인 · 나', '자동'])
+  assert.ok(ops.checks.some(c => c.text.includes('1차 승인 → 최종 승인')))
+  assert.ok(!JSON.stringify(ops).includes('김동빈'))
 })

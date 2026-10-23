@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SaasMark from '../components/SaasMark.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ApiError, type Platform, type Problem } from '../api'
@@ -55,9 +56,16 @@ const loaded = ref(false)
 const loadError = ref('')
 
 const ready = computed(() => !!selected.value && contents.value.trim().length >= 2)
-const placeholder = computed(() => selected.value
-  ? '예: ' + EXAMPLE[selected.value]
-  : '예: 분석용 Snowflake 웨어하우스 이용 권한이 필요해요. 추천 모델 TF 때문에요')
+// 휴대폰에서는 예시가 두 줄을 넘어 잘리므로 첫 문장(무엇이 필요한지)만 보여 준다. 이유는 입력창 아래 안내가 맡는다.
+const narrow = ref(typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 720px)').matches)
+const narrowMq = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 720px)') : null
+const onNarrow = (e: MediaQueryListEvent) => { narrow.value = e.matches }
+narrowMq?.addEventListener?.('change', onNarrow)
+onBeforeUnmount(() => narrowMq?.removeEventListener?.('change', onNarrow))
+const placeholder = computed(() => {
+  const full = selected.value ? EXAMPLE[selected.value] : '분석용 Snowflake 웨어하우스 이용 권한이 필요해요. 추천 모델 TF 때문에요'
+  return '예: ' + (narrow.value ? full.split('. ')[0] : full)
+})
 const rows = computed(() => Math.min(4, Math.max(1, Math.ceil(contents.value.length / 40) + contents.value.split('\n').length - 1)))
 
 const counts = computed(() => {
@@ -174,7 +182,7 @@ const help = {
           <div class="rh-pf">
             <button ref="pfBtn" type="button" class="rh-pf-btn" :class="{ on: !!selected }" :style="selected ? { '--c': PLATFORMS[selected].color, '--s': PLATFORMS[selected].soft } : {}"
               aria-haspopup="true" :aria-expanded="pfOpen" @click="pfOpen = !pfOpen">
-              <svg v-if="selected" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="PLATFORMS[selected].icon" /></svg>
+              <SaasMark v-if="selected" :platform="selected" :size="22" tile />
               <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" /></svg>
               {{ selected ? PLATFORMS[selected].label : '플랫폼 선택' }}
               <svg class="rh-pf-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
@@ -182,7 +190,7 @@ const help = {
             <div v-if="pfOpen" ref="pfPop" class="rh-pf-pop" role="group" aria-label="플랫폼 고르기">
               <button v-for="p in ORDER" :key="p" type="button" class="rh-pf-item" :class="{ hint: guesses.includes(p) }"
                 :aria-pressed="selected === p" :style="{ '--c': PLATFORMS[p].color, '--s': PLATFORMS[p].soft }" @click="pick(p); pfOpen = false">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="PLATFORMS[p].icon" /></svg>
+                <SaasMark :platform="p" :size="24" tile />
                 {{ PLATFORMS[p].label }}
               </button>
             </div>
@@ -262,7 +270,7 @@ const help = {
 .rh-pf-item[aria-pressed="true"] { background: var(--c); color: #fff; }
 .rh-pf-hint { margin: 0; font-size: 13px; color: var(--uo-muted); }
 .rh-form { position: relative; display: flex; align-items: flex-end; gap: 12px; padding: 8px 8px 8px 8px; background: rgba(255,255,255,0.92); border: 1px solid var(--uo-line-strong); border-radius: 16px; box-shadow: 0 8px 30px rgba(59,75,216,0.10); }
-.rh-form textarea { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: 16px; line-height: 1.5; color: var(--uo-ink); padding: 10px 0; resize: none; }
+.rh-form textarea { flex: 1; min-width: 0; min-height: 48px; border: 0; outline: none; background: transparent; font: inherit; font-size: 16px; line-height: 1.5; color: var(--uo-ink); padding: 12px 0; resize: none; }
 .rh-form:focus-within { outline: 2px solid var(--uo-primary); outline-offset: 2px; }
 .rh-count { font-size: 12px; color: var(--uo-muted); white-space: nowrap; padding-bottom: 14px; }
 .rh-send { width: 44px; height: 44px; flex: 0 0 44px; border: 0; border-radius: 12px; background: #B4B9CE; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
@@ -305,7 +313,7 @@ const help = {
   /* 휴대폰: 플랫폼 버튼은 입력창 위 한 줄로, 상태 카드 3개는 한 줄에 작게 */
   .rh-form { flex-wrap: wrap; padding: 8px; }
   .rh-pf { flex-basis: 100%; padding-top: 0; }
-  .rh-form textarea { padding: 6px 4px; }
+  .rh-form textarea { min-height: 72px; padding: 8px 4px; }
   .rh-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .rh-step { min-height: 0; padding: 14px 12px 16px; border-radius: 14px; }
   .rh-step-name { font-size: 13px; }

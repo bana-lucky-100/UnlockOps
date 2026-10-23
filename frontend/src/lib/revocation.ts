@@ -19,7 +19,7 @@ import type { Status } from '../api.ts'
  * - 후보 하나하나는 candidate_status(PENDING_REVIEW · RETAINED · EXCLUDED)로 따로 관리한다.
  * - "이번에 새로 알린 후보"와 "이미 알린 후보"는 상태값이 아니라 알림 시각(notified_at)으로 나눈다.
  */
-export type CandidateStatus = 'PENDING_REVIEW' | 'RETAINED' | 'EXCLUDED'
+export type CandidateStatus = 'PENDING_REVIEW' | 'RETAINED' | 'EXCLUDED' | 'RECLAIMED'
 
 export interface RevocationCandidate {
   id: string; user_id: string; user_name: string; platform: string; resource: string
@@ -32,6 +32,9 @@ export interface RevocationCandidate {
   already_notified?: boolean               // v2: 이번 점검에서 ALREADY_NOTIFIED로 건너뛴 후보
   cost_known?: boolean                     // v2: 비용 미확인이면 false. 0원으로 계산하지 않는다
   usage_known?: boolean                    // v2: 서버가 마지막 사용일을 주지 않으면 false. '기록 없음'(미사용)과 구분한다
+  can_revoke?: boolean                     // v2: 서버가 이 담당자에게 회수 실행을 허용할 때만 true. 없으면 회수 버튼을 숨긴다
+  target_id?: string | null                // v2: 회수 API에 넘길 후보 id. 할당 id(assignment_id)로 대신하지 않는다
+  reclaimed_at?: string | null             // v2: 회수 실행 시각(candidate_status RECLAIMED)
 }
 export interface ScanRun {
   id: string; task_type: 'RECLAIM_SCAN'; trigger: 'SCHEDULE' | 'MANUAL' | 'UNKNOWN'
@@ -156,7 +159,8 @@ export function fromOverview(o: {
       return {
         // 개요 응답에 이름 · 자원 · 마지막 사용일이 아직 없다. 들어오면 그대로 쓰고, 없으면 빈 값으로 두어 화면이 '정보 없음'으로 표시한다.
         id: t.target_id ?? t.assignment_id, user_id: '', user_name: t.employee_name ?? t.user_name ?? '', platform: label(t.platform), resource: t.resource_name ?? '',
-        tf_id: null, last_used_at: t.last_used_at ?? null, usage_known: 'last_used_at' in t, monthly_cost: cost ?? 0, cost_known: cost !== null,
+        tf_id: null, last_used_at: t.last_used_at ?? null, usage_known: 'last_used_at' in t,
+        can_revoke: t.can_revoke === true, target_id: t.target_id ?? null, reclaimed_at: t.reclaimed_at ?? null, monthly_cost: cost ?? 0, cost_known: cost !== null,
         reason: t.explanation, policy_ref: policyRefs(t.policy_evidence ?? []),
         candidate_status: t.candidate_status ?? 'PENDING_REVIEW', candidate_reason_code: t.candidate_reason_code ?? '',
         exclusion_reason_code: t.exclusion_reason_code ?? null,
@@ -221,6 +225,18 @@ export async function runNow(): Promise<{ report: RevocationReport; mock: boolea
  */
 export function pickScope<T extends { scope_key: string; enabled: boolean }>(scopes: T[]): T | undefined {
   return scopes.find(s => s.enabled) ?? scopes.find(s => s.scope_key.endsWith(':paid-seats')) ?? scopes[0]
+}
+
+/**
+ * 회수 실행(제안 계약, 백엔드 확정 전): POST /reclaim/targets/{target_id}/revoke → 권한 해제 + 재조회 확인 후 RECLAIMED.
+ * 서버가 후보에 can_revoke=true를 줄 때만 화면이 버튼을 보이므로, 서버가 준비되기 전에는 이 함수가 불리지 않는다.
+ * 같은 버튼을 두 번 눌러도 한 번만 처리되도록 후보마다 같은 멱등 키를 쓴다.
+ */
+const revokeKeys = new Map<string, string>()
+export async function revoke(targetId: string): Promise<void> {
+  const key = revokeKeys.get(targetId) ?? crypto.randomUUID()
+  revokeKeys.set(targetId, key)
+  await api(`/reclaim/targets/${encodeURIComponent(targetId)}/revoke`, { method: 'POST', body: '{}', headers: { 'Idempotency-Key': key } })
 }
 
 export function daysSince(iso: string | null): number | null {
