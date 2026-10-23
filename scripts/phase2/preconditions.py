@@ -86,9 +86,10 @@ def verify(case, observed):
         'BUDGET_SUFFICIENT': (amount <= budget, 'WAITING_APPROVAL', 'ELIGIBLE'),
         'NO_ADDITIONAL_COST': (amount == 0 and budget >= 0 and expected['cost_basis'] == 'NO_ADDITIONAL_COST', 'WAITING_APPROVAL', 'ELIGIBLE'),
     }
-    rule = rules.get(case['decision_rule'])
+    decision_rule = case.get('decision_rule')
+    rule = rules.get(decision_rule)
     if not rule or not rule[0] or rule[1:] != (case['expected_status'], case['expected_reason_code']):
         mismatches.append('decision_rule')
     mismatches = list(dict.fromkeys(mismatches))
     return {'status': 'PRECONDITION_FAILED' if mismatches else 'PASS', 'expected': expected,
-            'observed': actual, 'mismatches': mismatches, 'decision_rule': case['decision_rule']}
+            'observed': actual, 'mismatches': mismatches, 'decision_rule': decision_rule}

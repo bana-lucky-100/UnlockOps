@@ -138,6 +138,7 @@ class EvaluationTest(unittest.TestCase):
         bundle, sql = prepare(RUN, 'full', NOW)
         cases = {c['id']: c for c in bundle['cases']}
         for name, amount, budget, status in [('E-02', '0.00', '10.00', 'WAITING_APPROVAL'),
+                ('P-05', '0.00', '200.00', 'WAITING_APPROVAL'),
                 ('BUDGET-INSUFFICIENT', '19.00', '10.00', 'ON_HOLD'),
                 ('BUDGET-EQUAL', '19.00', '19.00', 'WAITING_APPROVAL'),
                 ('BUDGET-ABOVE', '19.00', '30.00', 'WAITING_APPROVAL'),
@@ -149,6 +150,11 @@ class EvaluationTest(unittest.TestCase):
         invalid = copy.deepcopy(cases['BUDGET-INSUFFICIENT'])
         invalid['expected_status'] = 'WAITING_APPROVAL'
         self.assertIn('decision_rule', verify(invalid, self.budget_observation(invalid))['mismatches'])
+        missing = copy.deepcopy(cases['P-05'])
+        missing.pop('decision_rule')
+        result = verify(missing, self.budget_observation(missing))
+        self.assertEqual(result['status'], 'PRECONDITION_FAILED')
+        self.assertIn('decision_rule', result['mismatches'])
 
     def test_precondition_failure_blocks_requests_and_is_saved_separately(self):
         bundle, sql = prepare(RUN, 'smoke', NOW)

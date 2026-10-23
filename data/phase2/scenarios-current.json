@@ -222,6 +222,7 @@
           "TB-OFF-01"
         ]
       ],
+      "decision_rule": "NO_ADDITIONAL_COST",
       "preconditions": {
         "entitlement_code": "PROJECT_PUBLISHER",
         "entitlement_kind": "ROLE",

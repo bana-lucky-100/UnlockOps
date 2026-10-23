@@ -87,6 +87,7 @@ BEGIN
             case['preconditions'].update(monthly_amount='0.00',unit_monthly_amount='20.00',cost_basis='NO_ADDITIONAL_COST',
                 policy_revision=4,pricing_revision=4,operation='PERMISSION_ONLY',license_coverage='COVERED',purchase_required=False)
         if case['id']=='P-05':
+            case['decision_rule']='NO_ADDITIONAL_COST'
             case['preconditions']={**next(c for c in scenarios['scenarios'] if c['id']=='E-02')['preconditions'],
                 'entitlement_code':'PROJECT_PUBLISHER','access_scope':'GENERAL','unit_monthly_amount':'70.00',
                 'remaining_budget':case['overrides'].get('budget','500.00'),'tf_member':False}
