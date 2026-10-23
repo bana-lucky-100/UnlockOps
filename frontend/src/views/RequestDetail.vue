@@ -242,10 +242,14 @@ const requesterHelp = {
       <div>
         <RouterLink :to="back" class="rd-back">← {{ isRequester ? '홈으로' : '승인함으로' }}</RouterLink>
         <h1 v-if="p && platform">{{ titleText }}</h1>
-        <p v-if="p && (resourceName || (roleKo && p.requested_role))" class="rd-codes">
-          <template v-if="resourceName">대상 <span class="rd-en">{{ resourceName }}</span></template><template v-if="resourceName && roleKo"> · </template><template v-if="roleKo">권한 <span class="rd-en">{{ p.requested_role }}</span></template>
+        <!-- 사람이 먼저 읽는 줄(누가 · 언제) → 승인 대상을 코드로 확인하는 회색 줄(대상 자원 · 권한 코드 · 요청 번호). -->
+        <p v-if="p" class="rd-meta">
+          <template v-if="isRequester">내가</template><template v-else><b>{{ p.requester_name }}</b><template v-if="p.employee_no"> ({{ p.employee_no }})</template> 님이</template>
+          {{ shortWhen(p.created_at) }}에 요청했어요
         </p>
-        <p v-if="p" class="rd-meta"><span class="rd-en">{{ shortId }}</span> · {{ p.requester_name }}<template v-if="!isRequester && p.employee_no"> ({{ p.employee_no }})</template> · {{ shortWhen(p.created_at) }} 요청</p>
+        <p v-if="p" class="rd-codes rd-en">
+          <template v-if="resourceName">{{ resourceName }} · </template><template v-if="p.requested_role">{{ p.requested_role }} · </template>{{ shortId }}
+        </p>
       </div>
       <span v-if="p" class="rd-badge" :class="statusOf(p).tone"><svg v-if="statusOf(p).tone === 'review'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 4px; vertical-align: -2px"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6.5 19a5.5 5.5 0 0 1 11 0" /></svg>{{ statusOf(p).label }}</span>
     </div>
@@ -530,9 +534,9 @@ const requesterHelp = {
 .rd-top { margin: 28px 0 20px; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .rd-back { font-size: 14px; font-weight: 600; color: var(--uo-primary); text-decoration: none; }
 .rd-top h1 { margin: 10px 0 0; font-size: 30px; font-weight: 700; letter-spacing: -0.01em; }
-.rd-meta { margin: 6px 0 0; font-size: 14px; color: var(--uo-muted); }
-.rd-codes { margin: 4px 0 0; font-size: 13px; color: var(--uo-ink-2); }
-.rd-codes .rd-en { font-weight: 600; color: var(--uo-ink); }
+.rd-meta { margin: 8px 0 0; font-size: 15px; color: var(--uo-ink-2); }
+.rd-meta b { font-weight: 700; color: var(--uo-ink); }
+.rd-codes { margin: 4px 0 0; font-size: 12px; color: var(--uo-muted); letter-spacing: 0.01em; }
 .rd-code-sm { display: block; margin-top: 4px; font-size: 12px; color: var(--uo-muted); }
 .rd-perm-role .rd-code-sm { display: inline; margin: 0 0 0 6px; }
 .rd-en { font-family: var(--uo-font-en); }
@@ -662,8 +666,8 @@ const requesterHelp = {
 .rd-ck-ref:hover { color: var(--uo-primary-ink); text-decoration: underline; }
 .rd-ck-ref:focus-visible { outline: 2px solid var(--uo-primary); outline-offset: 2px; border-radius: 4px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.rd-checks-fold { margin: 0 0 14px; border: 1px solid var(--uo-line); border-radius: 12px; }
-.rd-checks-fold > summary { display: flex; align-items: center; gap: 8px; padding: 12px 14px; font-size: 14px; font-weight: 700; color: var(--uo-ink); cursor: pointer; list-style: none; }
+.rd-checks-fold { margin: 0 0 14px; padding: 0; border: 1px solid var(--uo-line); border-radius: 12px; }
+.rd-checks-fold > summary { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 14px; line-height: 1.4; font-size: 14px; font-weight: 700; color: var(--uo-ink); cursor: pointer; list-style: none; }
 .rd-checks-fold > summary::-webkit-details-marker { display: none; }
 .rd-checks-fold > summary em { font-style: normal; font-weight: 400; color: var(--uo-muted); }
 .rd-checks-fold > summary .rd-doc-chev { margin-left: auto; transition: transform .15s; }
