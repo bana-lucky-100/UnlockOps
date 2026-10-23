@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 import re
 
-from unlockops.common.phase2 import Platform
+from unlockops.common.workflow_contracts import Platform
 
 
 DOCUMENT = re.compile(r"(?m)^## [^\n]*?\b((?:POL-\d+)|(?:[A-Z]{2}-OFF-\d+))\s*$")
