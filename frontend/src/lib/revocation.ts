@@ -1,3 +1,4 @@
+import { policyRefs } from './policyRef.ts'
 // api는 화면에서 부를 때만 불러온다(이 파일의 계산 함수를 node 테스트에서 바로 쓰기 위해).
 const api = async <T>(path: string, init?: RequestInit) => (await import('../api.ts')).api<T>(path, init)
 import { MOCK } from './mock.ts'
@@ -30,6 +31,7 @@ export interface RevocationCandidate {
   notified_at: string | null               // 알림 성공 시각. 저장 · 전송 시도만으로는 채우지 않는다
   already_notified?: boolean               // v2: 이번 점검에서 ALREADY_NOTIFIED로 건너뛴 후보
   cost_known?: boolean                     // v2: 비용 미확인이면 false. 0원으로 계산하지 않는다
+  usage_known?: boolean                    // v2: 서버가 마지막 사용일을 주지 않으면 false. '기록 없음'(미사용)과 구분한다
 }
 export interface ScanRun {
   id: string; task_type: 'RECLAIM_SCAN'; trigger: 'SCHEDULE' | 'MANUAL' | 'UNKNOWN'
@@ -152,9 +154,10 @@ export function fromOverview(o: {
       const cost = t.cost_impact?.status === 'ESTIMATED' && t.cost_impact.currency === 'USD' ? money(t.cost_impact.monthly_amount) : null
       const already = t.skip_reason_code === 'ALREADY_NOTIFIED'
       return {
-        id: t.target_id ?? t.assignment_id, user_id: '', user_name: '대상자', platform: label(t.platform), resource: '',
-        tf_id: null, last_used_at: null, monthly_cost: cost ?? 0, cost_known: cost !== null,
-        reason: t.explanation, policy_ref: (t.policy_evidence ?? []).map((e: any) => `${e.doc_id} ${e.article}`).join(' · '),
+        // 개요 응답에 이름 · 자원 · 마지막 사용일이 아직 없다. 들어오면 그대로 쓰고, 없으면 빈 값으로 두어 화면이 '정보 없음'으로 표시한다.
+        id: t.target_id ?? t.assignment_id, user_id: '', user_name: t.employee_name ?? t.user_name ?? '', platform: label(t.platform), resource: t.resource_name ?? '',
+        tf_id: null, last_used_at: t.last_used_at ?? null, usage_known: 'last_used_at' in t, monthly_cost: cost ?? 0, cost_known: cost !== null,
+        reason: t.explanation, policy_ref: policyRefs(t.policy_evidence ?? []),
         candidate_status: t.candidate_status ?? 'PENDING_REVIEW', candidate_reason_code: t.candidate_reason_code ?? '',
         exclusion_reason_code: t.exclusion_reason_code ?? null,
         notified_at: t.notified_at ?? null,

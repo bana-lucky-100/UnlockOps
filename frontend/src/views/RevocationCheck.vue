@@ -51,6 +51,8 @@ function when(iso?: string | null) {
 function initials(name: string) { return name.slice(-2) }
 function idle(c: RevocationCandidate) {
   const d = daysSince(c.last_used_at)
+  // 서버가 사용일을 안 준 것(정보 없음)과 한 번도 안 쓴 것(기록 없음)을 섞지 않는다.
+  if (d === null && c.usage_known === false) return { text: '정보 없음', level: 0 }
   return d === null ? { text: '기록 없음', level: 3 } : { text: `${d}일 전`, level: d >= 60 ? 3 : d >= 30 ? 2 : 1 }
 }
 
@@ -183,8 +185,8 @@ const help = {
             <tr v-for="c in rows" :key="c.id">
               <td>
                 <div class="rv-who">
-                  <span class="rv-av" aria-hidden="true">{{ initials(c.user_name) }}</span>
-                  <div><b>{{ c.user_name }}</b><span class="rv-meta">{{ c.tf_id ?? (c.user_id ? '소속 TF 없음' : '') }}</span></div>
+                  <span v-if="c.user_name" class="rv-av" aria-hidden="true">{{ initials(c.user_name) }}</span>
+                  <div><b v-if="c.user_name">{{ c.user_name }}</b><span v-else class="rv-meta rv-noname">이름 미제공</span><span class="rv-meta">{{ c.tf_id ?? (c.user_id ? '소속 TF 없음' : '') }}</span></div>
                 </div>
               </td>
               <td>
@@ -292,6 +294,7 @@ const help = {
 .rv-logo { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px; font-family: var(--uo-font-en); font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 .rv-idle { display: inline-flex; align-items: center; gap: 6px; font-family: var(--uo-font-en); font-size: 13px; white-space: nowrap; }
 .rv-idle::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.rv-idle.l0 { color: var(--uo-muted); } .rv-noname { margin: 0; font-size: 14px; }
 .rv-idle.l1 { color: var(--uo-ink-2); } .rv-idle.l2 { color: var(--uo-review); } .rv-idle.l3 { color: var(--uo-bad); }
 .rv-why { max-width: 420px; }
 .rv-why p { margin: 0; line-height: 1.5; color: var(--uo-ink-2); }
