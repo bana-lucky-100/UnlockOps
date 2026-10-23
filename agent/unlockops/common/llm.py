@@ -17,5 +17,3 @@ def model():
         timeout=30,
         max_retries=1,
     )
-
-
