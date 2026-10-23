@@ -114,3 +114,16 @@ test('[임시] 판정 메시지에서 부서 잔여 예산 전후 값을 읽고,
   assert.match(p.cost_impact?.basis ?? '', /분석용 웨어하우스 월 사용/)
   assert.match(p.cost_impact?.rule ?? '', /^POL-06 제2조/)
 })
+
+import { decisionSummaryOf, objectJosa } from '../src/lib/decisionSummary.ts'
+test('한 장 요약: 결론 · 숫자 · 왜 괜찮은지 · 승인 순서를 서버 값으로만 만든다', () => {
+  assert.equal(objectJosa('Snowflake 웨어하우스 이용 권한'), '을')
+  assert.equal(objectJosa('Slack 채널 참여'), '를')
+  const p = fromV2(report({ message: '예상 예산 영향은 500.00 → 380.00 USD입니다.' }))
+  const s = decisionSummaryOf(p, 'Snowflake 웨어하우스 이용 권한', p.cost_impact)
+  assert.equal(s.headline, 'Snowflake 웨어하우스 이용 권한을 승인해도 돼요')
+  assert.deepEqual(s.numbers.map(n => n.big), ['월 $120', '$500 → $380', '24%'])
+  assert.ok(s.checks.some(c => c.text.includes('$380 남아요')))
+  assert.deepEqual(s.steps.map(x => `${x.who}:${x.state}`), ['윤부장:on', '송운영:wait', '자동:wait'])
+  assert.equal(decisionSummaryOf(fromV2(report({ status: 'DONE', current_step: null })), 'x', null), null)
+})

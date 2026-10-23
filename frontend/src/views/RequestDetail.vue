@@ -9,6 +9,7 @@ import { platformOf, roleText } from '../lib/platforms'
 import CostImpactCard from '../components/CostImpactCard.vue'
 import { costImpactOf, usd } from '../lib/costImpact.ts'
 import { checksOf, evidenceDocsOf, GROUP_LABEL } from '../lib/evidenceView.ts'
+import { decisionSummaryOf } from '../lib/decisionSummary.ts'
 import { usePolling } from '../lib/polling'
 import { aiMessageOf, approverEventsOf, isMidStep, judgmentOf, approverNoticeOf, approverSummaryOf, evidenceOf, noticeOf, proposalOf, requesterEventsOf, REJECT_CHIPS, stagesOf, summaryOf } from '../lib/requestView'
 import { isGuidanceComplete, isTerminal, needsRefresh, statusOf } from '../lib/status'
@@ -133,6 +134,8 @@ const costLine = computed(() => {
   if (c.kind === 'NO_COST') return { big: '추가 비용 없음', sub: '' }
   return { big: `월 −${usd(c.monthly_cost)}`, sub: c.budget_before !== null && c.budget_after !== null ? `부서 잔여 ${usd(c.budget_before)} → ${usd(c.budget_after)}` : '' }
 })
+// 승인자 화면 맨 위 한 장 요약(결론 → 숫자 → 왜 괜찮은지 → 승인 순서). 승인 대기 · 보류일 때만.
+const decision = computed(() => !isRequester.value && p.value ? decisionSummaryOf(p.value, titleText.value, cost.value?.impact ?? null) : null)
 function jumpCost() {
   const el = document.getElementById('cost-card')
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -242,6 +245,28 @@ const requesterHelp = {
 
       <div class="rd-cols">
         <div class="rd-main">
+          <section v-if="decision" class="rd-card rd-sum" :class="decision.tone" aria-labelledby="rd-sum-h">
+            <span class="rd-sum-badge">{{ decision.badge }}</span>
+            <h2 id="rd-sum-h" class="rd-sum-h">{{ decision.headline }}</h2>
+            <p class="rd-sum-sub">{{ decision.sub }}</p>
+            <div v-if="decision.numbers.length" class="rd-sum-nums">
+              <div v-for="n in decision.numbers" :key="n.label" class="rd-sum-num"><b class="rd-en">{{ n.big }}</b><span>{{ n.label }}</span></div>
+            </div>
+            <template v-if="decision.checks.length">
+              <p class="rd-sum-k">{{ decision.tone === 'ok' ? '왜 괜찮은가요' : '확인한 것' }}</p>
+              <ul class="rd-sum-checks">
+                <li v-for="c in decision.checks" :key="c.text">
+                  <span class="rd-ck-ic" aria-hidden="true">✓</span>
+                  <span>{{ c.text }}<span v-if="c.detail" class="rd-ck-d rd-en">{{ c.detail }}</span></span>
+                  <button v-if="c.ref" type="button" class="rd-ck-ref" @click="jumpTo(c.ref.id)">{{ c.ref.label }}</button>
+                </li>
+              </ul>
+            </template>
+            <ol v-if="decision.steps.length" class="rd-sum-steps" aria-label="승인 순서">
+              <li v-for="(st, i) in decision.steps" :key="i" :class="st.state"><b>{{ st.who }}</b><span>{{ st.label }}</span></li>
+            </ol>
+            <button v-if="docs.length" type="button" class="rd-link rd-sum-more" @click="jumpTo()">규정 원문 보기 ↓</button>
+          </section>
           <!-- 결정이 끝난 뒤의 결과가 가장 중요한 정보라 맨 위. 승인 대기 중에는 제목 · 승인 상자와 같은 내용이라 두지 않는다. -->
           <section v-if="perm" class="rd-card" aria-labelledby="rd-pm">
             <h2 id="rd-pm">{{ perm.title }}</h2>
@@ -273,7 +298,7 @@ const requesterHelp = {
               <p class="rd-msg me">{{ p.contents }}</p>
               <p v-if="aiMessage" class="rd-msg ai">{{ aiMessage }}</p>
             </div>
-            <p v-if="costLine" class="rd-costline">
+            <p v-if="costLine && !decision" class="rd-costline">
               <span class="k">비용 영향</span><b class="rd-en">{{ costLine.big }}</b><span v-if="costLine.sub" class="sub rd-en">{{ costLine.sub }}</span>
               <button type="button" class="rd-jump" @click="jumpCost">자세히</button>
             </p>
@@ -534,6 +559,27 @@ const requesterHelp = {
 .rd-copy { border: 1px solid var(--uo-line); background: #fff; border-radius: 6px; padding: 1px 8px; font-size: 12px; color: var(--uo-ink-2); cursor: pointer; }
 .rd-copy:focus-visible { outline: 2px solid var(--uo-primary); outline-offset: 2px; }
 .rd-anchor { scroll-margin-top: 24px; }
+.rd-sum { border-left: 6px solid var(--uo-ok, #1A7340); display: flex; flex-direction: column; gap: 8px; }
+.rd-sum.review { border-left-color: var(--uo-review); }
+.rd-sum-badge { align-self: flex-start; font-size: 13px; font-weight: 700; border-radius: 999px; padding: 3px 12px; background: var(--uo-ok-bg, #E6F4EC); color: var(--uo-ok, #1A7340); }
+.rd-sum.review .rd-sum-badge { background: var(--uo-review-bg); color: var(--uo-review); }
+.rd-sum-h { margin: 4px 0 0; font-size: 22px; font-weight: 800; line-height: 1.4; letter-spacing: -0.01em; }
+.rd-sum-sub { margin: 0; font-size: 14px; color: var(--uo-muted); }
+.rd-sum-nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 8px 0; }
+.rd-sum-num { background: var(--uo-bg, #F6F7FC); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+.rd-sum-num b { font-size: 20px; font-weight: 800; color: var(--uo-primary-ink); letter-spacing: -0.02em; }
+.rd-sum-num span { font-size: 12px; color: var(--uo-muted); }
+.rd-sum-k { margin: 6px 0 0; font-size: 13px; font-weight: 700; color: var(--uo-muted); }
+.rd-sum-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.rd-sum-checks li { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; }
+.rd-sum-checks .rd-ck-ref { margin-left: auto; }
+.rd-sum-steps { list-style: none; margin: 8px 0 0; padding: 0; display: flex; gap: 6px; }
+.rd-sum-steps li { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 10px; background: var(--uo-bg, #F6F7FC); font-size: 12px; color: var(--uo-muted); text-align: center; }
+.rd-sum-steps li b { font-size: 13px; color: var(--uo-ink-2); }
+.rd-sum-steps li.on { background: var(--uo-warn-bg, #FDF0E4); color: var(--uo-warn, #9A4A08); }
+.rd-sum-steps li.done { background: var(--uo-ok-bg, #E6F4EC); color: var(--uo-ok, #1A7340); }
+.rd-sum-steps li.bad { background: var(--uo-bad-bg, #FDECEC); color: var(--uo-bad); }
+.rd-sum-more { align-self: flex-start; }
 .rd-costline { margin: 14px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 14px; }
 .rd-costline .k { color: var(--uo-muted); }
 .rd-costline b { font-size: 16px; color: var(--uo-primary-ink); }
