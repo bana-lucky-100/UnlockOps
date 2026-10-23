@@ -28,6 +28,7 @@ include = ["unlockops*"]
 
 [tool.setuptools.package-data]
 "unlockops.access" = ["*.md"]
+"unlockops.reclaim" = ["*.md"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
