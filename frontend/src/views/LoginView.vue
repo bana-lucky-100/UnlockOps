@@ -114,7 +114,7 @@ async function submit() {
         </div>
 
         <div class="lg-saas">
-          <p class="lg-saas-k">권한과 비용을 함께 관리하는 SaaS <b>{{ SAAS.length }}</b></p>
+          <p class="lg-saas-k">권한과 비용을 함께 관리하는 SaaS</p>
           <p class="sr-only">{{ SAAS.map(x => x.name).join(', ') }}</p>
           <div v-for="(row, ri) in rows" :key="ri" class="lg-mq" :class="{ rev: ri === 1 }" aria-hidden="true">
             <div class="lg-mq-track">
@@ -193,7 +193,6 @@ async function submit() {
 .lg-mq { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
 .lg-mq-track { display: flex; width: max-content; animation: lg-mq 38s linear infinite; }
 .lg-mq.rev .lg-mq-track { animation-direction: reverse; animation-duration: 44s; }
-.lg-saas:hover .lg-mq-track { animation-play-state: paused; }
 @keyframes lg-mq { to { transform: translateX(-50%); } }
 .lg-logo { flex: 0 0 auto; height: 52px; padding: 0 22px; margin-right: 12px; display: inline-flex; align-items: center; border-radius: 14px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); }
 /* 구름처럼 세로로 긴 로고는 같은 높이면 작아 보여서 조금 키운다. */
