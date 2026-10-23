@@ -111,7 +111,7 @@ async function signOut() {
 .sh-brand span { font-family: var(--uo-font); font-weight: 500; font-size: 14px; color: var(--uo-muted); letter-spacing: 0; }
 .sh-me { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--uo-muted); flex-wrap: wrap; }
 .sh-pill { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 12px; border: 1px solid #D5D9EA; border-radius: 999px; background: #fff; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
-.sh-avatar { width: 36px; height: 36px; border-radius: 50%; background: #DDE2FF; color: var(--uo-primary); display: flex; align-items: center; justify-content: center; font-weight: 600; }
+.sh-avatar { width: 36px; height: 36px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--uo-primary); background: #DDE2FF; color: var(--uo-primary); display: flex; align-items: center; justify-content: center; font-weight: 700; }
 .sh-err { color: var(--uo-bad); font-weight: 600; }
 .sh-help { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end; }
 .sh-scrim { position: absolute; inset: 0; border: 0; padding: 0; background: rgba(20,26,51,0.32); cursor: pointer; }
