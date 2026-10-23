@@ -1,0 +1,603 @@
+{
+  "schema_version": 2,
+  "dataset_id": "phase2-baseline-v1",
+  "is_mock": true,
+  "as_of": "2026-10-22T09:00:00+09:00",
+  "timezone": "Asia/Seoul",
+  "companies": {
+    "A": {
+      "company_id": "26c56ede-d5bd-5fad-8591-d729af9eaee9",
+      "department_id": "22ad669d-d5cc-5563-82f5-a7837124e853",
+      "users": {
+        "requester": "32d5eff9-eddd-544e-b047-21624af078bd",
+        "team_lead": "8a29e6c7-26fc-55fd-99e8-4de2219051d8",
+        "head": "d21e09b7-93ab-5928-877e-5effec838ccc",
+        "operator": "d9d8734f-2dde-5efa-a225-63a3b069abdb",
+        "it_head": "2dbfa81c-1051-509c-9db0-470b3b0a52f8",
+        "figma_operator": "531d22cd-26fd-585e-97e9-d324ec2b233e"
+      },
+      "policy_id": "0673ccd9-4e9b-5e92-bb81-28b949ef5224",
+      "route_id": "ea0e585f-39df-536e-89db-ec3515b5bf74",
+      "scope_id": "0d912540-be76-5d6e-b547-070c89b1e15f",
+      "active_tf_id": "6ac6fbbf-180c-5800-9ce4-d8a5dfa6a702",
+      "ended_tf_id": "2f2b3e12-ce14-58b2-a72d-95d47eb60f10"
+    },
+    "B": {
+      "company_id": "8b249b2f-a249-5e47-be54-6e1024604568",
+      "department_id": "24d437e2-f87d-5f9e-8ffa-9e828f0989a8",
+      "users": {
+        "requester": "a8e6ea12-b18e-570b-868b-e753f188c487",
+        "team_lead": "92feef34-847c-5ed5-a6af-611eb28ba7e7",
+        "head": "44fb64c9-3cbb-5dbc-8fed-5a6c02271331",
+        "operator": "32d38320-7116-5e71-9579-0acc2f2b098f",
+        "it_head": "1c1cd935-4877-5987-9bf3-5d84d6d8a7e3",
+        "figma_operator": "31532c14-0a5f-5eef-94ef-ec50e2d5209b"
+      },
+      "policy_id": "1c50655c-5569-5922-90df-e4575f4c0dd8",
+      "route_id": "3e0e42b7-5cca-54de-b474-31a0bae66319",
+      "scope_id": "d6fec015-199b-5c4a-b644-be23e256aee4",
+      "active_tf_id": "121736bc-d928-52d2-a8f6-3985e3bdfb1a",
+      "ended_tf_id": "b39245b6-4213-55f9-82a6-069281e4308a"
+    }
+  },
+  "catalog": [
+    {
+      "company": "A",
+      "platform": "SNOWFLAKE",
+      "resource_id": "a23f44c5-5d61-5875-b36e-7d4c8e71b68c",
+      "entitlement_id": "9acacff9-ee2e-5bc8-80e4-7ddbeec2d882",
+      "pricing_id": "17b04430-ca3f-5c86-8530-37a14ad0f934",
+      "code": "ANALYST",
+      "kind": "ROLE",
+      "monthly_amount": "120.00",
+      "currency": "USD",
+      "cost_basis": "USAGE_ESTIMATE",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "A",
+      "platform": "DATABRICKS",
+      "resource_id": "b2c85561-1648-567b-9932-58aa37c81c48",
+      "entitlement_id": "14ad83a7-c54f-5739-a889-596a63b2e4b7",
+      "pricing_id": "56b8bbbf-147a-5c77-b292-400999b00a17",
+      "code": "NOTEBOOK_JOB_USER",
+      "kind": "PERMISSION_SET",
+      "monthly_amount": "80.00",
+      "currency": "USD",
+      "cost_basis": "USAGE_ESTIMATE",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "A",
+      "platform": "SALESFORCE",
+      "resource_id": "b0cf870a-7a9a-561e-a0ae-d2a56fef19ff",
+      "entitlement_id": "8c6dfcb9-8353-5fb2-8e4b-a6c148a30083",
+      "pricing_id": "d09cedb0-c281-5dbe-92f3-25649cb46629",
+      "code": "ASSIGNED_CUSTOMER_EDITOR",
+      "kind": "PERMISSION_SET",
+      "monthly_amount": "0.00",
+      "currency": "USD",
+      "cost_basis": "NO_ADDITIONAL_COST",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "A",
+      "platform": "DATADOG",
+      "resource_id": "3e867978-aa1c-57ed-8102-8891230b11aa",
+      "entitlement_id": "44fbbba5-a68e-5d75-a8e8-13dc38d01f56",
+      "pricing_id": "5be121c3-9035-56df-ab76-2898daf0f0d4",
+      "code": "SERVICE_VIEWER",
+      "kind": "ROLE",
+      "monthly_amount": "0.00",
+      "currency": "USD",
+      "cost_basis": "NO_ADDITIONAL_COST",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "A",
+      "platform": "TABLEAU_CLOUD",
+      "resource_id": "f9f29ca4-63f6-562e-ab8e-4792bf5874ee",
+      "entitlement_id": "f5322e48-1d02-59ce-9f9a-51d28ae09dbf",
+      "pricing_id": "bc3a89cd-0b19-5881-b859-20033bfe5958",
+      "code": "PROJECT_PUBLISHER",
+      "kind": "ROLE",
+      "monthly_amount": "70.00",
+      "currency": "USD",
+      "cost_basis": "SEAT_MONTHLY",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "A",
+      "platform": "FIGMA",
+      "resource_id": "25029e77-df59-587c-8111-88a1ad4a2bb2",
+      "entitlement_id": "a26109a4-4601-5b25-b406-5c14fbf4c31f",
+      "pricing_id": "68b4fd33-4002-5271-a38d-28d155e7ee42",
+      "code": "EDITOR_SEAT",
+      "kind": "SEAT",
+      "monthly_amount": "15.00",
+      "currency": "USD",
+      "cost_basis": "SEAT_MONTHLY",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "A",
+      "platform": "GITHUB",
+      "resource_id": "f6a8937e-20c9-51c9-b0d5-0587716db05d",
+      "entitlement_id": "e012a69d-8bdb-5516-9093-998f32ecb5f3",
+      "pricing_id": "0eb19e19-b51a-5d24-a018-53571858b7d0",
+      "code": "COPILOT_SEAT",
+      "kind": "SEAT",
+      "monthly_amount": "19.00",
+      "currency": "USD",
+      "cost_basis": "SEAT_MONTHLY",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "A",
+      "platform": "JIRA",
+      "resource_id": "117e5d92-d10e-583c-995d-8779afb25bfa",
+      "entitlement_id": "71519c50-9ac1-5fb9-9934-8a8f8df73aea",
+      "pricing_id": "f50b4001-acc7-5e64-9f0e-9e7c31642344",
+      "code": "DEVELOPER",
+      "kind": "ROLE",
+      "monthly_amount": "0.00",
+      "currency": "USD",
+      "cost_basis": "NO_ADDITIONAL_COST",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "A",
+      "platform": "SLACK",
+      "resource_id": "1172f7eb-c89c-52e6-8ee3-2d2351c3175c",
+      "entitlement_id": "11306c7f-e8bf-58b4-9cd0-c0b5e11b4b25",
+      "pricing_id": "c212a7d9-92be-5f61-847b-e00157e5e37b",
+      "code": "MEMBER",
+      "kind": "MEMBERSHIP",
+      "monthly_amount": "0.00",
+      "currency": "USD",
+      "cost_basis": "NO_ADDITIONAL_COST",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "A",
+      "platform": "NOTION",
+      "resource_id": "25382d0a-f0e6-558f-806f-382667e9db69",
+      "entitlement_id": "8ab92447-ddd6-5fcf-8c2e-f1b45db8b273",
+      "pricing_id": "fb46620f-ec7e-5ac6-a33d-5710484696ab",
+      "code": "EDITOR",
+      "kind": "ROLE",
+      "monthly_amount": "20.00",
+      "currency": "USD",
+      "cost_basis": "SEAT_MONTHLY",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "B",
+      "platform": "SNOWFLAKE",
+      "resource_id": "4839ccfb-8261-5198-8616-c38682e1cd19",
+      "entitlement_id": "ff2acefa-450b-5269-92ce-6e69c268edf6",
+      "pricing_id": "c75c263c-c0b4-5dd2-a0fb-d5d9778f2dd9",
+      "code": "ANALYST",
+      "kind": "ROLE",
+      "monthly_amount": "120.00",
+      "currency": "USD",
+      "cost_basis": "USAGE_ESTIMATE",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "B",
+      "platform": "DATABRICKS",
+      "resource_id": "a97141dc-9caf-5836-a992-042a42c150e3",
+      "entitlement_id": "fbc8aef9-e859-5b1d-8ecd-0415248bbf57",
+      "pricing_id": "f2d1edac-5600-55c9-a6b5-2616485089db",
+      "code": "NOTEBOOK_JOB_USER",
+      "kind": "PERMISSION_SET",
+      "monthly_amount": "80.00",
+      "currency": "USD",
+      "cost_basis": "USAGE_ESTIMATE",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "B",
+      "platform": "SALESFORCE",
+      "resource_id": "27af24e3-894e-5e70-bda3-40a72be0d8f1",
+      "entitlement_id": "76121dc0-c970-51b6-870e-cbad2ffcf603",
+      "pricing_id": "1b4b42ba-f1cd-531a-bebe-10cd778c1972",
+      "code": "ASSIGNED_CUSTOMER_EDITOR",
+      "kind": "PERMISSION_SET",
+      "monthly_amount": "0.00",
+      "currency": "USD",
+      "cost_basis": "NO_ADDITIONAL_COST",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "B",
+      "platform": "DATADOG",
+      "resource_id": "3e84f446-af5b-5179-a523-aff77d6e77e1",
+      "entitlement_id": "3215a06f-3742-516a-bf2a-b87c29f5e3e1",
+      "pricing_id": "08930565-f9a4-5add-a384-4ff861fe61f2",
+      "code": "SERVICE_VIEWER",
+      "kind": "ROLE",
+      "monthly_amount": "0.00",
+      "currency": "USD",
+      "cost_basis": "NO_ADDITIONAL_COST",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "B",
+      "platform": "TABLEAU_CLOUD",
+      "resource_id": "227397d1-44bd-5a5b-a113-ce12200290f2",
+      "entitlement_id": "af3c2ca9-7531-54c4-9609-cd1099aa231c",
+      "pricing_id": "f6438550-3138-5b98-b5ae-f0c89c5826ec",
+      "code": "PROJECT_PUBLISHER",
+      "kind": "ROLE",
+      "monthly_amount": "70.00",
+      "currency": "USD",
+      "cost_basis": "SEAT_MONTHLY",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "B",
+      "platform": "FIGMA",
+      "resource_id": "a2feff47-dfd7-5b68-bf9d-4cb7ef294249",
+      "entitlement_id": "d93b9383-a2ef-5f43-a4a7-5d24cd0ae23d",
+      "pricing_id": "933a2e85-435a-5163-a209-90535ff11ae5",
+      "code": "EDITOR_SEAT",
+      "kind": "SEAT",
+      "monthly_amount": "15.00",
+      "currency": "USD",
+      "cost_basis": "SEAT_MONTHLY",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "B",
+      "platform": "GITHUB",
+      "resource_id": "133ba54d-9068-5890-82bd-90d3f114c555",
+      "entitlement_id": "0f1f4587-6a73-5a9e-a399-47e1c838298c",
+      "pricing_id": "128c79f8-31cb-5d20-a2ce-e7edcaf450f2",
+      "code": "COPILOT_SEAT",
+      "kind": "SEAT",
+      "monthly_amount": "19.00",
+      "currency": "USD",
+      "cost_basis": "SEAT_MONTHLY",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "B",
+      "platform": "JIRA",
+      "resource_id": "b863c495-1052-5871-a486-445797faa9ce",
+      "entitlement_id": "0cdaa53a-ef25-5135-986a-14d3c385e03f",
+      "pricing_id": "516c8442-de1b-570a-ae6a-53767f49b2b2",
+      "code": "DEVELOPER",
+      "kind": "ROLE",
+      "monthly_amount": "0.00",
+      "currency": "USD",
+      "cost_basis": "NO_ADDITIONAL_COST",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "B",
+      "platform": "SLACK",
+      "resource_id": "7cfbda49-850c-5b6a-a789-5fecf30433a8",
+      "entitlement_id": "5ad7c090-b796-500b-b935-27a186414dc4",
+      "pricing_id": "e874fda9-8155-52a2-9d70-91f0a96296bc",
+      "code": "MEMBER",
+      "kind": "MEMBERSHIP",
+      "monthly_amount": "0.00",
+      "currency": "USD",
+      "cost_basis": "NO_ADDITIONAL_COST",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    },
+    {
+      "company": "B",
+      "platform": "NOTION",
+      "resource_id": "fb534c70-744a-56bd-832f-be4ffd332dc4",
+      "entitlement_id": "695c806e-ce1b-5973-bad4-2b2d39b35464",
+      "pricing_id": "e2ce3b8b-a27f-5546-9a23-b5eb82caf418",
+      "code": "EDITOR",
+      "kind": "ROLE",
+      "monthly_amount": "20.00",
+      "currency": "USD",
+      "cost_basis": "SEAT_MONTHLY",
+      "source_kind": "SYNTHETIC_CONTRACT"
+    }
+  ],
+  "reclaim_fixtures": {
+    "R-01": {
+      "user_id": "51e85015-6b26-5f4f-93ae-d71ccc0cc545",
+      "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+      "scope_id": "0d912540-be76-5d6e-b547-070c89b1e15f",
+      "company": "A",
+      "platform": "GITHUB"
+    },
+    "R-02": {
+      "user_id": "151cf9ad-41e2-5a26-a9db-c06a09149ba7",
+      "assignment_id": "04dcc52b-5749-5c30-8fae-4d628056fb2c",
+      "scope_id": "3a42ac8a-1965-5fda-b51c-d0b69a928ac6",
+      "company": "A",
+      "platform": "GITHUB"
+    },
+    "R-03": {
+      "user_id": "9309e4ba-1683-542e-9161-3dd2dcdc7f29",
+      "assignment_id": "5163ef58-4dbb-5cdc-a9cd-eb918a60b714",
+      "scope_id": "647fdcdf-0b99-5826-962b-3d89f8df5ef6",
+      "company": "A",
+      "platform": "GITHUB"
+    },
+    "R-04": {
+      "user_id": "ef816046-d831-5e40-be92-e52f127ef8a6",
+      "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237",
+      "scope_id": "0780aaec-c4a9-5a11-bbae-2a6218a58a1e",
+      "company": "A",
+      "platform": "GITHUB"
+    },
+    "X-11": {
+      "user_id": "5de74f14-99d0-56c7-a686-55786a64992b",
+      "assignment_id": "9075012e-fc26-5d2b-ac27-91e9ec0e01f9",
+      "scope_id": "fc7c981b-dd89-5a0d-a475-0887df972f8e",
+      "company": "A",
+      "platform": "GITHUB"
+    },
+    "MISSING_USAGE": {
+      "user_id": "030e4ebf-8ffa-5910-9401-a4956bcbe5ee",
+      "assignment_id": "cde5e7bf-1508-5029-a86d-a9996318ba98",
+      "scope_id": "83eda6d2-80e2-5743-8f5c-32393beb04dc",
+      "company": "A",
+      "platform": "GITHUB"
+    },
+    "X-10-GITHUB": {
+      "user_id": "73369578-b14a-5915-b827-8bd1fc97dbd1",
+      "assignment_id": "e6c0c0cd-b784-5937-85f4-6f1576910225",
+      "scope_id": "d6fec015-199b-5c4a-b644-be23e256aee4",
+      "company": "B",
+      "platform": "GITHUB"
+    },
+    "X-10-FIGMA": {
+      "user_id": "a818545c-accd-5602-9b73-c872e78e7744",
+      "assignment_id": "27b2c448-117b-54c1-bf02-ce77cd05f450",
+      "scope_id": "d6fec015-199b-5c4a-b644-be23e256aee4",
+      "company": "B",
+      "platform": "FIGMA"
+    }
+  },
+  "scenarios": [
+    {
+      "id": "E-01",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {},
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "E-02",
+      "company": "A",
+      "platform": "NOTION",
+      "expected_status": "ON_HOLD",
+      "expected_reason_code": "BUDGET_INSUFFICIENT",
+      "overrides": {
+        "budget": "10.00"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "E-03",
+      "company": "A",
+      "platform": "SLACK",
+      "expected_status": "DONE",
+      "expected_reason_code": "ALREADY_HAS_ACCESS",
+      "overrides": {
+        "already_assigned": true
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "E-04",
+      "company": "A",
+      "platform": "JIRA",
+      "expected_status": "REJECTED",
+      "expected_reason_code": "HUMAN_REJECTED",
+      "overrides": {
+        "reject_step": 1
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "E-05",
+      "company": "A",
+      "platform": "NOTION",
+      "expected_status": "REJECTED",
+      "expected_reason_code": "HUMAN_REJECTED",
+      "overrides": {
+        "reject_step": 2
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "P-01",
+      "company": "A",
+      "platform": "SNOWFLAKE",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {},
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "P-02",
+      "company": "A",
+      "platform": "DATABRICKS",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {
+        "budget": "300.00"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "P-03",
+      "company": "A",
+      "platform": "SALESFORCE",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {},
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "P-04",
+      "company": "A",
+      "platform": "DATADOG",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {},
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "P-05",
+      "company": "A",
+      "platform": "TABLEAU_CLOUD",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {
+        "budget": "200.00"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "P-06",
+      "company": "B",
+      "platform": "FIGMA",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "ELIGIBLE",
+      "overrides": {},
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "B-01",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "REJECTED",
+      "expected_reason_code": "POLICY_NOT_ELIGIBLE",
+      "overrides": {
+        "job_family": "NON_DEV"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "B-02",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "WAITING_APPROVAL",
+      "expected_reason_code": "LEAST_PRIVILEGE_PROPOSED",
+      "overrides": {
+        "requested": "Admin",
+        "proposed": "Read",
+        "resource_kind": "REPOSITORY",
+        "resource_id": "a7dc201e-eeec-5d0b-ba35-adaa8638cd51",
+        "entitlement_id": "017d9d6f-114b-5b29-8374-8744da916273"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "B-03",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "MANUAL_REVIEW",
+      "expected_reason_code": "MISSING_SOURCE_EVIDENCE",
+      "overrides": {
+        "policy_missing": true
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "B-04",
+      "company": "A",
+      "platform": "SLACK",
+      "expected_status": "REJECTED",
+      "expected_reason_code": "NOT_TF_MEMBER",
+      "overrides": {
+        "membership": false
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "B-05",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "MANUAL_REVIEW",
+      "expected_reason_code": "OUT_OF_SCOPE",
+      "overrides": {
+        "request": "DB 배포 권한"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "R-01",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "DONE",
+      "expected_reason_code": "SCAN_COMPLETED",
+      "overrides": {
+        "assignment_id": "7f259edc-2eac-57e0-b0c2-e46b5628e68a",
+        "scope_id": "0d912540-be76-5d6e-b547-070c89b1e15f"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "R-02",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "DONE",
+      "expected_reason_code": "NO_NEW_CANDIDATES",
+      "overrides": {
+        "assignment_id": "04dcc52b-5749-5c30-8fae-4d628056fb2c",
+        "scope_id": "3a42ac8a-1965-5fda-b51c-d0b69a928ac6"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "R-03",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "DONE",
+      "expected_reason_code": "NO_NEW_CANDIDATES",
+      "overrides": {
+        "assignment_id": "5163ef58-4dbb-5cdc-a9cd-eb918a60b714",
+        "scope_id": "647fdcdf-0b99-5826-962b-3d89f8df5ef6"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    },
+    {
+      "id": "R-04",
+      "company": "A",
+      "platform": "GITHUB",
+      "expected_status": "DONE",
+      "expected_reason_code": "NO_NEW_CANDIDATES",
+      "overrides": {
+        "assignment_id": "2c1922f4-234b-5126-8ddc-9a3bdf702237",
+        "scope_id": "0780aaec-c4a9-5a11-bbae-2a6218a58a1e"
+      },
+      "execution_ready": true,
+      "validation_status": "NOT_RUN"
+    }
+  ]
+}
