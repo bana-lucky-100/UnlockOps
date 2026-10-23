@@ -5,7 +5,8 @@
 
 - `phase2/policies/policy_corpus.md`: 사내 규정·공식 요약 원문 28건. 권한 검토와 접근 문제 안내의 근거.
 - `phase2/policies/company-*-policy-v3.md`: 현재 시나리오 v4에 연결하는 회사별 정책 묶음.
-- `phase2/seed.sql`, `policies/apply.sql`, `policies/apply-v4.sql`: baseline·정책 revision 2·3의 불변 적용 파일.
+- `phase2/seed.sql`: 기본 시연 데이터. 표시명·신규 정책 제목을 정리해 생성하며 기존 DB의 정책·업무 이력은 보존.
+- `phase2/policies/apply.sql`, `policies/apply-v4.sql`: 불변 정책 revision 2·3 적용 파일. baseline 검증은 제목 정리 전·후의 알려진 해시를 허용.
 - `phase2/scenarios-v4.json`: 현재 입력·기대값. catalog/seed의 baseline 가격과 구분.
 - 루트 `policy_corpus.md`, `company-a-access-matrix.md`: 과거 단일 승인 자료. 현재 MCP가 직접 검색하는 별도 경로는 제거.
 

@@ -9,6 +9,11 @@ from unlockops_rag.corpus import parse_corpus, render_corpus
 ROOT = Path(__file__).resolve().parents[1]
 DIRECTORY = ROOT / 'data/phase2/policies'
 SOURCE = DIRECTORY / 'policy_corpus.md'
+# Installed revision 1 policies with the former heading remain valid and immutable.
+PREVIOUS_BASELINE_HASHES = {
+    'A': '40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5',
+    'B': '461115c0161b6586ae805533a78fcf76e76bb2fb113405b07e2a0bdba93a70f7',
+}
 
 
 def quote(value):
@@ -66,6 +71,7 @@ def company_bundle(company, documents, source_hash):
 
 def update_sql(company, info, content, baseline):
     co, policy = quote(info['company_id']), quote(info['policy_id'])
+    baseline_hashes = ','.join(quote(value) for value in (digest(baseline), PREVIOUS_BASELINE_HASHES[company]))
     # Fixed revision 2 is intentional: changed input must not silently overwrite an imported revision.
     statements = [f'''DO $policy_import$
 BEGIN
@@ -73,7 +79,7 @@ BEGIN
     RAISE EXCEPTION 'Seed the expected P2_{company} mock company before importing policies';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM policy_revisions WHERE policy_id={policy} AND company_id={co}
-      AND revision=1 AND source_hash={quote(digest(baseline))}) THEN
+      AND revision=1 AND source_hash IN ({baseline_hashes})) THEN
     RAISE EXCEPTION 'Unexpected baseline policy for P2_{company}';
   END IF;
   IF EXISTS (SELECT 1 FROM policy_revisions WHERE company_id={co} AND (policy_id<>{policy} OR revision>2)) THEN

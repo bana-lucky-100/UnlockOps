@@ -14,7 +14,7 @@ BEGIN
     RAISE EXCEPTION 'Seed the expected P2_A mock company before importing policies';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM policy_revisions WHERE policy_id='0673ccd9-4e9b-5e92-bb81-28b949ef5224' AND company_id='26c56ede-d5bd-5fad-8591-d729af9eaee9'
-      AND revision=1 AND source_hash='40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5') THEN
+      AND revision=1 AND source_hash IN ('12efac8ad3a174c0877d7983ebc07a11cfa00e1a6291cf5ebbbfb58926f0c577','40e8eb84bc7ea099d18cba9dadb92f1565102638eb862bf70b0c2a376a2824d5')) THEN
     RAISE EXCEPTION 'Unexpected baseline policy for P2_A';
   END IF;
   IF EXISTS (SELECT 1 FROM policy_revisions WHERE company_id='26c56ede-d5bd-5fad-8591-d729af9eaee9' AND (policy_id<>'0673ccd9-4e9b-5e92-bb81-28b949ef5224' OR revision>2)) THEN
@@ -1505,7 +1505,7 @@ BEGIN
     RAISE EXCEPTION 'Seed the expected P2_B mock company before importing policies';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM policy_revisions WHERE policy_id='1c50655c-5569-5922-90df-e4575f4c0dd8' AND company_id='8b249b2f-a249-5e47-be54-6e1024604568'
-      AND revision=1 AND source_hash='461115c0161b6586ae805533a78fcf76e76bb2fb113405b07e2a0bdba93a70f7') THEN
+      AND revision=1 AND source_hash IN ('4fb20db2596e44819268b72c43834324ade4ed78294b72df81402e00927ea9b9','461115c0161b6586ae805533a78fcf76e76bb2fb113405b07e2a0bdba93a70f7')) THEN
     RAISE EXCEPTION 'Unexpected baseline policy for P2_B';
   END IF;
   IF EXISTS (SELECT 1 FROM policy_revisions WHERE company_id='8b249b2f-a249-5e47-be54-6e1024604568' AND (policy_id<>'1c50655c-5569-5922-90df-e4575f4c0dd8' OR revision>2)) THEN

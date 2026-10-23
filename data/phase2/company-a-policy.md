@@ -1,4 +1,4 @@
-# A사 Phase 2 임시 규정 · baseline-v1
+# A사 임시 규정 · baseline-v1
 
 교육용 합성 데이터이며 실제 회사 규정·SaaS 공식 역할·가격이 아니다.
 

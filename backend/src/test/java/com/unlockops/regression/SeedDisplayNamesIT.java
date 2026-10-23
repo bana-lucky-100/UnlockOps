@@ -1,9 +1,13 @@
 package com.unlockops.regression;
 
 import com.unlockops.auth.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -68,8 +72,12 @@ class SeedDisplayNamesIT {
         var jdbc = new JdbcTemplate(source);
         Flyway.configure().dataSource(source).load().migrate();
         String seed = Files.readString(Path.of("../data/phase2/seed.sql"));
+        assertFalse(java.util.regex.Pattern.compile("Phase [12]").matcher(seed).find());
         jdbc.execute(seed);
         assertDefaultNames(jdbc);
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM policy_revisions WHERE content ~ 'Phase [12]'", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM reclaim_snapshots WHERE context::text ~ 'Phase [12]'", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM reclaim_snapshot_items WHERE facts::text ~ 'Phase [12]'", Integer.class));
 
         // Simulate an installed demo with the old labels and subsequent human activity.
         for (String table : NAMED_TABLES) jdbc.update("UPDATE " + table
@@ -107,5 +115,45 @@ class SeedDisplayNamesIT {
         jdbc.execute(seed);
         assertEquals(after, jdbc.queryForList(names));
         assertEquals(before, state(jdbc));
+    }
+
+    @Test void missingHistoricalReportUsesInstalledPolicyWithoutRewritingIt() throws Exception {
+        var source = new DriverManagerDataSource(DB.getJdbcUrl(), DB.getUsername(), DB.getPassword());
+        new JdbcTemplate(source).execute("CREATE SCHEMA old_seed");
+        source.setSchema("old_seed");
+        var jdbc = new JdbcTemplate(source);
+        Flyway.configure().dataSource(source).schemas("old_seed").load().migrate();
+        var json = new ObjectMapper();
+        String content = Files.readString(Path.of("../data/phase2/company-a-policy.md"))
+            .replace("# A사 임시 규정", "# A사 Phase 2 임시 규정");
+        String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content.getBytes(StandardCharsets.UTF_8)));
+        // An existing installation can contain the old immutable policy but no R-04 report yet.
+        jdbc.update("INSERT INTO companies(id,code,name) VALUES('26c56ede-d5bd-5fad-8591-d729af9eaee9','P2_A','Phase 2 A사 (mock)')");
+        jdbc.update("""
+            INSERT INTO policy_revisions(policy_id,revision,company_id,doc_id,article,source_path,source_hash,content,is_mock)
+            VALUES('0673ccd9-4e9b-5e92-bb81-28b949ef5224',1,'26c56ede-d5bd-5fad-8591-d729af9eaee9',
+                'P2-A-POLICY','POL-06 제1~5조 / FLOW 제7조','data/phase2/company-a-policy.md',?,?,true)
+            """, hash, content);
+        String seed = Files.readString(Path.of("../data/phase2/seed.sql"));
+        jdbc.execute(seed);
+        assertEquals(content, jdbc.queryForObject("SELECT content FROM policy_revisions WHERE doc_id='P2-A-POLICY'", String.class));
+        var context = json.readTree(jdbc.queryForObject("SELECT context::text FROM reclaim_snapshots", String.class));
+        assertEquals(content, context.path("policy").path("content").asText());
+        assertEquals(hash, context.path("policy_hash").asText());
+        assertEquals(hash, context.path("policy").path("source_hash").asText());
+        var facts = json.readTree(jdbc.queryForObject("SELECT facts::text FROM reclaim_snapshot_items", String.class));
+        assertEquals(hash, facts.path("candidate").path("policy_evidence").get(0).path("source_hash").asText());
+        var report = json.readTree(jdbc.queryForObject("SELECT report::text FROM reclaim_run_items", String.class));
+        assertEquals(hash, report.path("policy_evidence").get(0).path("source_hash").asText());
+        var evidence = json.readTree(jdbc.queryForObject("SELECT policy_evidence::text FROM reclaim_run_items", String.class));
+        assertEquals(hash, evidence.get(0).path("source_hash").asText());
+        // Both the old baseline and the renamed baseline must accept the same later revisions.
+        for (String file : List.of("apply.sql", "apply-v4.sql", "apply-costs.sql"))
+            jdbc.execute(Files.readString(Path.of("../data/phase2/policies", file)));
+        assertEquals(content, jdbc.queryForObject("SELECT content FROM policy_revisions WHERE doc_id='P2-A-POLICY' AND revision=1", String.class));
+        assertEquals(8, jdbc.queryForObject("SELECT count(*) FROM policy_revisions WHERE doc_id IN ('P2-A-POLICY','P2-B-POLICY')", Integer.class));
+        var installed = state(jdbc);
+        jdbc.execute(seed);
+        assertEquals(installed, state(jdbc));
     }
 }
