@@ -74,4 +74,15 @@ python3 scripts/evaluate_phase2.py --run --suite full
 
 기존 `catalog.json`·`seed.sql`은 baseline-v1 이력으로 보존한다. 현재 평가 기준은 `scenarios-v4.json`이며, seed 이후 `policies/apply.sql`(revision 2), `policies/apply-v4.sql`(revision 3)을 적용한다. Figma 16달러와 최신 근거·Run as 사실은 revision 3 적용 기준이다. 실행 절차는 [정책 적용 안내](policies/README.md#최종-시나리오-v4-적용-앞선-revision-2-설명-이후)를 따른다.
 
-평가 full은 핵심 20건 + 추가 8건이다. X-UNKNOWN→X-08b-USAGE, X-COST→X-08b-COST, X-4STEP→X-03으로 맞췄으며 X-07(입력 마스킹), X-08(후보·추가 확인 없음), X-12(첫 플랫폼만 처리)를 추가했다. X-01/X-02는 P-01/P-06, X-04는 정상 승인 후 검증 단계에서 함께 확인한다. X-05는 에이전트 검증 실패 회귀 검사, X-09의 불완전 조회는 회수 그래프 회귀 검사로 확인한다. X-06 담당자 부재와 X-10 외부 알림 실패의 실환경 장애 주입은 통합 실행에서 별도 확인해야 한다.
+평가 full은 핵심 20건 + 추가 9건이다. X-UNKNOWN→X-08b-USAGE, X-COST→X-08b-COST, X-4STEP→X-03으로 맞췄으며 X-07(입력 마스킹), X-08(후보·추가 확인 없음), X-12(첫 플랫폼만 처리), X-06(담당자 부재)을 추가했다. X-01/X-02는 P-01/P-06, X-04는 정상 승인 후 검증 단계에서 함께 확인한다. X-05는 에이전트 검증 실패 회귀 검사, X-09의 불완전 조회는 회수 그래프 회귀 검사로 확인한다. X-10 외부 알림 실패의 실환경 장애 주입은 통합 실행에서 별도 확인해야 한다. 케이스별 검증 위치는 아래 대응표에 정리했다.
+
+## 시나리오 X ID ↔ 테스트 이름 대응표
+
+평가 실행기에 별도 케이스가 없던 X-04·X-05·X-06·X-09의 검증 위치다. 저장소에서 확인한 테스트만 적는다.
+
+| 시나리오 ID | 기대 상태·사유 | 검증하는 곳 | 비고 |
+|---|---|---|---|
+| X-04 | DONE / VERIFIED | `agent/tests/test_phase2_workflows.py::test_execution_requires_fresh_verification_and_preserves_mismatch`(verified=True → DONE, `verification_ok=True`), 평가 실행기 승인 완료 케이스의 독립 검증(`scripts/phase2/run_suite.py:152`, DONE·ACCESS_VERIFIED·`verification_ok=True`) | 별도 평가 케이스 없음. E-01·P-01~P-06·B-02·X-03·X-07·X-12가 승인 후 이 검증을 통과해야 PASS |
+| X-05 | FAILED / VERIFICATION_FAILED | `agent/tests/test_phase2_workflows.py::test_execution_requires_fresh_verification_and_preserves_mismatch`(verified=False → FAILED, `verification_ok=False`) | 사유 코드 문자열은 v1 그래프 테스트(`agent/tests/test_scenarios.py::test_verification_retry_policy_never_reexecutes_grant`)에서만 확인됨. 평가 실행기에는 검증 단계 실패 주입이 필요해 없음 |
+| X-06 | MANUAL_REVIEW / APPROVER_UNAVAILABLE | 평가 실행기 케이스 `X-06`(`scripts/phase2/fixtures.py` EXTRA) | 격리 회사 복사본에서 A사 담당자(operator)를 `employment_status='LEFT'`로 바꿔 승인자를 지정할 수 없게 함. 분석 단계에서 MANUAL_REVIEW로 끝나 승인·실행·예산 차감이 없어야 함 |
+| X-09 | FAILED / SCAN_FAILED | `agent/tests/test_phase2_workflows.py::test_reclaim_requires_all_unique_rows_and_never_claims_done`(중복 행 → FAILED, `scan_complete=False`) | 서버가 사유 코드를 SCAN_FAILED로 기록하는 부분(`ReclaimResultService`)은 테스트 없음. 시나리오의 불완전 조회 조건은 데이터만으로 재현 불가라 평가 실행기에 없음 |
