@@ -29,16 +29,20 @@ public class ReclaimWorkflowService {
         var prior=db.rows("SELECT to_jsonb(r) FROM reclaim_runs r WHERE company_id=? AND requested_by=? AND client_request_key=?",uuid(scope,"company_id"),actor,key);
         if(!prior.isEmpty()) {conflict(scopeId.equals(uuid(prior.getFirst(),"scope_id")),"동일 요청 키에 다른 범위가 사용되었습니다.");return view(prior.getFirst());}
         conflict(!db.exists("SELECT EXISTS(SELECT 1 FROM reclaim_runs WHERE scope_id=? AND status IN ('RECEIVED','DIAGNOSING','EXECUTING'))",scopeId),"이 범위의 점검이 이미 진행 중입니다. 해당 실행을 조회해 주세요.");
-        return create(scope,actor,key,"MANUAL_DEMO",OffsetDateTime.now(ZoneId.of("Asia/Seoul")));
+        return create(scope,actor,key,"MANUAL_DEMO",now());
     }
     @Transactional
     public void scheduled(UUID scopeId) {
         var scope=db.one("SELECT to_jsonb(s) FROM reclaim_scopes s WHERE id=?",scopeId);
         if(!scope.path("enabled").asBoolean()) return;
         db.mutex("reclaim-company:"+str(scope,"company_id"));
-        var now=OffsetDateTime.now(ZoneId.of("Asia/Seoul"));
+        var now=now();
         if(db.exists("SELECT EXISTS(SELECT 1 FROM reclaim_runs WHERE scope_id=? AND (status IN ('RECEIVED','DIAGNOSING','EXECUTING') OR (trigger='DAILY_SCHEDULE' AND schedule_date=?)))",scopeId,now.toLocalDate()))return;
         create(scope,null,null,"DAILY_SCHEDULE",now);
+    }
+    /** Microsecond precision matches the DB and the Python agent, so frozen string evidence compares equal. */
+    private static OffsetDateTime now() {
+        return OffsetDateTime.now(ZoneId.of("Asia/Seoul")).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
     }
     private ReclaimRunView create(JsonNode scope,UUID actor,String key,String trigger,OffsetDateTime now) {
         UUID id=UUID.randomUUID();
