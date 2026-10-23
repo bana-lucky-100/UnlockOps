@@ -8,6 +8,7 @@ import * as vue from 'vue'
 import * as submissions from '../src/problemSubmission.ts'
 import * as platforms from '../src/lib/platforms.ts'
 import * as status from '../src/lib/status.ts'
+import * as platformGuess from '../src/lib/platformGuess.ts'
 
 // Exercise the actual SFC setup/send and API client. Only routing, polling and HTTP are replaced;
 // no browser DOM or additional test dependency is needed for this submission boundary.
@@ -55,8 +56,10 @@ function fixture(t, post, push = async () => {}) {
     vue, 'vue-router': { useRouter: () => router, useRoute: () => ({ query: {} }) },
     '../api': api, '../session': { currentUser },
     '../composables/useProblemSubmission': { useProblemSubmission },
-    '../lib/platforms': platforms, '../lib/status': status,
+    '../lib/platforms': platforms, '../lib/status': status, '../lib/platformGuess': platformGuess, '../assets/lock.jpg': { default: 'lock.jpg' },
     '../lib/polling': { usePolling: () => ({ restart() {} }) },
+    // 이 테스트는 구 계정(v1) 접수 경로를 본다. v2 접수는 #29의 Submission을 그대로 쓴다(phase2.test.mjs).
+    '../lib/data': { isV2: () => false, listMine: async () => [], submitV2: async () => null },
     '../components/AppShell.vue': {}, '../components/RequestList.vue': {},
   }).default
   function mount() {

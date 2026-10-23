@@ -14,13 +14,13 @@ const helpOpen = ref(false)
 const error = ref('')
 
 // 왼쪽 메뉴는 역할마다 다르다. 메뉴를 숨겨도 실제 차단은 서버가 한다.
-const nav = computed(() => currentUser.value?.workflow_version !== 1
+// 회수 점검은 v2 서버가 알려 주는 can_reclaim(권한 담당자)일 때만. v1(구 계정)은 목업 화면이라 승인자 모두에게 보인다.
+const nav = computed(() => currentUser.value?.role === 'APPROVER'
   ? [
-      { to: '/access', label: '권한 요청·승인', icon: 'M6 3h12v18H6zM9 8h6M9 12h6M9 16h4' },
-      ...(currentUser.value?.can_reclaim ? [{ to: '/reclaim', label: '회수 점검·알림', icon: 'M20 11a8 8 0 1 1-3-6M20 3v6h-6M9 12l2 2 4-4' }] : []),
+      { to: '/approvals', label: '승인함', icon: 'M4 13l3-8h10l3 8v6H4zM4 13h5l1 2h4l1-2h5' },
+      ...(currentUser.value.workflow_version === 1 || currentUser.value.can_reclaim
+        ? [{ to: '/revocations', label: '회수 점검', icon: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 8v4l3 2' }] : []),
     ]
-  : currentUser.value?.role === 'APPROVER'
-  ? [{ to: '/approvals', label: '승인함', icon: 'M4 13l3-8h10l3 8v6H4zM4 13h5l1 2h4l1-2h5' }]
   : [
       { to: '/', label: '홈', icon: 'M3 11l9-7 9 7M5 10v10h14V10' },
       { to: '/requests', label: '내 요청', icon: 'M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 8h8M8 12h8M8 16h5' },
@@ -56,7 +56,7 @@ async function signOut() {
         <!-- 자물쇠는 화면 전체가 아니라 본문 폭(최대 1180px) 안에서 오른쪽에 붙인다. 넓은 화면에서 로그아웃 버튼 바깥으로 나가지 않게. -->
         <img v-if="props.showLock" class="sh-lock" :src="lockImg" alt="" aria-hidden="true">
         <header class="sh-head">
-          <div class="sh-brand">UnlockOps <span>권한 진단 Agent</span></div>
+          <div class="sh-brand">UnlockOps <span>SaaS 권한 승인 · 회수 Agent</span></div>
           <div class="sh-me">
             <button type="button" class="sh-pill" @click="openHelp">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 0 1 4.9.7c0 1.7-2.4 2.1-2.4 3.6M12 17h.01" /></svg>도움말
@@ -101,9 +101,10 @@ async function signOut() {
 .sh-nav-link:hover, .sh-nav-link:focus-visible { background: var(--uo-primary-soft); color: var(--uo-primary); }
 .sh-nav-link::after { content: attr(aria-label); position: absolute; left: 54px; top: 50%; transform: translate(-4px, -50%); white-space: nowrap; font-size: 13px; font-weight: 600; color: #fff; background: var(--uo-ink); padding: 6px 10px; border-radius: 8px; opacity: 0; pointer-events: none; transition: opacity .15s ease, transform .15s ease; z-index: 30; }
 .sh-nav-link:hover::after, .sh-nav-link:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
-.sh-main { flex: 999 1 560px; min-width: 0; position: relative; overflow: hidden; }
+/* 배경 장식은 잘라 내되 스크롤 영역은 만들지 않는다(clip). hidden이면 안쪽의 position: sticky가 동작하지 않는다. */
+.sh-main { flex: 999 1 560px; min-width: 0; position: relative; overflow: hidden; overflow: clip; }
 .sh-glow { position: absolute; top: -220px; right: -160px; width: 820px; height: 720px; border-radius: 50%; background: radial-gradient(closest-side at 55% 50%, rgba(122,92,240,0.38), rgba(59,75,216,0.22) 45%, rgba(246,247,252,0) 100%); filter: blur(10px); pointer-events: none; }
-.sh-lock { position: absolute; top: 110px; right: 48px; width: 284px; height: 284px; object-fit: contain; mix-blend-mode: multiply; pointer-events: none; }
+.sh-lock { position: absolute; top: 104px; right: 72px; width: 216px; height: 216px; object-fit: contain; mix-blend-mode: multiply; pointer-events: none; }
 .sh-inner { position: relative; max-width: 1180px; margin: 0 auto; padding: 44px 48px 64px; box-sizing: border-box; }
 .sh-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .sh-brand { font-family: var(--uo-font-en); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; }
@@ -136,6 +137,18 @@ async function signOut() {
   .sh-inner { padding: 20px 16px 48px; }
   .sh-who { display: none; }
   .sh-lock { display: none; }
+  /* 휴대폰: 상단 바 한 줄 = 왼쪽 로고 · 메뉴, 오른쪽 도움말 · 로그아웃.
+     헤더를 본문에서 꺼내 상단 바 위에 겹쳐 놓는다. 기준을 .sh로 잡으려고 본문 쪽 position을 푼다. */
+  .sh { position: relative; overflow-x: clip; }
+  .sh-nav { height: 60px; padding: 0 16px; align-items: center; gap: 4px; }
+  .sh-nav-link { width: 40px; height: 40px; }
+  .sh-main, .sh-inner { position: static; }
+  .sh-glow { display: none; }
+  .sh-head { position: absolute; top: 0; right: 16px; height: 60px; z-index: 3; }
+  .sh-brand, .sh-avatar { display: none; }
+  .sh-me { gap: 6px; flex-wrap: nowrap; }
+  .sh-pill { height: 34px; padding: 0 12px; font-size: 13px; }
 }
+@media (max-width: 360px) { .sh-pill svg { display: none; } }
 @media (prefers-reduced-motion: reduce) { .sh-nav-link, .sh-nav-link::after { transition: none; } }
 </style>

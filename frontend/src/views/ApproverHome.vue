@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { api, ApiError, type ApprovalSummary, type Problem } from '../api'
+import { ApiError, type ApprovalSummary, type Problem } from '../api'
+import { approvalSummary, decide, getProblem, listForApprover, myTurn } from '../lib/data'
 import AppShell from '../components/AppShell.vue'
 import RequestList from '../components/RequestList.vue'
-import { PLATFORMS } from '../lib/platforms'
+import { platformOf, roleText } from '../lib/platforms'
+import { judgmentOf } from '../lib/requestView'
+import lockImg from '../assets/lock.jpg'
 import { usePolling } from '../lib/polling'
 import { isGuidanceComplete } from '../lib/status'
 import { ago } from '../lib/time'
@@ -16,14 +19,15 @@ const summary = ref<ApprovalSummary | null>(null)
 const loaded = ref(false)
 const loadError = ref('')
 
+// 내 차례인 승인 대기만(v2: 현재 단계 승인자가 나인 요청).
 const pending = computed(() => items.value
-  .filter(p => p.status === 'WAITING_APPROVAL')
+  .filter(p => myTurn(p))
   // 오래 기다린 요청부터
   .sort((a, b) => a.updated_at.localeCompare(b.updated_at)))
-// 사람이 확인해야 하는 요청: AI가 대상을 정하지 못했거나(담당자 검토) 승인 뒤 부여에 실패한 요청.
+// 사람이 확인해야 하는 요청: AI가 대상을 정하지 못했거나(담당자 검토) 보류됐거나(ON_HOLD) 승인 뒤 부여에 실패한 요청.
 // 운영 담당자는 전체 요청을 받으므로 여기서 모아 보여 준다. 처리 API는 아직 없어서 확인(상세 보기)만 된다.
 const review = computed(() => items.value
-  .filter(p => (p.status === 'MANUAL_REVIEW' && !isGuidanceComplete(p)) || p.status === 'FAILED')
+  .filter(p => (p.status === 'MANUAL_REVIEW' && !isGuidanceComplete(p)) || p.status === 'ON_HOLD' || p.status === 'FAILED')
   .sort((a, b) => b.updated_at.localeCompare(a.updated_at)))
 const DECIDED = new Set(['EXECUTING', 'DONE', 'REJECTED'])
 const recent = computed(() => items.value
@@ -53,12 +57,9 @@ function toggleAll() {
 
 async function load() {
   try {
-    const [list, sum] = await Promise.all([
-      api<Problem[]>('/problems'),
-      api<ApprovalSummary>('/approvals/summary'),
-    ])
+    const list = await listForApprover()
     items.value = list
-    summary.value = sum
+    summary.value = await approvalSummary(list)
     loadError.value = ''
     const waiting = new Set(pending.value.map(p => p.id))
     selected.value = selected.value.filter(id => waiting.has(id))
@@ -79,7 +80,7 @@ const approving = ref(false)
 const confirming = ref(false)
 // 확인 단계에서 보여 줄 실제 승인 대상. 목록 응답에는 자원 이름이 없어서, 고른 요청마다 상세(plan)를 불러온다.
 // 승인도 화면에 보여 준 이 계획(plan_hash)으로만 보낸다 — 승인자가 본 대상과 승인되는 대상이 같도록.
-interface Target { id: string; platform: Problem['platform']; resource: string; role: string; requester: string; planHash: string }
+interface Target { id: string; platform: Problem['platform']; resource: string; role: string; requester: string; planHash: string; problem: Problem }
 const targets = ref<Target[]>([])
 const checking = ref(false)
 const checkError = ref('')
@@ -89,11 +90,11 @@ async function askConfirm() {
   checkError.value = ''
   notice.value = null
   try {
-    const details = await Promise.all(selected.value.map(id => api<Problem>(`/problems/${encodeURIComponent(id)}`)))
-    const ready = details.filter(d => d.status === 'WAITING_APPROVAL' && d.plan?.resource_key && d.plan_hash)
+    const details = await Promise.all(selected.value.map(id => getProblem(id)))
+    const ready = details.filter(d => myTurn(d) && d.plan?.resource_key && d.plan_hash)
     targets.value = ready.map(d => ({
       id: d.id, platform: d.platform, resource: d.plan!.resource_key, role: d.requested_role || d.plan!.requested_role,
-      requester: d.requester_name, planHash: d.plan_hash!,
+      requester: d.requester_name, planHash: d.plan_hash!, problem: d,
     }))
     if (ready.length < details.length) {
       checkError.value = `${details.length - ready.length}건은 그사이 처리됐거나 대상을 확인할 수 없어 빼고 보여 드려요.`
@@ -121,10 +122,7 @@ async function approveSelected() {
   let other = 0
   for (const t of list) {
     try {
-      await api(`/problems/${encodeURIComponent(t.id)}/decision`, {
-        method: 'POST',
-        body: JSON.stringify({ approved: true, expectedPlanHash: t.planHash, reason: '' }),
-      })
+      await decide(t.problem, 'APPROVE', '')
       ok++
     } catch (e) {
       // 409: 이미 처리됐거나 승인 카드(계획)가 바뀜 → 상세에서 다시 확인해야 한다.
@@ -162,8 +160,9 @@ const help = {
 </script>
 
 <template>
-  <AppShell :help="help" show-lock>
+  <AppShell :help="help">
     <section class="ah-hero">
+      <div class="ah-hero-text">
       <p class="ah-hello">안녕하세요, {{ currentUser?.name }}님</p>
       <h1 class="ah-title">
         <template v-if="!loaded">승인함을 불러오고 있어요</template>
@@ -174,6 +173,8 @@ const help = {
         <template v-else>지금은 기다리는 요청이 없어요</template>
       </h1>
       <p class="ah-lead">AI가 소속 부서와 현재 권한, 사내 규정을 먼저 대조했어요. 근거를 보고 결정만 해 주세요.</p>
+      </div>
+      <img class="ah-lock" :src="lockImg" alt="" aria-hidden="true">
     </section>
 
     <section aria-labelledby="ah-wait-h">
@@ -204,7 +205,7 @@ const help = {
         <h3 id="ah-cf-h">이 {{ targets.length }}건을 승인할까요? <span>승인하면 바로 권한이 부여돼요</span></h3>
         <ul>
           <li v-for="t in targets" :key="t.id">
-            <span class="ah-tag" :style="{ '--c': PLATFORMS[t.platform].color, '--s': PLATFORMS[t.platform].soft }">{{ PLATFORMS[t.platform].label }}</span>
+            <span class="ah-tag" :style="{ '--c': platformOf(t.platform).color, '--s': platformOf(t.platform).soft }">{{ platformOf(t.platform).label }}</span>
             <strong class="ah-en">{{ t.resource }}</strong>
             <span class="ah-role">{{ t.role }}</span>
             <span class="ah-cf-who">{{ t.requester }}</span>
@@ -222,28 +223,30 @@ const help = {
         <p v-else-if="!pending.length" class="ah-empty">기다리는 요청이 없어요</p>
         <article
           v-for="p in pending" :key="p.id" class="ah-req" :class="{ on: selected.includes(p.id) }"
-          :style="{ '--c': PLATFORMS[p.platform].color, '--s': PLATFORMS[p.platform].soft }"
+          :style="{ '--c': platformOf(p.platform).color, '--s': platformOf(p.platform).soft }"
         >
           <button
             type="button" class="ah-box" :class="{ on: selected.includes(p.id) }" :aria-pressed="selected.includes(p.id)"
-            :aria-label="`${p.requester_name} ${PLATFORMS[p.platform].label} 요청 선택`" @click="toggle(p.id)"
+            :aria-label="`${p.requester_name} ${platformOf(p.platform).label} 요청 선택`" @click="toggle(p.id)"
           >{{ selected.includes(p.id) ? '✓' : '' }}</button>
           <div class="ah-req-main">
             <div class="ah-req-meta">
-              <span class="ah-tag">{{ PLATFORMS[p.platform].label }}</span>
+              <span class="ah-tag">{{ platformOf(p.platform).label }}</span>
               <strong>{{ p.requester_name }}</strong>
               <span class="ah-en">{{ p.employee_no }}</span> · {{ ago(p.updated_at) }} 대기
             </div>
             <!-- 목록 응답에는 자원 이름이 없어서 권한만 보여 준다. 자원은 상세(승인 카드)에서 확인한다. -->
-            <p class="ah-req-title"><span class="ah-role">{{ p.requested_role || '권한 확인 필요' }}</span> 권한 요청</p>
+            <!-- v2 목록 요약에는 권한 항목이 없어서, 있으면 쉬운 이름 · 없으면 플랫폼 이름으로 쓴다. -->
+            <p class="ah-req-title"><span class="ah-role">{{ roleText(p.platform, p.requested_role) ?? p.requested_role ?? platformOf(p.platform).label }}</span> 권한 요청</p>
             <p class="ah-req-quote">“{{ p.contents }}”</p>
           </div>
-          <div v-if="p.diagnosis" class="ah-ai">
+          <div v-if="judgmentOf(p, true) || p.diagnosis" class="ah-ai">
             <span class="ah-ai-label">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" /></svg>
               AI 진단
             </span>
-            <span class="ah-ai-text">{{ p.diagnosis }}</span>
+            <!-- 서버 문장(합니다체) 대신 사유 코드로 만든 해요체 판단을 먼저 쓴다. -->
+            <span class="ah-ai-text">{{ judgmentOf(p, true) ?? p.diagnosis }}</span>
           </div>
           <RouterLink :to="`/requests/${p.id}`" class="ah-open">
             근거 보기<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
@@ -337,6 +340,11 @@ const help = {
 .ah-open svg { transition: transform .2s ease; }
 .ah-open:hover svg, .ah-open:focus-visible svg { transform: translateX(3px); }
 .ah-week { margin-top: 40px; }
+/* 자물쇠는 화면마다 인사말 · 제목 블록 오른쪽 가운데에 둔다(공통 고정 위치는 화면마다 hero 높이가 달라 어긋났다). */
+.ah-hero { display: grid; grid-template-columns: minmax(0, 1fr) 200px; column-gap: 32px; align-items: center; }
+.ah-lock { grid-column: 2; grid-row: 1; align-self: center; justify-self: end; width: 200px; height: 200px; object-fit: contain; mix-blend-mode: multiply; pointer-events: none; }
+@media (max-width: 1100px) { .ah-hero { grid-template-columns: minmax(0, 1fr) 140px; } .ah-lock { width: 140px; height: 140px; opacity: .6; } }
+@media (max-width: 720px) { .ah-hero { grid-template-columns: minmax(0, 1fr); } .ah-lock { display: none; } }
 .ah-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .ah-stat { display: flex; flex-direction: column; padding: 26px; border-radius: 20px; min-height: 160px; box-sizing: border-box; }
 .ah-stat-name { font-size: 15px; font-weight: 600; color: var(--fg); }
@@ -346,10 +354,18 @@ const help = {
 .ah-recent { margin-top: 16px; }
 .ah-sub { margin: -8px 0 14px; font-size: 14px; color: var(--uo-muted); }
 @media (max-width: 720px) {
-  .ah-hero { padding: 32px 0 28px; }
+  .ah-hero { padding: 12px 0 24px; }
   .ah-hello { font-size: 30px; }
   .ah-title { font-size: 24px; }
   .ah-ai { min-width: 0; flex-basis: 100%; }
+  /* 휴대폰: 이번 주 숫자 3개는 한 줄에 작게, 요청 카드는 체크 상자를 위쪽 정보 줄과 나란히 */
+  .ah-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .ah-stat { min-height: 0; padding: 14px 12px; border-radius: 14px; }
+  .ah-stat-count b { font-size: 30px; }
+  .ah-stat-desc { display: none; }
+  .ah-req { padding: 16px; gap: 12px; align-items: flex-start; }
+  .ah-req-main { flex: 1 1 calc(100% - 48px); min-width: 0; }
+  .ah-open { width: 100%; justify-content: center; }
 }
 @media (prefers-reduced-motion: reduce) { .ah-req, .ah-open svg { transition: none; transform: none; } }
 </style>

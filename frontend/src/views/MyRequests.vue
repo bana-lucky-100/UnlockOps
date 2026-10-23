@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { api, ApiError, type Problem } from '../api'
+import { ApiError, type Problem } from '../api'
+import { listMine } from '../lib/data'
 import AppShell from '../components/AppShell.vue'
 import RequestList from '../components/RequestList.vue'
 import { usePolling } from '../lib/polling'
@@ -29,7 +30,7 @@ const loaded = ref(false)
 const error = ref('')
 async function load() {
   try {
-    items.value = await api<Problem[]>('/problems?mine=true')
+    items.value = await listMine()
     error.value = ''
   } catch (e) {
     error.value = e instanceof ApiError && e.status === 401 ? '로그인이 끝났어요. 다시 로그인해 주세요.' : '요청 목록을 불러오지 못했어요.'
