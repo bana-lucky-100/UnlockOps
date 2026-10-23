@@ -9,8 +9,21 @@ def q(v):
     if isinstance(v,(dict,list)): v=json.dumps(v,ensure_ascii=False,separators=(',',':'))
     return "'"+str(v).replace("'","''")+"'"
 rows=[]
+name_updates=[]
 def insert(table,**values):
     rows.append('INSERT INTO '+table+' ('+','.join(values)+') VALUES ('+','.join(q(v) for v in values.values())+') ON CONFLICT DO NOTHING;')
+
+def insert_named(table,**values):
+    insert(table,**values)
+    # Upgrade only original demo labels; preserve names edited by the user.
+    identity={'id':values['id']}
+    if table=='companies':
+        identity.update(code=values['code'],is_mock=True)
+    else:
+        identity['company_id']=values['company_id']
+    identity['name']='Phase 2 '+values['name']
+    name_updates.append('UPDATE '+table+' SET name='+q(values['name'])+' WHERE '
+        +' AND '.join(key+'='+q(value) for key,value in identity.items())+';')
 
 def insert_notified_reclaim_history(company_code, company, assignment, scope, platform):
     """R-04 is a synthetic past scan, including the report its delivered alert opens."""
@@ -74,8 +87,8 @@ items=[('SNOWFLAKE','WAREHOUSE','ANALYST','ROLE','120.00','USAGE_ESTIMATE'),('DA
 manifest={'schema_version':2,'dataset_id':'phase2-baseline-v1','is_mock':True,'as_of':'2026-10-22T09:00:00+09:00','timezone':'Asia/Seoul','companies':{},'catalog':[],'reclaim_fixtures':{},'scenarios':[]}
 for co in ['A','B']:
     company=uid('company-'+co); dept=uid(co+'-department'); policy=uid(co+'-policy'); route=uid(co+'-route')
-    insert('companies',id=company,code='P2_'+co,name='Phase 2 '+co+'사 (mock)',timezone='Asia/Seoul',is_mock=True)
-    insert('departments',id=dept,company_id=company,code='P2_'+co+'_DEV',name='Phase 2 '+co+'사 업무팀')
+    insert_named('companies',id=company,code='P2_'+co,name=co+'사 (mock)',timezone='Asia/Seoul',is_mock=True)
+    insert_named('departments',id=dept,company_id=company,code='P2_'+co+'_DEV',name=co+'사 업무팀')
     names={'requester':'김개발','team_lead':'박팀장','head':'윤부장','operator':'송운영','it_head':'최총괄','figma_operator':'이디자인'}
     users={}
     for i,(role,name) in enumerate(names.items()):
@@ -89,14 +102,14 @@ for co in ['A','B']:
     insert('approval_route_revisions',route_id=route,revision=1,company_id=company,code='DEFAULT',policy_id=policy,policy_revision=1,steps=['DEPARTMENT_HEAD','SAAS_OPERATOR'] if co=='A' else ['TEAM_LEAD','DEPARTMENT_HEAD','SAAS_OPERATOR'],extra_step_threshold=None if co=='A' else '100.00',currency=None if co=='A' else 'USD')
     active_tf=uid(co+'-active-tf');ended_tf=uid(co+'-ended-tf')
     for tf,code,ends in [(active_tf,'ACTIVE',None),(ended_tf,'ENDED','2026-09-20')]:
-        insert('tfs',id=tf,company_id=company,code='P2_'+co+'_'+code,name='Phase 2 '+co+'사 '+code+' TF',leader_id=users['team_lead'],starts_on='2026-08-01',ends_on=ends)
+        insert_named('tfs',id=tf,company_id=company,code='P2_'+co+'_'+code,name=co+'사 '+code+' TF',leader_id=users['team_lead'],starts_on='2026-08-01',ends_on=ends)
     insert('tf_members',tf_id=active_tf,user_id=users['requester'],company_id=company,active=True,joined_at='2026-08-01T00:00:00+09:00')
     scope=uid(co+'-scope')
     insert('reclaim_scopes',id=scope,company_id=company,department_id=dept,scope_key='phase2:'+co+':paid-seats',platforms=['GITHUB','FIGMA'],enabled=False,selection_mode='ASSIGNMENTS')
     manifest['companies'][co]={'company_id':company,'department_id':dept,'users':users,'policy_id':policy,'route_id':route,'scope_id':scope,'active_tf_id':active_tf,'ended_tf_id':ended_tf}
     for platform,resource_type,code,kind,amount,basis in items:
         resource=uid(co+'-'+platform+'-resource'); entitlement=uid(co+'-'+platform+'-entitlement');pricing=uid(co+'-'+platform+'-price')
-        insert('resources',id=resource,company_id=company,platform=platform,external_id='p2-'+co.lower()+'-'+platform.lower(),name='Phase 2 '+co+' '+platform,aliases=[],access_scope='SEAT' if kind=='SEAT' else 'GENERAL',resource_type=resource_type,owner_department_id=dept)
+        insert_named('resources',id=resource,company_id=company,platform=platform,external_id='p2-'+co.lower()+'-'+platform.lower(),name=co+' '+platform,aliases=[],access_scope='SEAT' if kind=='SEAT' else 'GENERAL',resource_type=resource_type,owner_department_id=dept)
         insert('entitlements',id=entitlement,company_id=company,resource_id=resource,code=code,kind=kind)
         insert('entitlement_revisions',entitlement_id=entitlement,revision=1,company_id=company,external_role=code,mapping={'mock':True,'scope':'assigned_resource_only','requires_existing_account':True,'allows_admin':False,'includes_seat':kind=='SEAT','requires_existing_data_access':platform in ['DATABRICKS','TABLEAU_CLOUD']})
         insert('pricing_revisions',pricing_id=pricing,revision=1,company_id=company,entitlement_id=entitlement,entitlement_revision=1,monthly_amount=amount,currency='USD',cost_basis=basis,source_kind='SYNTHETIC_CONTRACT',source_reference='data/phase2/catalog.json',effective_from='2026-10-01',policy_id=policy,policy_revision=1)
@@ -108,7 +121,7 @@ for co in ['A','B']:
         insert('reclaim_rules',rule_id=uid(co+'-'+code),revision=1,company_id=company,policy_id=policy,policy_revision=1,code=code,idle_days=idle,exclude_other_active_tf=code!='EMPLOYEE_LEFT',exclude_retention=code!='EMPLOYEE_LEFT')
 for co in ['A','B']:
     c=manifest['companies'][co]; company=c['company_id']; resource=uid(co+'-GITHUB-repository')
-    insert('resources',id=resource,company_id=company,platform='GITHUB',external_id='p2-'+co.lower()+'-payment-repo',name='Phase 2 '+co+' payment repository',aliases=[],access_scope='TF',tf_id=c['active_tf_id'],resource_type='REPOSITORY',owner_department_id=c['department_id'])
+    insert_named('resources',id=resource,company_id=company,platform='GITHUB',external_id='p2-'+co.lower()+'-payment-repo',name=co+' payment repository',aliases=[],access_scope='TF',tf_id=c['active_tf_id'],resource_type='REPOSITORY',owner_department_id=c['department_id'])
     for role in ['Read','Write']:
         ent=uid(co+'-GITHUB-repo-'+role)
         insert('entitlements',id=ent,company_id=company,resource_id=resource,code=role,kind='ROLE')
@@ -145,4 +158,4 @@ for case,platform,status,reason,overrides in scenario_defs:
     if case.startswith('R-'): overrides['scope_id']=manifest['reclaim_fixtures'][case]['scope_id']
     manifest['scenarios'].append({'id':case,'company':'B' if case=='P-06' else 'A','platform':platform,'expected_status':status,'expected_reason_code':reason,'overrides':overrides,'execution_ready':True,'validation_status':'NOT_RUN'})
 (root/'data/phase2/catalog.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
-(root/'data/phase2/seed.sql').write_text('-- Explicit opt-in mock data; not part of automatic Flyway startup.\n-- Apply only to a migrated local/demo database. Reapplying preserves existing mutable state.\nBEGIN;\n'+ '\n'.join(rows)+'\nCOMMIT;\n')
+(root/'data/phase2/seed.sql').write_text('-- Explicit opt-in mock data; not part of automatic Flyway startup.\n-- Apply only to a migrated local/demo database. Reapplying preserves existing mutable state except original demo display names.\nBEGIN;\n'+ '\n'.join(rows)+'\n-- Remove development-stage prefixes from current default labels, preserving custom names and historical evidence.\n'+'\n'.join(name_updates)+'\nCOMMIT;\n')

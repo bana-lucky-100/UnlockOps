@@ -5,6 +5,7 @@ from datetime import datetime
 import hashlib
 import json
 import io
+import re
 import subprocess
 import tempfile
 import unittest
@@ -24,6 +25,13 @@ NOW = datetime.fromisoformat("2027-01-15T12:00:00+09:00")
 
 
 class EvaluationTest(unittest.TestCase):
+    def test_department_names_remain_unique_across_all_fixture_companies(self):
+        bundle, sql = prepare(RUN, "full", NOW)
+        departments = re.findall(r"INSERT INTO departments \([^\n]+?\) VALUES \(([^\n]+)\) ON CONFLICT DO NOTHING;", sql)
+        names = [LITERAL.findall(values)[-1] for values in departments]
+        self.assertEqual(len(names), 2 * len(bundle["cases"]))
+        self.assertEqual(len(names), len(set(names)))
+
     def test_complete_isolated_fixtures_and_negative_overrides(self):
         bundle, sql = prepare(RUN, "full", NOW)
         catalog = json.loads((ROOT / "data/phase2/catalog.json").read_text())
