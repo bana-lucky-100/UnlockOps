@@ -1,5 +1,9 @@
 import { ref } from 'vue'
 import { api, ApiError, refreshCsrf, type User } from './api'
+import { personaName } from './lib/persona.ts'
+
+/** 화면 표시용 이름만 페르소나로 바꾼다(lib/persona.ts). id · 역할은 서버 값 그대로. */
+const shown = (u: User): User => ({ ...u, name: personaName(u.name) })
 
 /** 로그인한 사용자. 세션 쿠키가 기준이고, 화면은 /auth/me로 확인한 값만 믿는다. */
 export const currentUser = ref<User|null>(null)
@@ -9,7 +13,7 @@ let checked = false
 export async function ensureSession(): Promise<User|null> {
   if (checked) return currentUser.value
   try {
-    currentUser.value = await api<User>('/auth/me')
+    currentUser.value = shown(await api<User>('/auth/me'))
     checked = true
   } catch (e) {
     currentUser.value = null
@@ -31,7 +35,7 @@ async function authenticate(path: string, input: object): Promise<User> {
   const user = await api<User>(path, {method: 'POST', body: JSON.stringify(input)})
   // 로그인하면 세션이 새로 만들어지므로 CSRF 토큰도 다시 받는다.
   await refreshCsrf()
-  currentUser.value = user
+  currentUser.value = shown(user)
   checked = true
   return user
 }

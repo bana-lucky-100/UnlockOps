@@ -13,6 +13,8 @@ export interface CostImpact {
   budget_before: number | null
   budget_after: number | null
   basis?: string | null
+  /** 비용을 판단한 규정(예: POL-06 제2조 · 예상 비용 ≤ 부서 잔여 예산). */
+  rule?: string | null
 }
 
 /** SaaS별 월 예상 비용 (팀 확정표, 가정 금액). 플랫폼이 10개로 늘면 이 표를 그대로 쓴다. */

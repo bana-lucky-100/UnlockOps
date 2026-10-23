@@ -57,7 +57,9 @@ function idle(c: RevocationCandidate) {
 function fail(e: unknown) {
   error.value = e instanceof ApiError && e.status === 404
     ? '아직 실행한 점검이 없어요. [지금 다시 점검]을 눌러 주세요.'
-    : '점검 결과를 불러오지 못했어요. 다시 점검해 주세요.'
+    : e instanceof ApiError && e.status === 409 ? '이미 진행 중인 점검이 있어요. 잠시 뒤 결과를 다시 불러올게요.'
+    : e instanceof ApiError && e.status === 403 ? '이 계정에 허용된 점검 범위가 아니에요.'
+    : `점검 결과를 불러오지 못했어요. ${(e as Error)?.message ?? ''}`
 }
 async function load() {
   loading.value = true; error.value = ''

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ApiError, type Platform, type Problem } from '../api'
 import { isV2, listMine, submitV2 } from '../lib/data'
 import AppShell from '../components/AppShell.vue'
 import RequestList from '../components/RequestList.vue'
 import { PLATFORMS, PLATFORM_ORDER, PLATFORM_ORDER_V2 } from '../lib/platforms'
+import { guessPlatforms } from '../lib/platformGuess'
 import { usePolling } from '../lib/polling'
 import { groupOf, needsRefresh, type StatusGroup } from '../lib/status'
 import { currentUser } from '../session'
@@ -55,7 +56,7 @@ const loadError = ref('')
 const ready = computed(() => !!selected.value && contents.value.trim().length >= 2)
 const placeholder = computed(() => selected.value
   ? '예: ' + EXAMPLE[selected.value]
-  : '어떤 권한이 왜 필요한지 적어 주세요. 플랫폼을 먼저 골라 주세요')
+  : '예: 분석용 Snowflake 웨어하우스 이용 권한이 필요해요. 추천 모델 TF 때문에요')
 const rows = computed(() => Math.min(4, Math.max(1, Math.ceil(contents.value.length / 40) + contents.value.split('\n').length - 1)))
 
 const counts = computed(() => {
@@ -71,9 +72,17 @@ const steps = computed(() => [
 // 홈에는 최근 5건만. 전체 · 상태별 목록은 '내 요청' 페이지에서 본다.
 const recent = computed(() => items.value.slice(0, 5))
 
-function toggle(p: Platform) {
+// 플랫폼은 문장에서 찾아 제안하고(하나만 걸리면 자동 선택), 틀리면 직접 고른다. 직접 고른 값은 문장이 바뀌어도 유지한다.
+const manual = ref(false)
+const guesses = computed(() => guessPlatforms(contents.value).filter(p => ORDER.value.includes(p)))
+watch(guesses, g => {
+  if (manual.value) return
+  selected.value = g.length === 1 ? g[0] : null
+})
+function pick(p: string) {
   formError.value = ''
-  selected.value = selected.value === p ? null : p
+  selected.value = (p || null) as Platform | null
+  manual.value = !!p
 }
 
 async function load() {
@@ -94,7 +103,7 @@ const polling = usePolling(load)
 async function send() {
   if (sending.value) return
   formError.value = ''
-  if (!selected.value) { formError.value = '어떤 플랫폼의 권한인지 골라 주세요'; return }
+  if (!selected.value) { formError.value = '어떤 플랫폼 권한인지 문장에 적거나 아래에서 골라 주세요'; return }
   if (contents.value.trim().length < 2) { formError.value = '필요한 권한과 이유를 2자 이상 적어 주세요'; return }
   sending.value = true
   try {
@@ -106,6 +115,7 @@ async function send() {
     // (홈에 '확인하고 있어요' 안내를 남겨 두면, 끝난 뒤에도 아직 확인 중인 것처럼 보였다.)
     contents.value = ''
     selected.value = null
+    manual.value = false
     await router.push(`/requests/${createdId}`)
   } catch (e) {
     // 실패하면 입력은 그대로 두고 다시 보낼 수 있게 한다.
@@ -121,7 +131,7 @@ function onKey(e: KeyboardEvent) {
 
 const help = {
   howto: [
-    { t: '권한이 필요한 플랫폼을 고르세요', d: '한 번에 하나씩 보내요. 다른 플랫폼 권한도 필요하면 이어서 한 번 더 보내 주세요' },
+    { t: '필요한 권한을 한 문장으로 적으세요', d: '플랫폼 이름(Snowflake, GitHub …)을 쓰면 자동으로 골라요. 틀리면 아래에서 직접 바꿔 주세요. 한 번에 한 플랫폼씩 보내요' },
     { t: '자원 이름과 이유를 적어 주세요', d: '저장소 · 프로젝트 · 채널 · 페이지 이름과 쓰는 이유(TF · 업무)를 함께 적어야 AI가 정확히 찾아요. 이름이 없으면 담당자가 확인해요' },
     { t: '두 단계 승인을 기다리세요', d: 'AI가 정리한 규정 근거와 예산 영향을 보고 부서장 → 최종 승인자가 결정해요. 승인되면 자동으로 열려요' },
   ],
@@ -142,18 +152,6 @@ const help = {
       <h1 class="rh-title">필요한 권한, 근거와<br>예산 영향까지 함께 정리해 드려요</h1>
 
       <div class="rh-ask">
-        <fieldset class="rh-chips">
-          <legend>어떤 플랫폼 권한이 필요한가요? <span>하나만 골라 주세요</span></legend>
-          <button
-            v-for="p in ORDER" :key="p" type="button" class="rh-chip"
-            :aria-pressed="selected === p"
-            :style="{ '--c': PLATFORMS[p].color, '--s': PLATFORMS[p].soft }"
-            @click="toggle(p)"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="PLATFORMS[p].icon" /></svg>
-            {{ selected === p ? '✓ ' : '' }}{{ PLATFORMS[p].label }}
-          </button>
-        </fieldset>
 
         <form class="rh-form" novalidate @submit.prevent="send">
           <label for="rh-ask" class="rh-sr">어떤 권한이 왜 필요한가요?</label>
@@ -164,6 +162,24 @@ const help = {
           </button>
         </form>
 
+        <div class="rh-pf" aria-live="polite">
+          <span class="rh-pf-k">플랫폼</span>
+          <span v-if="selected" class="rh-pf-on" :style="{ '--c': PLATFORMS[selected].color, '--s': PLATFORMS[selected].soft }">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="PLATFORMS[selected].icon" /></svg>
+            {{ PLATFORMS[selected].label }} ✓
+          </span>
+          <template v-else-if="guesses.length > 1">
+            <span class="rh-pf-note">어느 플랫폼인가요? 한 번에 하나씩 보내요</span>
+            <button v-for="g in guesses" :key="g" type="button" class="rh-chip" :style="{ '--c': PLATFORMS[g].color, '--s': PLATFORMS[g].soft }" :aria-pressed="false" @click="pick(g)">{{ PLATFORMS[g].label }}</button>
+          </template>
+          <span v-else class="rh-pf-note">문장에 플랫폼 이름을 쓰면 자동으로 골라요</span>
+          <span v-if="selected" class="rh-pf-note">{{ manual ? '직접 고름' : '문장에서 찾았어요' }}</span>
+          <label class="rh-sr" for="rh-pf-sel">플랫폼 직접 고르기</label>
+          <select id="rh-pf-sel" class="rh-pf-sel" :value="manual ? selected ?? '' : ''" @change="pick(($event.target as HTMLSelectElement).value)">
+            <option value="">{{ selected ? '다른 플랫폼' : '직접 고르기' }}</option>
+            <option v-for="p in ORDER" :key="p" :value="p">{{ PLATFORMS[p].label }}</option>
+          </select>
+        </div>
         <p v-if="formError" class="rh-err" role="alert">{{ formError }}</p>
         <p class="rh-tip"><strong>자원 이름과 쓰는 이유(TF · 업무)</strong>를 꼭 적어 주세요. 이름이 없으면 담당자가 직접 확인해야 해서 오래 걸려요</p>
       </div>
@@ -203,9 +219,11 @@ const help = {
 .rh-hello { margin: 0 0 12px; font-family: var(--uo-font-en); font-size: 44px; font-weight: 700; letter-spacing: -0.02em; color: var(--uo-primary); }
 .rh-title { margin: 0; font-size: 34px; line-height: 1.4; font-weight: 600; letter-spacing: -0.01em; }
 .rh-ask { margin-top: 36px; display: flex; flex-direction: column; gap: 12px; }
-.rh-chips { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-.rh-chips legend { margin-bottom: 10px; font-size: 14px; font-weight: 600; color: var(--uo-ink); }
-.rh-chips legend span { font-weight: 400; color: var(--uo-muted); }
+.rh-pf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-height: 40px; }
+.rh-pf-k { font-size: 14px; font-weight: 600; color: var(--uo-ink); }
+.rh-pf-on { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 14px; border-radius: 999px; background: var(--c); color: #fff; font-size: 14px; font-weight: 600; }
+.rh-pf-note { font-size: 13px; color: var(--uo-muted); }
+.rh-pf-sel { margin-left: auto; height: 36px; padding: 0 10px; border: 1px solid var(--uo-line-strong); border-radius: 10px; background: #fff; font: inherit; font-size: 14px; color: var(--uo-ink-2); }
 .rh-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 16px 0 14px; border-radius: 999px; border: 1.5px solid var(--c); background: #fff; color: var(--c); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color .15s ease, color .15s ease; }
 .rh-chip[aria-pressed="false"]:hover, .rh-chip[aria-pressed="false"]:focus-visible { background: var(--s); }
 .rh-chip[aria-pressed="true"] { background: var(--c); color: #fff; }

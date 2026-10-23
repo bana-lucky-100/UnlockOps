@@ -1,9 +1,23 @@
 import type { Platform, Problem } from '../api'
 import type { AccessReport, AccessSummary } from '../phase2/api'
-import type { CostImpact } from './costImpact'
+import { personaName } from './persona.ts'
+import { SAAS_MONTHLY_COST, type CostImpact } from './costImpact.ts'
 
 /** v2(Phase 2) 응답을 화면용 Problem으로 옮기는 순수 함수. 네트워크 · 세션에 기대지 않아 테스트에서 바로 부른다. */
 const COST_KIND = { SEAT_MONTHLY: 'NEW_COST', USAGE_ESTIMATE: 'NEW_COST', NO_ADDITIONAL_COST: 'NO_COST' } as const
+const COST_BASIS_TEXT: Record<string, string> = { SEAT_MONTHLY: '좌석 월 요금', USAGE_ESTIMATE: '사용량 기준 월 예상', NO_ADDITIONAL_COST: '추가 비용 없음' }
+const COST_KEY: Record<string, string> = { TABLEAU_CLOUD: 'TABLEAU' }
+
+/**
+ * [임시] 부서 잔여 예산 전후 값. v2 보고서에 예산 필드가 없어서, 서버가 판정 때 쓴 메시지
+ * "예상 예산 영향은 500.00 → 380.00 USD입니다"에서 읽는다(AccessPlanningService). 서버가 budget 필드를 주면 이 함수를 지운다.
+ */
+export function budgetFromMessage(message: string | null | undefined, currency: string): { before: number; after: number } | null {
+  const m = String(message ?? '').match(/예상 예산 영향은\s*(-?[\d.]+)\s*→\s*(-?[\d.]+)\s*([A-Z]{3})/)
+  if (!m || m[3] !== currency) return null
+  const before = Number(m[1]), after = Number(m[2])
+  return Number.isFinite(before) && Number.isFinite(after) ? { before, after } : null
+}
 
 /** v2 응답(목록 요약 · 상세 보고서) → 화면용 Problem. 상세에만 있는 값은 목록에서 비워 둔다. */
 export function fromV2(x: AccessSummary | AccessReport): Problem & { cost_impact?: CostImpact | null } {
@@ -21,7 +35,7 @@ export function fromV2(x: AccessSummary | AccessReport): Problem & { cost_impact
     contents: x.contents,
     status: w.status,
     result_type: w.result_type ?? null,
-    requester_name: x.requester_name,
+    requester_name: personaName(x.requester_name),
     employee_no: '',
     // 요청자에게는 서버 메시지, 승인자 판단안 본문은 AI 분석 요약.
     diagnosis: w.message || r?.analysis_summary || undefined,
@@ -37,24 +51,34 @@ export function fromV2(x: AccessSummary | AccessReport): Problem & { cost_impact
     total_steps: w.total_steps,
     approval_steps: steps,
     approver_id: steps.find(s => s.status === 'WAITING')?.approver_id ?? undefined,
-    approvers: r?.approvers,
+    approvers: r?.approvers.map(a => ({ ...a, name: personaName(a.name) })),
     resource_name: r?.resource_name ?? null,
     created_at: x.created_at,
     updated_at: history.at(-1)?.created_at ?? last?.acted_at ?? x.created_at,
     evidence: (r?.policy_evidence ?? []).map(e => ({ doc_id: e.doc_id, article: e.article, version: e.version, text: e.text })),
     decision_reason: last?.reason ?? null,
     decided_at: last?.acted_at ?? null,
-    decided_by: last ? (r?.approvers.find(a => a.id === last.approver_id)?.name ?? null) : null,
+    decided_by: last ? personaName(r?.approvers.find(a => a.id === last.approver_id)?.name ?? null) : null,
     plan: plan ? { resource_key: r?.resource_name ?? plan.resource_id, requested_role: r?.entitlement_code ?? '', resource_id: plan.resource_id } : null,
     monthly_cost: plan ? { amount: plan.monthly_amount, currency: plan.currency } : null,
     // 부서 잔여 예산은 v2 보고서에 없어서 비워 둔다(카드는 월 비용만 보여 준다).
-    cost_impact: plan && Number.isFinite(amount)
-      ? { kind: COST_KIND[plan.cost_basis], monthly_cost: amount, budget_before: null, budget_after: null, basis: plan.currency === 'USD' ? null : plan.currency }
-      : null,
+    cost_impact: plan && Number.isFinite(amount) ? costOf(x.platform, plan, w.message, r?.policy_evidence ?? []) : null,
     events: history.map(h => ({ kind: h.kind, payload: {}, created_at: h.created_at })),
   }
 }
 
+
+function costOf(platform: string, plan: NonNullable<AccessReport['plan']>, message: string, evidence: AccessReport['policy_evidence']): CostImpact {
+  const budget = budgetFromMessage(message, plan.currency)
+  const what = SAAS_MONTHLY_COST[COST_KEY[platform] ?? platform]?.basis
+  const ev = (evidence ?? [])[0]
+  return {
+    kind: COST_KIND[plan.cost_basis], monthly_cost: Number(plan.monthly_amount),
+    budget_before: budget?.before ?? null, budget_after: budget?.after ?? null,
+    basis: [what, COST_BASIS_TEXT[plan.cost_basis], plan.currency !== 'USD' ? plan.currency : null].filter(Boolean).join(' · ') + ' (가상 회사 A사 가정 금액)',
+    rule: ev ? `${ev.doc_id} ${ev.article} · 예상 월 비용이 부서 잔여 예산 이하일 때만 승인 대기로 올려요` : null,
+  }
+}
 
 /** 현재 단계의 지정 승인자가 me인지. #29 phase2/presentation.ts의 canDecide와 같은 기준이다. */
 export function isMyStep(p: Problem, me: string | null | undefined): boolean {

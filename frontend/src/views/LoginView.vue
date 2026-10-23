@@ -14,13 +14,18 @@ const accounts = [
   { key: 'ORG_HEAD', loginId: 'p2_a_head', title: '부서장 · 김동빈', desc: 'A사 개발팀 · 1차 승인 · 예산 판단', initial: '동', tag: '1차 승인', tone: 't-violet', cta: '부서장으로 로그인' },
   { key: 'IT_FINAL', loginId: 'p2_a_operator', title: 'IT 권한 관리 · 신형철', desc: 'A사 IT 권한 관리 · 최종 승인 · 회수 점검', initial: '형', tag: '최종 승인', tone: 't-indigo', cta: 'IT 권한 관리자로 로그인' },
 ] as const
-// 다른 회사 · 담당 역할(팀장, IT 총괄, Figma 담당자 등)은 아래 목록에서 고른다.
-const demoAccounts = ['a', 'b'].flatMap(company => [
-  { role: 'requester', label: '직원' }, { role: 'team_lead', label: '팀장' },
-  { role: 'head', label: '부서장' }, { role: 'operator', label: '권한 담당자' },
-  { role: 'it_head', label: 'IT 총괄' }, { role: 'figma_operator', label: 'Figma 담당자' },
-].map(item => ({ id: `p2_${company}_${item.role}`, label: `${company.toUpperCase()}사 · ${item.label}` })))
-const isDemo = (id: string) => demoAccounts.some(x => x.id === id)
+// 기본 시연은 위 A사 3명(부서장 → IT 권한 담당자 2단계)으로 끝난다. 아래는 예외 시나리오를 확인할 때만 쓰는 계정이라 접어 둔다.
+// 승인 경로: A사 FLOW 제7조(부서장 → 플랫폼 담당자), B사 FLOW 제7조(팀장 → 부서장 → SaaS 담당자, 월 100달러 이상이면 IT 총괄 추가).
+const demoAccounts = [
+  { id: 'p2_a_figma_operator', label: 'A사 · Figma 담당자', scene: 'Figma 요청의 2단계 승인(플랫폼별 담당자)' },
+  { id: 'p2_b_requester', label: 'B사 · 직원', scene: '3~4단계 승인 요청 · 회사 간 데이터 분리' },
+  { id: 'p2_b_team_lead', label: 'B사 · 팀장', scene: '1단계 승인' },
+  { id: 'p2_b_head', label: 'B사 · 부서장', scene: '2단계 승인' },
+  { id: 'p2_b_operator', label: 'B사 · SaaS 담당자', scene: '3단계 승인 · 회수 점검' },
+  { id: 'p2_b_it_head', label: 'B사 · IT 총괄', scene: '월 100달러 이상일 때 4단계 승인' },
+  { id: 'p2_b_figma_operator', label: 'B사 · Figma 담당자', scene: 'Figma 요청 담당' },
+]
+const isDemo = (id: string) => accounts.some(a => a.loginId === id) || demoAccounts.some(x => x.id === id)
 
 // 관리 대상 SaaS 띠. 로고 파일(public/logos/<slug>.svg, 없으면 .png)이 있으면 로고를, 둘 다 없으면 이름을 보여 준다.
 // 로고는 각 사 공식 브랜드 키트 파일만 넣는다(직접 그리거나 변형하지 않는다). 안내: public/logos/README.md
@@ -145,21 +150,24 @@ async function submit() {
           </button>
         </fieldset>
 
-        <label class="lg-field">
-          <span>다른 회사 · 담당 역할</span>
-          <select :value="isDemo(loginId) && !picked ? loginId : ''" :disabled="busy" @change="quickLogin(($event.target as HTMLSelectElement).value)">
-            <option value="" disabled>회사와 역할 선택</option>
-            <option v-for="d in demoAccounts" :key="d.id" :value="d.id">{{ d.label }}</option>
-          </select>
-        </label>
-        <label class="lg-field">
-          <span>아이디</span>
-          <input v-model="loginId" type="text" autocomplete="username" :disabled="busy" placeholder="예: p2_a_requester" :aria-invalid="!!error">
-        </label>
-        <label class="lg-field">
-          <span>비밀번호 (직접 로그인할 때만)</span>
-          <input v-model="password" type="password" autocomplete="current-password" :disabled="busy" placeholder="시연 계정은 비워 두세요" :aria-invalid="!!error">
-        </label>
+        <details class="lg-more">
+          <summary>예외 시나리오 계정 · 직접 로그인</summary>
+          <div class="lg-more-in">
+            <ul class="lg-scenes">
+              <li v-for="d in demoAccounts" :key="d.id">
+                <button type="button" class="lg-scene" :disabled="busy" @click="quickLogin(d.id)"><b>{{ d.label }}</b><span>{{ d.scene }}</span></button>
+              </li>
+            </ul>
+            <label class="lg-field">
+              <span>아이디</span>
+              <input v-model="loginId" type="text" autocomplete="username" :disabled="busy" placeholder="예: p2_a_requester" :aria-invalid="!!error">
+            </label>
+            <label class="lg-field">
+              <span>비밀번호 (직접 로그인할 때만)</span>
+              <input v-model="password" type="password" autocomplete="current-password" :disabled="busy" placeholder="시연 계정은 비워 두세요" :aria-invalid="!!error">
+            </label>
+          </div>
+        </details>
 
         <p v-if="error" class="lg-err" role="alert">{{ error }}</p>
 
@@ -219,6 +227,13 @@ async function submit() {
 .lg-who span { font-size: 13px; color: var(--uo-muted); }
 .lg-tag { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--tagbg); color: var(--tagfg); }
 .lg-field { display: flex; flex-direction: column; gap: 6px; margin: 0; font-size: 13px; font-weight: 600; color: var(--uo-ink-2); }
+.lg-more { border-top: 1px solid var(--uo-line); padding-top: 12px; }
+.lg-more summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--uo-muted); }
+.lg-more-in { margin-top: 12px; display: flex; flex-direction: column; gap: 14px; }
+.lg-scenes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lg-scene { width: 100%; display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--uo-line); border-radius: 10px; background: #fff; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.lg-scene span { color: var(--uo-muted); }
+.lg-scene:hover:not(:disabled) { border-color: var(--uo-primary); }
 .lg-field input, .lg-field select { height: 48px; padding: 0 14px; border: 1px solid var(--uo-line-strong); border-radius: 12px; font: inherit; font-size: 15px; font-weight: 400; color: var(--uo-ink); background: #fff; box-sizing: border-box; }
 .lg-err { margin: 0; font-size: 14px; font-weight: 600; color: var(--uo-bad); }
 .lg-cta { height: 52px; border: 0; border-radius: 12px; background: var(--uo-gradient); color: #fff; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }

@@ -39,6 +39,8 @@ const ratio = computed(() => {
         :aria-label="`잔여 예산의 ${ratio}%를 사용`"><span :style="{ width: ratio + '%' }" /></div>
       <p v-if="impact.budget_before !== null && !short" class="ci-pct">이번 요청이 부서 잔여 예산의 <b class="ci-en">{{ ratio }}%</b>를 써요</p>
 
+      <p v-if="impact.budget_before === null" class="ci-pct">부서 잔여 예산 안인지는 판정 규칙이 확인했어요</p>
+      <p v-if="impact.rule" class="ci-rule">근거 · {{ impact.rule }}</p>
       <p v-if="short" class="ci-warn" role="note">잔여 예산이 월 비용보다 적어 보류 대상이에요. 부서장에게 예산 증액을 요청해야 해요.</p>
     </template>
   </section>
@@ -55,6 +57,7 @@ const ratio = computed(() => {
 .ci.none .ci-big { font-family: var(--uo-font); font-size: 24px; color: var(--uo-muted); }
 .ci-minus { color: var(--uo-primary-ink); }
 .ci-sub { margin: 0; font-size: 14px; color: var(--uo-muted); }
+.ci-rule { margin: 4px 0 0; padding-top: 10px; border-top: 1px dashed var(--uo-line); font-size: 13px; color: var(--uo-ink-2); }
 .ci-flow { margin: 12px 0 0; display: flex; align-items: flex-end; gap: 18px; }
 .ci-flow div { display: flex; flex-direction: column; gap: 2px; }
 .ci-flow dt { font-size: 13px; color: var(--uo-muted); }

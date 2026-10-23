@@ -194,7 +194,9 @@ export async function runNow(): Promise<{ report: RevocationReport; mock: boolea
     // 담당 범위(scope) 중 켜진 첫 범위로 점검한다(#29: 같은 요청은 멱등 키로 한 번만 접수). 끝날 때까지 2초마다 확인(최대 1분).
     const [{ phase2 }, { currentUser }] = await Promise.all([import('../phase2/api.ts'), import('../session.ts')])
     const owner = currentUser.value?.id
-    const scope = (await phase2.scopes()).find(s => s.enabled)
+    const scopes = await phase2.scopes()
+    // 자동 점검이 꺼진 범위도 수동 점검은 된다(#29 화면과 같은 기준: 허용된 범위 중 첫 번째).
+    const scope = scopes.find(s => s.enabled) ?? scopes[0]
     if (!owner || !scope) throw new Error('점검할 담당 범위가 없어요.')
     await phase2.start(owner, scope.id)
     for (let i = 0; i < 30; i++) {

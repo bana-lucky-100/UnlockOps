@@ -102,3 +102,15 @@ test('v2 회수 개요: 이번 점검에 알린 후보는 신규, 이미 알린 
   assert.equal(r.summary.monthly_saving, 19)
   assert.deepEqual(needsReviewRow(r.needs_review[0]).missing, ['사용 기록'])
 })
+
+import { budgetFromMessage } from '../src/lib/v2view.ts'
+test('[임시] 판정 메시지에서 부서 잔여 예산 전후 값을 읽고, 비용 근거 조항을 붙인다', () => {
+  assert.deepEqual(budgetFromMessage('정책·직무·예산을 확인했습니다. 예상 예산 영향은 500.00 → 380.00 USD입니다. 순서대로 승인을 기다립니다.', 'USD'), { before: 500, after: 380 })
+  assert.equal(budgetFromMessage('승인을 기다리고 있어요', 'USD'), null)
+  assert.equal(budgetFromMessage('예상 예산 영향은 500.00 → 380.00 KRW입니다', 'USD'), null)
+  const p = fromV2(report({ message: '예상 예산 영향은 500.00 → 380.00 USD입니다.' }))
+  assert.equal(p.cost_impact?.budget_before, 500)
+  assert.equal(p.cost_impact?.budget_after, 380)
+  assert.match(p.cost_impact?.basis ?? '', /분석용 웨어하우스 월 사용/)
+  assert.match(p.cost_impact?.rule ?? '', /^POL-06 제2조/)
+})
