@@ -23,6 +23,7 @@ EXTRA = [
     {"id": "X-03", "company": "B", "platform": "SNOWFLAKE", "expected_status": "WAITING_APPROVAL", "expected_reason_code": "ELIGIBLE", "overrides": {"budget": "500.00"}},
     {"id": "X-11", "company": "A", "platform": "GITHUB", "expected_status": "DONE", "expected_reason_code": "SCAN_COMPLETED", "overrides": {}, "reclaim_fixture": "X-11"},
     {"id": "X-08b-COST", "company": "A", "platform": "GITHUB", "expected_status": "DONE", "expected_reason_code": "SCAN_COMPLETED", "overrides": {}, "reclaim_fixture": "R-01"},
+    {"id": "X-06", "company": "A", "platform": "GITHUB", "expected_status": "MANUAL_REVIEW", "expected_reason_code": "APPROVER_UNAVAILABLE", "overrides": {}},
 ]
 
 
@@ -99,6 +100,9 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
             # Two simultaneous price families are ambiguous: UNKNOWN, never 0.00.
             columns = "revision,company_id,entitlement_id,entitlement_revision,monthly_amount,currency,cost_basis,source_kind,source_reference,effective_from,effective_until,policy_id,policy_revision"
             statements.append(f"INSERT INTO pricing_revisions(pricing_id,{columns}) SELECT {quote(uuid5(case_namespace, 'ambiguous-price'))},{columns} FROM pricing_revisions WHERE pricing_id={quote(item['pricing_id'])} AND revision=3;")
+        if scenario["id"] == "X-06":
+            # The only mapped operator has left: the route cannot name an approver, so no one is guessed.
+            statements.append(f"UPDATE users SET employment_status='LEFT' WHERE id={quote(company['users']['operator'])};")
         if overrides.get("policy_missing"):
             content = "정책 원문을 확인할 수 없습니다."
             digest = hashlib.sha256(content.encode()).hexdigest()
