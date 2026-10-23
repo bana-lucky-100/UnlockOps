@@ -13,7 +13,7 @@
 | 파일 | 용도 |
 |---|---|
 | catalog.json | A/B 회사·직원·자원·권한·가격의 안정적인 UUID, 평가셋 20건의 조건/기대값 |
-| seed.sql | 신규 테이블에 넣는 opt-in mock 데이터. 트랜잭션으로 적용, 재실행 시 기존 레코드 보존 |
+| seed.sql | 신규 테이블에 넣는 opt-in mock 데이터. 트랜잭션으로 적용, 재실행 시 원래 시연 표시명만 정리하고 업무 상태 보존 |
 | company-a-policy.md | 임시 정책 및 부서장→IT 담당자 2단계 승인 |
 | company-b-policy.md | 임시 정책 및 팀장→부서장→SaaS 담당자, 100 USD 이상 IT 총괄 추가 |
 
@@ -41,6 +41,18 @@ docker compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USE
 DEMO_ENABLED=true와 DEMO_PASSWORD 설정으로 backend를 재시작하면 DemoSeed가 비어 있는 해시와 지정된 mock 시연 계정의 비밀번호를 준비한다.
 새 계정·플랫폼은 `/access` 및 v2 업무 API에서 시연한다.
 회수 scopes.enabled=false로 시작하므로 이후 Scheduler를 붙여도 운영자가 범위를 확인해 활성화해야 한다.
+
+## 기본 시연 표시명
+
+현재 회사·부서·TF·자원 표시명에는 개발 단계 접두사를 넣지 않는다. 예를 들어 `Phase 2 A사 업무팀`은 `A사 업무팀`, `Phase 2 A GITHUB`는 `A GITHUB`로 준비한다. 신규 baseline 정책 제목과 합성 과거 스냅샷도 같은 표기를 사용하며, 생성기와 `seed.sql`을 함께 관리한다. `seed.sql`에는 `Phase 1`·`Phase 2` 리터럴이 없다.
+
+기존 DB는 위 시드 재적용 명령이나 `DEMO_SEED_PATH`를 사용하는 백엔드 재시작으로 반영한다. 고정 시드 UUID·회사와 개발 단계 접두사를 제외한 원래 표시명이 일치하는 30개 엔터티만 이름을 바꾸며, 사용자가 수정한 이름은 유지한다. 계정·식별자·권한·예산과 DB에 이미 설치된 정책 원문/해시·과거 회수 스냅샷은 보존한다. 기존 스냅샷의 이름은 당시 사실이므로 그대로 남긴다.
+
+신규 baseline은 제목 변경에 맞춰 원문 해시를 함께 생성한다. 후속 revision 2 가져오기는 제목 정리 전·후의 정확한 baseline 해시만 허용한다. 기존 정책만 설치되고 R-04 과거 이력이 누락된 DB에 적용하면, 추가되는 스냅샷·보고서의 정책과 근거 해시는 DB에 설치된 revision 1을 따른다. 기존 revision과 저장된 이력을 덮어쓰지 않는다.
+
+시드 적용은 Flyway가 정상 완료된 로컬/시연 DB를 전제로 한다. 이 표시명 변경은 기존 DB의 마이그레이션 번호·체크섬 충돌을 복구하지 않는다.
+
+회귀 검증은 `cd backend && mvn verify -Pregression -Dit.test=SeedDisplayNamesIT,WorkflowFoundationIT,ReclaimSeedReportIT`로 실행한다. 신규 표시명과 로그인 프로필 부서명, 기존 기본 이름 갱신, 사용자 수정 이름·업무 상태·불변 이력 보존과 재적용 멱등성을 일회용 PostgreSQL에서 확인한다.
 
 ## 재현 범위
 

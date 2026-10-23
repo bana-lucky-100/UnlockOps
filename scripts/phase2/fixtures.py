@@ -96,7 +96,7 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
             for prefix in ("p2_", "p2-", "P2_", "P2-"):
                 value = value.replace(prefix, prefix + tag + prefix[-1])
             value = value.replace("phase2:", "phase2:" + tag + ":").replace("@example.test", "+" + tag + "@example.test")
-            if value.startswith("Phase 2 "):
+            if value.startswith(("Phase 2 ", "A사 ", "B사 ", "A ", "B ")):
                 value += " " + tag
             if re.fullmatch(r"\d{4}-\d{2}-\d{2}(?:T.*)?", value):
                 stamp = datetime.fromisoformat(value) + shift
