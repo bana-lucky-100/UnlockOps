@@ -66,6 +66,36 @@ class EvaluationTest(unittest.TestCase):
             self.assertEqual(snapshot["candidate"]["fact_evidence"][0]["observed_at"], snapshot["facts"]["observed_at"])
         self.assertEqual(prepare(RUN, "smoke", NOW), (bundle, sql))
 
+    def test_natural_variants_reuse_base_facts_and_expected_permission(self):
+        bundle, _ = prepare(RUN, "natural", NOW)
+        cases = {c["id"]: c for c in bundle["cases"]}
+        self.assertEqual(len(cases), 20)
+        current = {s["id"] for s in json.loads((ROOT / "data/phase2/scenarios-current.json").read_text())["scenarios"]}
+        self.assertTrue(all(c["base"] in current and c["input"]["contents"] == c["input_text"] for c in cases.values()))
+        # Human-written expectations must name the same permission the fixtures will check.
+        self.assertTrue(all(c["expected_entitlement"] == c["expected_entitlement_code"] for c in cases.values()))
+        reduced = [c for c in cases.values() if c["base"] == "B-02"]
+        self.assertTrue(reduced and all(c["input"]["resource_id"] == c["overrides"]["resource_id"] and c["monthly_amount"] == "0.00"
+                                        and c["expected_entitlement_id"] == c["overrides"]["entitlement_id"] for c in reduced))
+        self.assertNotIn("resource_id", cases["N-20"]["input"])
+        self.assertIsNone(cases["N-02"]["expected_entitlement_id"])
+        self.assertEqual(cases["N-07"]["overrides"]["reject_step"], 2)
+        full, _ = prepare(RUN, "full", NOW)
+        self.assertTrue(set(cases).isdisjoint(c["id"] for c in full["cases"]))
+
+    def test_metrics_count_mismatch_unsafe_path_and_timeout(self):
+        from metrics import summarize
+        expected = {"status": "MANUAL_REVIEW", "reason_code": "OUT_OF_SCOPE"}
+        m = summarize([
+            {"id": "a", "status": "PASS", "expected": {"status": "WAITING_APPROVAL", "reason_code": "ELIGIBLE"},
+             "observed": {"status": "WAITING_APPROVAL", "reason_code": "ELIGIBLE"}, "analysis_seconds": 2.0},
+            {"id": "b", "status": "FAIL", "expected": expected, "wrong_grant_path": True,
+             "observed": {"status": "WAITING_APPROVAL", "reason_code": "ELIGIBLE"}, "analysis_seconds": 4.0},
+            {"id": "c", "status": "TIMEOUT", "expected": expected},
+            {"id": "r", "status": "PASS", "checks": []}])
+        self.assertEqual((m["cases"], m["passed"], m["access_cases"], m["analysis_matched"], m["wrong_grant_path"]), (4, 2, 3, 1, 1))
+        self.assertEqual((m["analysis_seconds_p50"], m["analysis_seconds_p95"], m["analysis_mismatched"]), (2.0, 4.0, ["b", "c"]))
+
     def test_mismatches_fail_even_with_assertions_disabled(self):
         check(True, "valid")
         with self.assertRaisesRegex(CheckFailed, "wrong status"):

@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from phase2.fixtures import ROOT, prepare, quote
 from phase2.preconditions import observation_sql, verify
+from phase2.metrics import summarize
 
 
 class Blocked(Exception):
@@ -27,14 +28,45 @@ def save(path, report):
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
 
 
+def llm_settings(mode):
+    """Model settings for the isolated agent. The key is passed to Compose only, never saved."""
+    if mode != "llm":
+        return {"EVAL_AGENT_MODE": "demo"}
+    values = {name: os.environ.get(name, "") for name in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL")}
+    dotenv = ROOT / ".env"
+    if dotenv.exists():
+        for line in dotenv.read_text().splitlines():
+            name, sep, value = line.partition("=")
+            if sep and name.strip() in values and not values[name.strip()]:
+                values[name.strip()] = value.strip().strip("'\"")
+    if not values["LLM_API_KEY"] or not values["LLM_MODEL"]:
+        raise SystemExit("--agent-mode llm needs LLM_API_KEY and LLM_MODEL in the environment or the root .env")
+    return {"EVAL_AGENT_MODE": "llm", "EVAL_LLM_API_KEY": values["LLM_API_KEY"],
+            "EVAL_LLM_BASE_URL": values["LLM_BASE_URL"] or "https://api.openai.com/v1", "EVAL_LLM_MODEL": values["LLM_MODEL"]}
+
+
+def code_version():
+    # Before/after numbers are only comparable when the measured commit is recorded.
+    try:
+        head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=10).stdout.strip()
+        dirty = subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return (head + "+uncommitted" if dirty else head) or None
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--plan", action="store_true", help="Prepare fixtures only (default)")
     mode.add_argument("--run", action="store_true", help="Build and run a new isolated Docker stack")
-    parser.add_argument("--suite", choices=["smoke", "full"], default="smoke")
+    parser.add_argument("--suite", choices=["smoke", "full", "natural"], default="smoke",
+                        help="natural = 20 everyday-language variants (data/phase2/scenarios-natural-v1.json)")
+    parser.add_argument("--agent-mode", choices=["demo", "llm"], default="demo",
+                        help="llm reads LLM_API_KEY/LLM_MODEL/LLM_BASE_URL from the environment or root .env")
     parser.add_argument("--keep", action="store_true", help="Keep this run's isolated stack for debugging")
     args = parser.parse_args(argv)
+    model_env = llm_settings(args.agent_mode) if args.run else {"EVAL_AGENT_MODE": args.agent_mode}
     run_id = str(uuid4())
     project = "unlockops-p2-eval-" + run_id
     output = ROOT / "test-results/phase2" / run_id
@@ -43,6 +75,7 @@ def main(argv=None):
     save(output / "bundle.json", bundle)
     (output / "fixtures.sql").write_text(sql)
     report = {"schema_version": 1, "run_id": run_id, "suite": args.suite,
+              "agent_mode": args.agent_mode, "llm_model": model_env.get("EVAL_LLM_MODEL"), "commit": code_version(),
               "created_at": datetime.now(timezone.utc).isoformat(), "status": "NOT_RUN",
               "project": project, "cases": [{"id": c["id"], "status": "NOT_RUN", "checks": []} for c in bundle["cases"]],
               "browser_interaction": "NOT_RUN", "legacy_upgrade": "NOT_RUN",
@@ -53,7 +86,7 @@ def main(argv=None):
         print(f"Prepared {len(bundle['cases'])} cases; no services started.\n{path}")
         return 0
 
-    env = {**os.environ, "PHASE2_EVAL_INPUT": str(output / "bundle.json")}
+    env = {**os.environ, **model_env, "PHASE2_EVAL_INPUT": str(output / "bundle.json")}
     command = ["docker", "compose", "--env-file", os.devnull, "--project-name", project,
                "-f", str(ROOT / "infra/compose.phase2-eval.yaml")]
     log_path = output / "runtime.log"
@@ -112,7 +145,8 @@ def main(argv=None):
         completed = execute(command + ["run", "--build", "--rm", "--no-deps", "-T", "evaluator"],
                             timeout=120 + len(bundle["cases"]) * 210, allow_failure=True)
         try:
-            result = json.loads(completed.stdout)
+            # `run --build` also prints image build progress to stdout; the report is the last line.
+            result = json.loads(completed.stdout.strip().splitlines()[-1])
         except ValueError as error:
             raise Blocked("Evaluator did not produce a complete JSON report; see runtime.log") from error
         if {r["id"] for r in result["cases"]} != {c["id"] for c in bundle["cases"]}:
@@ -149,6 +183,7 @@ def main(argv=None):
                 outcome.update(status="FAIL", detail="Database budget, receipt count or active assignments differ")
         if any(r["status"] != "PASS" for r in report["cases"]) or "FAIL" in report["checks"].values():
             report["status"] = "FAIL"
+        report["metrics"] = summarize(report["cases"])
     except (Blocked, OSError, subprocess.TimeoutExpired) as error:
         report.update(status="BLOCKED", detail=str(error) if isinstance(error, Blocked) else type(error).__name__)
     except KeyboardInterrupt:
@@ -167,6 +202,11 @@ def main(argv=None):
                         report["status"] = "BLOCKED"
         save(path, report)
         print(f"{report['status']}: {path}")
+        if "metrics" in report:
+            m = report["metrics"]
+            print(f"[{args.suite}/{args.agent_mode}] PASS {m['passed']}/{m['cases']} · 분석 일치 {m['analysis_matched']}/{m['access_cases']}"
+                  f" · 잘못된 승인 진행 {m['wrong_grant_path']} · 수동 검토 {m['manual_review']}"
+                  f" · 분석 p50 {m['analysis_seconds_p50']}s p95 {m['analysis_seconds_p95']}s")
     return 0 if report["status"] == "PASS" else 1
 
 
