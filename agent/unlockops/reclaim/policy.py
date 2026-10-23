@@ -1,6 +1,7 @@
 """Retrieve and verify the frozen POL-06 article 5 and supporting RAG sources."""
 import re
 from ..common.workflow_contracts import ReclaimJob
+from ..common.workflow_contracts import PolicyEvidence
 from ..common.tool_contracts import PolicyResult
 from ..common.runtime import guarded
 from ..common.models import ToolFailure
@@ -17,6 +18,33 @@ def _is_reclaim_clause(article):
 def _is_report_source(article):
     return (_is_reclaim_clause(article) or article.startswith("GH-OFF-03")
             or (article.startswith("BASELINE") and "회수" in article))
+
+
+def report_sources(evidence, reason_code):
+    """Select verbatim rule sentences; never turn a schedule or price into a fact.
+
+    These excerpts are for narration only. The graph keeps the original frozen
+    evidence, including its document identity, version and source hash.
+    """
+    if reason_code not in {"TF_ENDED_UNUSED_30D", "EMPLOYEE_LEFT"}:
+        return []
+    selected, seen = [], set()
+    for raw in evidence:
+        source = PolicyEvidence.model_validate(raw)
+        if not _is_reclaim_clause(source.article):
+            continue
+        for sentence in re.split(r"(?<=[.!?。])\s+|\n+", source.text):
+            sentence = sentence.strip()
+            if not sentence or sentence.startswith(("#", "문서:")):
+                continue
+            relevant = ("퇴사" in sentence if reason_code == "EMPLOYEE_LEFT" else
+                        "TF" in sentence and "종료" in sentence
+                        and any(word in sentence for word in ("미사용", "사용하지")) and "퇴사" not in sentence)
+            key = (source.doc_id, source.article, sentence)
+            if relevant and any(word in sentence for word in ("후보", "검토")) and key not in seen:
+                seen.add(key)
+                selected.append({**source.model_dump(mode="json"), "text": sentence})
+    return selected
 
 
 @guarded
