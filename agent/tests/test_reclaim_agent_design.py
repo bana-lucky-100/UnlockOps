@@ -234,7 +234,7 @@ async def test_verification_rejects_identity_decision_cost_or_evidence_mutation(
 
 async def test_composition_and_verification_allow_only_explanation_and_generation_mode(monkeypatch):
     original = candidate()
-    async def narrative(facts, evidence, template):
+    async def narrative(facts, evidence, template, *, guidance=""):
         return "확인된 규정과 사용 기록에 따라 담당자의 회수 검토가 필요합니다.", "llm"
     monkeypatch.setattr(reporting, "report", narrative)
     state = {
@@ -255,13 +255,27 @@ async def test_composition_and_verification_allow_only_explanation_and_generatio
     }
 
 
+def test_reclaim_guidance_is_packaged_text():
+    assert reporting.reclaim_guidance().strip()
+
+
+async def test_composition_passes_reclaim_guidance_to_report(monkeypatch):
+    received = []
+    async def narrative(facts, evidence, template, *, guidance=""):
+        received.append(guidance)
+        return template, "template"
+    monkeypatch.setattr(reporting, "report", narrative)
+    await reporting.compose_reports({"targets": [candidate()], "history": [], "policy_evidence": policy_reply()["evidence"]})
+    assert received == [reporting.reclaim_guidance()]
+
+
 async def test_report_api_replays_without_model_calls_or_changing_server_wire(monkeypatch):
     from langgraph.checkpoint.memory import InMemorySaver
     from unlockops.common.workflow_contracts import ReclaimEvent
     from unlockops_worker.runtime import run_reclaim_report, read_reclaim_report, run_job
 
     calls = []
-    async def narrate(facts, evidence, template):
+    async def narrate(facts, evidence, template, *, guidance=""):
         calls.append(facts)
         return template, "template"
     monkeypatch.setattr(reporting, "report", narrate)
@@ -328,7 +342,7 @@ async def test_missing_mandatory_reclaim_clause_stops_before_scan(monkeypatch):
 @pytest.mark.parametrize("text,mode", [("", "llm"), ("x" * 2001, "llm"), ("valid", "unverified")])
 async def test_bad_narration_keeps_checked_template_instead_of_failing_scan(monkeypatch, text, mode):
     original = candidate()
-    async def invalid(*args):
+    async def invalid(*args, guidance=""):
         return text, mode
     monkeypatch.setattr(reporting, "report", invalid)
     result = await reporting.compose_reports({
@@ -342,7 +356,7 @@ async def test_report_callback_cannot_mutate_frozen_nested_facts_or_citations(mo
     original = candidate()
     evidence = policy_reply()["evidence"]
     evidence_before = deepcopy(evidence)
-    async def mutate_arguments(facts, sources, template):
+    async def mutate_arguments(facts, sources, template, *, guidance=""):
         facts["cost_impact"]["monthly_amount"] = "0.00"
         sources[0]["text"] = "Untrusted replacement"
         return template, "template"
@@ -356,7 +370,7 @@ async def test_reclaim_redelivery_reuses_durable_result_without_another_scan(mon
     from langgraph.checkpoint.memory import InMemorySaver
     from unlockops_worker.runtime import run_job
     calls = []
-    async def narrative(facts, evidence, template):
+    async def narrative(facts, evidence, template, *, guidance=""):
         calls.append(facts)
         return template, "template"
     monkeypatch.setattr(reporting, "report", narrative)

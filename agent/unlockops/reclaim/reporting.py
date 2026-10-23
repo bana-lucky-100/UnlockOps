@@ -2,12 +2,17 @@
 import json
 from collections.abc import Mapping
 from copy import deepcopy
+from importlib.resources import files
 
 from ..common.workflow_contracts import ReclaimCandidate, ReclaimEvent
 from ..common.runtime import guarded, failure_event
-from ..common.reporting import report
 from ..common.settings import settings
+from .narration import report
 from .verification import verify_reports  # Compatibility export for existing callers.
+
+
+def reclaim_guidance():
+    return files("unlockops.reclaim").joinpath("reclaim-report-guide.md").read_text(encoding="utf-8")
 
 
 def build_report_payload(targets, *, scan_complete, error_code=None, display_facts=None):
@@ -119,7 +124,7 @@ async def compose_reports(state):
             generated += 1
             facts = {k: deepcopy(item[k]) for k in ("platform", "candidate_status", "candidate_reason_code", "exclusion_reason_code", "review_required", "cost_impact", "action_taken")}
             try:
-                text, mode = await report(facts, deepcopy(state["policy_evidence"]), item["explanation"])
+                text, mode = await report(facts, deepcopy(state["policy_evidence"]), item["explanation"], guidance=reclaim_guidance())
                 if isinstance(text, str) and 0 < len(text.strip()) <= 2000 and mode in {"llm", "template"}:
                     item.update(explanation=text.strip(), generation_mode=mode)
             except Exception:
