@@ -29,14 +29,12 @@ def rpc(server):
     # The SDK session manager has a single lifespan. Use a fresh server per test
     # while exercising the real registered tool functions and shared boundary.
     module = policy if server is policy_mcp else business
-    names = {"search_policy", "read_policy"}
-    if module is business:
-        names = set(INPUTS) - names
     fresh = ContractMCP("unlockops-test", host="127.0.0.1", stateless_http=True, json_response=True)
     # 실제 @mcp.tool 데코레이터에 선언한 설명·힌트를 새 서버에도 복사한다.
     definitions = {tool.name: tool for tool in asyncio.run(server.list_tools())}
-    for name in sorted(names):
-        fresh.add_tool(getattr(module, name), annotations=definitions[name].annotations)
+    for name in sorted(definitions):
+        fn = module.phase2_tools[name] if name in module.phase2_tools else getattr(module, name)
+        fresh.add_tool(fn, annotations=definitions[name].annotations)
     server = fresh
     with TestClient(
         TokenAuth(server.streamable_http_app()), base_url="http://127.0.0.1:8000"
@@ -270,7 +268,7 @@ def test_spring_execution_reason_survives_real_mcp_http_boundary(monkeypatch):
 async def test_tool_decorators_publish_read_and_write_hints(server):
     """도구 목록에 읽기와 승인 후 쓰기 데코레이터의 힌트가 노출된다."""
     for tool in await server.list_tools():
-        read_only = tool.name != "grant_permission"
+        read_only = tool.name not in {"grant_permission", "execute_access_plan"}
         assert tool.annotations.readOnlyHint is read_only
         assert tool.annotations.destructiveHint is (not read_only)
         assert tool.annotations.idempotentHint is True

@@ -113,5 +113,9 @@ def verify_permission(employee_id: str, resource_id: str, requested_role: str) -
     return repo.verify(employee_id, resource_id, requested_role)
 
 
+from .phase2_business import register as register_phase2
+phase2_tools = register_phase2(mcp)
+
+
 if __name__ == "__main__":
     uvicorn.run(TokenAuth(mcp.streamable_http_app()), host=HOST, port=PORT)

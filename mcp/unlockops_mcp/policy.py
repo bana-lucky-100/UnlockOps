@@ -39,5 +39,9 @@ def read_policy(doc_id: str, article: str = "") -> dict[str, object]:
     return {"chunks": index().read(doc_id, article)}
 
 
+from .phase2_policy import register as register_phase2
+phase2_tools = register_phase2(mcp)
+
+
 if __name__ == "__main__":
     uvicorn.run(TokenAuth(mcp.streamable_http_app()), host=HOST, port=PORT)

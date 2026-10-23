@@ -271,6 +271,12 @@ OUTPUTS = {
 }
 
 
+# The same registry is used for MCP discovery, server validation and agent calls.
+from .phase2_tools import INPUTS as V2_INPUTS, OUTPUTS as V2_OUTPUTS
+INPUTS.update(V2_INPUTS)
+OUTPUTS.update(V2_OUTPUTS)
+
+
 def validate_input(name: str, arguments: dict) -> dict:
     """호출 전에 도구별 인자를 검사하고 JSON으로 보낼 값으로 바꾼다."""
     if name not in INPUTS:

@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+from functools import partial
 from pathlib import Path
 from uuid import uuid4
 
@@ -16,6 +17,7 @@ from unlockops.access.graph import build_graph
 from unlockops.common.models import Job, Result, ToolFailure
 from unlockops.common.settings import settings
 from unlockops.common.tools import MCPTools
+from .phase2 import QUEUES, parse_delivery, progress_event, run_job
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("unlockops.worker")
@@ -38,7 +40,8 @@ async def main():
         await channel.set_qos(prefetch_count=1, global_=True)
         exchange = await channel.declare_exchange("unlockops", aio_pika.ExchangeType.DIRECT, durable=True)
         queues = {}
-        for name, key in (("analysis", "analysis"),("execution", "execution"),("results", "results"),("dead", "dead")):
+        for name in QUEUES:
+            key = name
             arguments = {} if name == "dead" else {"x-dead-letter-exchange": "unlockops", "x-dead-letter-routing-key": "dead"}
             queue = await channel.declare_queue("unlockops." + name, durable=True, arguments=arguments)
             await queue.bind(exchange, key)
@@ -58,12 +61,38 @@ async def main():
             except Exception:
                 raise DeliveryFailure("Result publication not confirmed") from None
 
-        async def consume(message):
+        async def publish_v2(event):
+            try:
+                await exchange.publish(aio_pika.Message(json.dumps(event, ensure_ascii=False).encode(),
+                    content_type="application/json", delivery_mode=aio_pika.DeliveryMode.PERSISTENT),
+                    routing_key="results", mandatory=True)
+            except Exception:
+                raise DeliveryFailure("v2 result publication not confirmed") from None
+
+        async def consume(message, *, queue):
             """작업의 그래프를 실행·재개하고 결과 발행 확인 뒤 원본 메시지를 승인한다."""
             async with lock:
-                try: job = Job.model_validate_json(message.body)
+                try: job = parse_delivery(message.body, queue)
                 except Exception:
                     await message.reject(requeue=False)
+                    return
+                if not isinstance(job, Job):
+                    try:
+                        await publish_v2(progress_event(job))
+                        event = await run_job(job, saver)
+                        if event is not None:
+                            await publish_v2(event)
+                        await message.ack()
+                    except ValueError:
+                        # Reused job ID with a conflicting payload is not a transient broker failure.
+                        log.error("job=%s code=INVALID_CHECKPOINT_IDENTITY", job.event_id)
+                        if not message.processed:
+                            await message.reject(requeue=False)
+                    except Exception:
+                        log.error("job=%s code=V2_DELIVERY_OR_CHECKPOINT_FAILURE", job.event_id)
+                        if not message.processed:
+                            try: await message.nack(requeue=True)
+                            except Exception: pass
                     return
                 try:
                     # 같은 요청 ID로 승인 대기 상태와 실행 진행 위치를 다시 찾는다.
@@ -122,9 +151,9 @@ async def main():
                         # A result-publication outage must not silently lose the original job.
                         await message.nack(requeue=True)
 
-        await queues["analysis"].consume(consume)
-        await queues["execution"].consume(consume)
-        log.info("Worker ready; mode=%s; single-platform; no follow-up conversation", settings.mode)
+        for name in ("analysis", "execution", "v2.analysis", "v2.execution"):
+            await queues[name].consume(partial(consume, queue=name))
+        log.info("Worker ready; mode=%s; v1/v2 access + reclaim; single-flight", settings.mode)
         await asyncio.Future()
 
 

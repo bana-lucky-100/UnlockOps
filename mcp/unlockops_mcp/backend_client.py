@@ -48,15 +48,18 @@ class BackendClient:
             raise ToolFailure("BACKEND_CONFIGURATION_ERROR", "Invalid internal API configuration")
 
     def _post(self, path, payload):
+        return self._request("POST", path, payload)
+
+    def _request(self, method, path, payload=None, *, object_response=True):
         if not self.token or not self.token.strip():
             raise ToolFailure("BACKEND_AUTH_FAILED", "Internal API service token is missing")
         try:
             if self.client is None:
                 with httpx.Client(timeout=10, follow_redirects=False) as client:
-                    response = client.post(self.base_url + path, json=payload,
+                    response = client.request(method, self.base_url + path, json=payload,
                         headers={"Authorization": "Bearer " + self.token})
             else:
-                response = self.client.post(self.base_url + path, json=payload,
+                response = self.client.request(method, self.base_url + path, json=payload,
                     headers={"Authorization": "Bearer " + self.token}, timeout=10, follow_redirects=False)
         except httpx.TimeoutException:
             raise ToolFailure("UPSTREAM_TIMEOUT", "Spring internal API timed out", True) from None
@@ -68,9 +71,9 @@ class BackendClient:
             data = None
         if not 200 <= response.status_code < 300:
             self._error(response.status_code, data)
-        if not isinstance(data, dict):
+        if object_response and not isinstance(data, dict):
             raise ToolFailure("INVALID_TOOL_OUTPUT", "Internal API response must be a JSON object")
-        if data.get("ok") is False or "error" in data or "error_code" in data:
+        if isinstance(data, dict) and (data.get("ok") is False or "error" in data or "error_code" in data):
             raise ToolFailure("INVALID_TOOL_OUTPUT", "Internal API success contains an error")
         return data
 
