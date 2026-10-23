@@ -36,10 +36,13 @@ public class AccessExecutionService {
         db.mutex("v2-grant:"+plan.companyId());
         var user=db.one("SELECT to_jsonb(u) FROM users u WHERE id=?",UUID.fromString(plan.requesterId()));
         db.rows("SELECT to_jsonb(b) FROM department_budgets b WHERE department_id=? FOR UPDATE",uuid(user,"department_id"));
+        db.rows("SELECT to_jsonb(f) FROM saas_license_facts f WHERE company_id=? AND user_id=? AND platform=? FOR UPDATE",
+            UUID.fromString(plan.companyId()),UUID.fromString(plan.requesterId()),plan.platform().name());
         var steps=db.rows("SELECT to_jsonb(s) FROM approval_steps s WHERE problem_id=? AND plan_version=? ORDER BY step",id,p.path("active_plan_version").intValue());
         conflict(steps.size()==plan.approverIds().size() && steps.stream().allMatch(s->"APPROVED".equals(str(s,"status"))) &&
             steps.stream().map(s->str(s,"approver_id")).toList().equals(plan.approverIds()),"필수 승인이 완료되지 않았습니다.");
-        if(!planner.sameCurrentPlan(p,plan)) {
+        var current=planner.assess(p,UUID.fromString(plan.entitlementId()));
+        if(current.plan()==null || !db.codec.planHash(current.plan()).equals(db.codec.planHash(plan))) {
             workflow.state(id,Status.MANUAL_REVIEW,"PLAN_REVIEW_REQUIRED","실행 전 조건이 변경되어 재검토가 필요합니다.",null);
             return db.json.tree(db.json.write(Map.of("executed",false,"reason_code","PLAN_REVIEW_REQUIRED")));
         }
@@ -62,6 +65,15 @@ public class AccessExecutionService {
             """,assignment,UUID.fromString(plan.companyId()),UUID.fromString(plan.requesterId()),UUID.fromString(plan.entitlementId()),plan.entitlementRevision(),ent.path("mapping").toString());
         // UNKNOWN is deliberate: a grant does not prove that usage was observed.
         db.jdbc.update("INSERT INTO assignment_usage(assignment_id,company_id,observation_status,observed_at,source_reference) VALUES(?,?,'UNKNOWN',now(),'mock-grant:no-usage-observation')",assignment,UUID.fromString(plan.companyId()));
+        var cost=current.review_facts()==null?null:current.review_facts().cost_assessment();
+        if(cost!=null && "PURCHASE_SEAT".equals(cost.operation()) && cost.billing_scope()!=null && "NOT_COVERED".equals(cost.license_coverage())) {
+            // Inside the same company lock and transaction as the mock grant/debit.
+            int updated=db.jdbc.update("""
+                UPDATE saas_license_facts SET coverage='COVERED',purchase_required=false,observed_at=now(),valid_until=NULL,source_reference=?
+                WHERE company_id=? AND user_id=? AND platform=? AND billing_scope=? AND license_code=? AND coverage='NOT_COVERED'
+                ""","mock-grant:"+id,UUID.fromString(plan.companyId()),UUID.fromString(plan.requesterId()),plan.platform().name(),cost.billing_scope(),cost.license_code());
+            conflict(updated==1,"라이선스 관측 조건이 변경되었습니다.");
+        }
         var receipt=db.json.tree(db.json.write(Map.of("schema_version",2,"executed",true,"problem_id",id,"assignment_id",assignment,"plan_hash",input.plan_hash(),"idempotency_key",input.idempotency_key(),"charged_amount",plan.monthlyAmount(),"currency",plan.currency())));
         db.jdbc.update("""
             INSERT INTO access_execution_receipts(problem_id,company_id,plan_version,plan_hash,idempotency_key,assignment_id,result)

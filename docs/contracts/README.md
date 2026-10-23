@@ -7,6 +7,7 @@
 - [공개·내부 HTTP 스키마](../../contracts/phase2/http.json)
 - [MCP 도구 계약](mcp.md)
 - [API 명세](../api-spec.md)
+- [승인 판단 자료·규칙·시나리오 조건](../approval-decision-conditions.md): 업무 상태와 평가 준비 실패를 구분
 
 프론트 호환을 위해 schema_version=2, `/api/v2/problems`, `frontend/src/contracts/phase2.ts`와 생성 결과 경로는 유지합니다.
 버전은 계약과 승인 이력을 구분하며 별도 업무 실행기를 의미하지 않습니다. 과거 계약의 DB 이력은 다시 쓰지 않습니다.

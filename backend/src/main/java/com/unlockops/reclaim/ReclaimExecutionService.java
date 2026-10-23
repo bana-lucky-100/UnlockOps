@@ -68,7 +68,7 @@ public class ReclaimExecutionService {
     }
     @Transactional
     public ReclaimExecutionReceipt revoke(UUID actor,UUID id,String key,ReclaimRevokeInput input) {
-        key(key);input=db.checked(input,ReclaimRevokeInput.class);
+        key(key);if(input==null)throw new IllegalArgumentException("JSON body {} required");
         var initial=repository.target(id,false);acl.assignment(actor,initial.assignmentId());
         forbid(demo && initial.mock() && acl.canExecuteReclaim(actor,initial.assignmentId()));
         repository.lockCompany(initial.companyId());

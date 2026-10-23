@@ -13,6 +13,7 @@ import sys
 from uuid import uuid4
 
 from phase2.fixtures import ROOT, prepare, quote
+from phase2.preconditions import observation_sql, verify
 
 
 class Blocked(Exception):
@@ -22,7 +23,7 @@ class Blocked(Exception):
 def save(path, report):
     if "status" in report and "cases" in report:
         report["summary"] = {status: sum(c["status"] == status for c in report["cases"])
-                             for status in ("PASS", "FAIL", "ERROR", "TIMEOUT", "NOT_RUN")}
+                             for status in ("PASS", "FAIL", "ERROR", "TIMEOUT", "PRECONDITION_FAILED", "NOT_RUN")}
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
 
 
@@ -86,12 +87,28 @@ def main(argv=None):
                            "policy-mcp", "business-mcp", "agent", "frontend"], timeout=1800)
         report["checks"]["locked_frontend_test_build"] = "PASS"
         versions = json.loads(database("SELECT json_agg(version ORDER BY installed_rank) FROM flyway_schema_history WHERE success AND version IS NOT NULL;"))
-        if not {"6", "7", "8"}.issubset(versions):
-            raise Blocked("Required migrations V6/V7/V8 were not applied")
-        report["checks"]["fresh_migration_v1_v8"] = "PASS"
+        if not {"6", "7", "8", "10"}.issubset(versions):
+            raise Blocked("Required migrations V6/V7/V8/V10 were not applied")
+        report["checks"]["fresh_migration_v1_v10"] = "PASS"
         before = database(legacy_sql)
         database(sql)
         report["checks"]["fixture_install"] = "PASS"
+        # Verify actual DB facts before submitting any request, not merely the seed SQL text.
+        failed = []
+        for case, outcome in zip(bundle['cases'], report['cases']):
+            if not case.get('preconditions'):
+                continue
+            raw = database(observation_sql(case))
+            rows = [json.loads(line) for line in raw.splitlines() if line.strip()]
+            observed = rows[0] if len(rows) == 1 else None
+            outcome['precondition_check'] = verify(case, observed)
+            if outcome['precondition_check']['status'] != 'PASS':
+                outcome.update(status='PRECONDITION_FAILED', detail='Scenario fixture conditions differ from the database')
+                failed.append(case['id'])
+        report['checks']['fixture_preconditions'] = 'FAIL' if failed else 'PASS'
+        if failed:
+            raise Blocked('Scenario preconditions differ: ' + ', '.join(failed) + '; no requests submitted')
+        preconditions = {c['id']: c.get('precondition_check') for c in report['cases']}
         completed = execute(command + ["run", "--build", "--rm", "--no-deps", "-T", "evaluator"],
                             timeout=120 + len(bundle["cases"]) * 210, allow_failure=True)
         try:
@@ -101,6 +118,9 @@ def main(argv=None):
         if {r["id"] for r in result["cases"]} != {c["id"] for c in bundle["cases"]}:
             raise Blocked("Evaluator returned an incomplete case set")
         report.update(result)
+        for outcome in report['cases']:
+            if preconditions.get(outcome['id']):
+                outcome['precondition_check'] = preconditions[outcome['id']]
         if completed.returncode != 0:
             report["status"] = "FAIL"
         report["checks"]["legacy_facts_unchanged"] = "PASS" if before == database(legacy_sql) else "FAIL"

@@ -813,7 +813,7 @@ R-04의 '이미 전달한 알림' 시드는 후보와 알림만 준비하고 당
 
 - ReclaimExecutionController → Service → Repository를 추가했다. 실행 가능 여부 조회, 담당자 확정 회수, 담당 범위 완료 영수증 목록을 공개 세션 API로 제공한다.
 - 실행은 demo/mock 회사의 확정된 ACTIVE SEAT로 제한한다. 기존 조회 권한과 같은 회사·부서·플랫폼의 SAAS_OPERATOR 또는 IT_HEAD를 확인하며, 최신 점검과 현재 정책·사용·TF·유지 승인 사실을 재검사한다.
-- Flyway V10은 후보 RECLAIMED/reclaimed_at, 후속 action_taken=REVOKED와 불변 reclaim_execution_receipts를 추가한다. 제공자 멤버십 삭제·할당 종료·열린 후보 종결·저장 상태 SELECT 검증·영수증 저장이 하나의 트랜잭션이다. 예산은 자동 환입하지 않는다.
+- Flyway V11은 후보 RECLAIMED/reclaimed_at, 후속 action_taken=REVOKED와 불변 reclaim_execution_receipts를 추가한다. 제공자 멤버십 삭제·할당 종료·열린 후보 종결·저장 상태 SELECT 검증·영수증 저장이 하나의 트랜잭션이다. 예산은 자동 환입하지 않는다.
 - 회사 단위 기존 부여/점검 mutex와 행 잠금, 요청 키/입력 해시와 assignment당 UNIQUE로 중복 실행을 막는다. 회수 전 스냅샷의 지연 결과는 원본 보고서를 보존하되 후보·알림을 다시 만들지 않고 영수증 참조를 기록한다.
 - 기존 보고서의 CandidateStatus/action_taken=NONE, 알림 읽음, 부여 영수증은 보존한다. 최신 보고서 탐색은 assignment_id를 기준으로 하여 뒤의 미확인 행으로 바뀐 후보를 과거 근거로 회수하지 못하게 한다. overview는 원본 보고서를 현재 ReclaimTargetView로 투영하여 회수 완료 상태를 표시한다.
 - 신규 HTTP 모델·409 오류를 공통 계약 원본과 Java/TS 생성물·OpenAPI에 추가했다. 생성기의 boolean const는 AssertTrue/AssertFalse로 검증하도록 보완했다. frontend에는 생성 타입만 포함하고 연동/화면 코드는 포함하지 않았다.
@@ -834,6 +834,30 @@ R-04의 '이미 전달한 알림' 시드는 후보와 알림만 준비하고 당
 
 - 사용자 제공 최종 계약을 반영했다. POST revoke는 Idempotency-Key와 빈 객체 {}만 받으며, 최신 대상/점검은 서버가 확인한다. 이미 처리된 후보는 같은 키 재전송도 409다.
 - overview targets에 can_revoke, reclaimed_at을 추가하고 회수 완료 행을 RECLAIMED/action_taken=REVOKED로 유지한다. 현재 검토 건수/절감 예상 합계에서는 완료 행을 제외한다.
-- V10의 대상/점검 행 candidate_status CHECK와 action_taken CHECK를 확장했다. 적용된 V1~V9와 원본 보고서 JSON/스냅샷은 변경하지 않았다. 후속 실행 메타데이터와 불변 영수증을 저장한다.
+- V11의 대상/점검 행 candidate_status CHECK와 action_taken CHECK를 확장했다. 적용된 V1~V9와 원본 보고서 JSON/스냅샷은 변경하지 않았다. 후속 실행 메타데이터와 불변 영수증을 저장한다.
 - 기존 보유 판정이 ACTIVE 할당만 조회하므로 회수 후 재신청은 새 승인 흐름을 사용한다. 서버 후보 설명과 Agent 작성 지침도 담당자 확인 후 회수할 수 있다는 문구로 맞췄다.
 - 최종 계약에 맞춰 테스트/벡터를 갱신하고 계약 생성물을 재생성했으나, 사용자 요청에 따라 테스트는 실행하지 않았다. 앞선 43/18/247 통과 결과와 최종 변경의 미검증 범위를 구분한다.
+
+## 권한 추가와 라이선스 비용 분리 — 2026-10-23
+
+앞선 E-02 조건 보강은 기존 잘못된 비용 가정을 보존한 평가 개선이었다. 이번 변경은 실제 서버의 비용 판단과 실행 예산 반영을 수정한다.
+
+- `AccessCosting`을 추가했다. 가격표의 참고 단가와 이번 요청의 예산 반영액을 분리하고 PERMISSION_ONLY / PURCHASE_SEAT / USAGE_ALLOCATION으로 판단한다. 기존 라이선스가 확인된 Notion・Tableau 권한 추가는 단가 20/70이어도 0원을 계획한다. 모호한 ROLE+SEAT_MONTHLY를 좌석 구매로 해석하지 않는다.
+- V10은 immutable 정책・권한에 연결된 `access_cost_rules`, 회사・사용자・플랫폼・조직 범위・라이선스 코드별 `saas_license_facts`를 추가한다. 관측 누락・UNKNOWN・만료・미래 시각은 수동 검토다. 권한만 요청했는데 라이선스가 없으면 자동 구매하지 않는다. 좌석 미보유와 신규 구매 필요까지 확인돼야 단가를 적용한다. 미배정 좌석・업그레이드・일할 청구 자동 계산은 지원하지 않는다.
+- 승인 단계와 최종 실행은 계산된 예산 반영액을 사용한다. 실행은 예산・라이선스 사실을 잠그고 최신 계획을 비교한다. 모의 좌석 확보 시 라이선스 관측도 같은 트랜잭션에서 COVERED로 갱신하며 멱등 영수증을 유지한다. 실제 SaaS 결제를 호출하지 않는다.
+- `review_facts.cost_assessment`와 Python 도구 계약・보고서 지침을 보강했다. 참고 단가・이번 추가 비용・내부 예산 배정과 관측 범위를 설명한다. 사용량 예산은 실제 청구액과 구분한다. 공개 상태・사유・계획 계약은 유지한다.
+- 수신 corpus와 배포된 정책 revision 1~3은 보존했다. `scripts/align_access_costs.py`가 회사 정책・가격・승인 경로・회수 규칙 revision 4 및 명시적인 비용 규칙・합성 라이선스 사실을 생성한다. DemoSeed는 누락된 revision 4를 자동 준비하며 현재 예산・기존 관측을 초기화하지 않는다.
+- 현재 평가 원본은 `scenarios-current.json`이다. E-02는 기존 Notion 멤버의 편집 권한 추가(0원), P-05는 기존 Explorer의 프로젝트 권한 추가(0원)로 수정했다. 예산 부족은 Copilot 신규 구매 19 > 잔여 10의 BUDGET-INSUFFICIENT로 분리했다. full 33건・smoke 9건이며 재사용 사례는 가격을 0으로 조작하지 않고 조직 범위 라이선스 보유를 준비한다. 원래 v4는 비교 자료로 남긴다.
+- 검증: Java `mvn -o ... test` **49 tests passed** (Mockito JVM 시작 agent 사용). 실제 planner의 8조건에는 참고 단가 20/70・예산 10・라이선스 보유 시 승인 대기와 plan 0원이 포함된다. Python Agent/MCP/live 검사 **232 passed, 1 skipped**, 평가 준비 오프라인 **6 tests passed**. 업무/HTTP 계약・정책 import・v4 및 비용 생성물 검사와 diff 공백 검사 통과. full 33건・smoke 9건 준비 확인.
+- `AccessCostsIT`에 V10・policy revision 4 import/reapply, Notion/Tableau 승인 후 0원 실행, Copilot 예산 보류와 신규 구매 후 19달러 단일 차감・관측 갱신 검증을 추가했다. 테스트 소스는 컴파일됐으나 Docker 소켓 접근 거부로 실제 PostgreSQL/전체 HTTP 통합 실행은 미검증이다. Docker가 허용되는 환경에서 `cd backend && mvn verify -Pregression -Dit.test=AccessCostsIT` 또는 격리 smoke/full로 확인한다.
+- 실행 중 DB에는 아직 적용하지 않았다. 새 backend/agent 이미지를 함께 빌드・기동해야 V10과 demo revision 4가 준비된다. 기존 승인 계획이 바뀐 비용 기준과 다르면 재분석・재승인이 필요하다.
+
+## 비용 검토 지적 2건 보완 — 2026-10-23
+
+- 비용 규칙 없는 유료 좌석・사용량 예산을 자동 승인 근거로 삼지 않도록 변경했다. 좌석 호환은 V9 기존 조직의 정책 revision 1과 이관 단가 출처에 한정하고, 새 정책은 명시적 규칙을 요구한다. PURCHASE_SEAT 규칙의 조직 범위・라이선스 코드가 없으면 BUDGET_UNAVAILABLE 수동 검토로 처리한다. 명시적인 0원 권한은 유지한다.
+- 평가 준비 SQL에 구매 필요 여부・관측/만료 시각・관측 출처 유효성 검사를 추가했다. 실제 구매 필요가 false/null이거나 라이선스 관측이 누락・미래・만료이면 요청 전 PRECONDITION_FAILED로 분류한다. 시나리오/fixture에도 purchase_required 기대값을 명시했다.
+- 관련 범위만 검증했다. Java AccessCostingTest・AccessPlanningReviewTest 9건, Python 평가 준비의 해당 회귀 검사 3건 통과. 비용 생성물 일치와 diff 공백 검사도 통과했다. 전체 테스트・Docker/LLM 통합 실행은 추가하지 않았다. migration・실행 중 DB・배포된 정책 본문은 변경하지 않았다.
+
+### #56 최신 main 비용 변경 통합
+
+PR 준비 중 main에 #47 비용 관리 및 V10__scoped_access_costs.sql이 병합됐다. 비용/평가 사전검사 변경을 유지해 병합하고 회수 신규 마이그레이션은 V11로 옮겼다. 구현 기록·시드 README의 양쪽 문서를 보존했다. 최종 계약 변경과 main 통합은 사용자 지시에 따라 실행 테스트를 추가하지 않은 상태다.

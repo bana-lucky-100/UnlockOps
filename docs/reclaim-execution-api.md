@@ -131,7 +131,7 @@ Idempotency-Key: <새 UUID>
 
 ## 6. DB 및 재신청 계약
 
-- V10은 candidate_status CHECK에 RECLAIMED, action_taken CHECK에 REVOKED를 허용하고 reclaimed_at 및 불변 회수 영수증을 추가한다. 아직 배포하지 않은 이번 신규 마이그레이션이며 적용된 V1~V9는 수정하지 않는다.
+- V11은 candidate_status CHECK에 RECLAIMED, action_taken CHECK에 REVOKED를 허용하고 reclaimed_at 및 불변 회수 영수증을 추가한다. 아직 배포하지 않은 이번 신규 마이그레이션이며 적용된 V1~V10은 수정하지 않는다.
 - 한 트랜잭션에서 모의 제공자 멤버십 삭제, access_assignments ACTIVE→INACTIVE/ended_at, 열린 후보 RECLAIMED/reclaimed_at/closed_at, 해당 점검 행의 후속 action_taken=REVOKED, 독립 SELECT 검증, 영수증 저장을 처리한다. 중간 실패는 전체 롤백한다.
 - 이미 보유/중복 좌석 판정은 ACTIVE 할당만 조회한다. 회수된 할당은 판정에서 빠져 **동일 좌석 재신청 시 최신 정책·예산에 따라 새로운 승인 흐름**으로 진행한다. 기존 완료 요청을 재실행하는 것은 아니다.
 - 예산 자동 환입은 하지 않는다. 외부 SaaS·자동/일괄 회수·회수 취소는 범위 밖이다.

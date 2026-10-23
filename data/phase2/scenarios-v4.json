@@ -48,7 +48,25 @@
           "POL-06",
           "제3조"
         ]
-      ]
+      ],
+      "preconditions": {
+        "entitlement_code": "EDITOR",
+        "entitlement_kind": "ROLE",
+        "access_scope": "TF",
+        "monthly_amount": "20.00",
+        "currency": "USD",
+        "cost_basis": "SEAT_MONTHLY",
+        "remaining_budget": "10.00",
+        "policy_revision": 3,
+        "pricing_revision": 3,
+        "source_kind": "PUBLIC_LIST_PRICE",
+        "tf_member": true,
+        "account_exists": true,
+        "license_active": true,
+        "work_scope_assigned": true,
+        "already_assigned": false
+      },
+      "decision_rule": "BUDGET_EXCEEDED"
     },
     {
       "id": "E-03",

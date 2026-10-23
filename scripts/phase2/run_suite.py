@@ -85,8 +85,12 @@ class Suite:
         report = requester.call("GET", path + "/report")
         evidence = report.get('policy_evidence') or []
         for required in case.get('expected_evidence', []):
-            check(any(all(token in e['article'] for token in required) and e['version']=='3' for e in evidence), 'v4 expected policy article missing: '+str(required))
+            check(any(all(token in e['article'] for token in required) and e['version']=='4' for e in evidence), 'v4 expected policy article missing: '+str(required))
         if case.get('expected_evidence'): result['checks'].append('v4_evidence_articles')
+        if case.get('decision_rule') == 'BUDGET_EXCEEDED':
+            check(report.get('plan') is None and not view['approval_steps'] and view['current_step'] is None,
+                  'budget hold created an approval plan or waiting step')
+            result['checks'].append('budget_hold_without_approval_plan')
         if case['id']=='X-12':
             check('JIRA' in view['message'] and '별도' in view['message'], 'remaining platform guidance missing')
             check(report['platform']=='GITHUB', 'first platform not selected')
@@ -107,6 +111,10 @@ class Suite:
         report = requester.call("GET", path + "/report")
         check(bool(report["policy_evidence"]) and bool(report["requester_name"]), "report lacks policy/name")
         check(Decimal(report["plan"]["monthly_amount"]) == Decimal(case["monthly_amount"]), "plan cost differs")
+        if case.get('preconditions'):
+            check(report['plan']['entitlement_id'] == case['fixture_entitlement_id'], 'selected entitlement differs from scenario precondition')
+            check(report['plan']['pricing_revision'] == case['preconditions']['pricing_revision'], 'selected price revision differs from scenario precondition')
+            result['checks'].append('selected_entitlement_and_price_revision')
         if case["id"] == "B-02":
             check(report["plan"]["entitlement_id"] == case["overrides"]["entitlement_id"], "Admin was not reduced to Read")
         result["checks"].extend(["approval_route", "policy_evidence", "plan_cost"])

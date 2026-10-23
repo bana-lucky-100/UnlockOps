@@ -25,7 +25,7 @@ mvn test
 mvn verify -Pregression -Dit.test=WorkflowFoundationIT,CompletionMigrationIT,ExistingAccountsMigrationIT
 ```
 
-일반 시작은 Flyway V1~V10을 적용합니다. V10은 후보 RECLAIMED/reclaimed_at, 후속 action_taken=REVOKED와 불변 회수 영수증을 추가합니다. 이미 적용된 V1~V9와 과거 영수증·스냅샷은 수정하지 않습니다.
+일반 시작은 Flyway V1~V11을 적용합니다. V11은 후보 RECLAIMED/reclaimed_at, 후속 action_taken=REVOKED와 불변 회수 영수증을 추가합니다. 이미 적용된 V1~V10과 과거 영수증·스냅샷은 수정하지 않습니다.
 Compose 시연 모드에서는 `DEMO_ENABLED=true`, `DEMO_SEED_PATH=/app/data/phase2/seed.sql`로 baseline과 누락된 정책 revision 2·3을 한 트랜잭션에 준비합니다.
 이미 설치된 revision은 재작성하지 않습니다. A/B사 시연 계정·로그인 ID는 유지합니다.
 이전 `DEMO_PHASE2_SEED_PATH`, `PHASE2_RECLAIM_SCHEDULE_ENABLED`, `PHASE2_RECLAIM_CRON` 환경변수는 설정 호환 별칭으로 받습니다.

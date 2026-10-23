@@ -77,6 +77,39 @@ def test_report_uses_server_budget_and_keeps_private_fields_and_unknown_tf_out()
     assert "개별 조회 값은 전달되지 않았습니다" in template
 
 
+def test_existing_license_report_does_not_turn_unit_price_into_a_charge():
+    s=state()
+    s['assessment']['plan'].update(monthly_amount='0.00',cost_basis='NO_ADDITIONAL_COST')
+    observed=s['assessment']['review_facts']
+    observed.update(monthly_amount='0.00',remaining_budget='10.00',cost_assessment={
+        'operation':'PERMISSION_ONLY','unit_monthly_amount':'20.00','incremental_monthly_amount':'0.00',
+        'budget_monthly_amount':'0.00','cost_basis':'NO_ADDITIONAL_COST','billing_scope':'workspace-a',
+        'license_code':'BUSINESS','license_coverage':'COVERED','license_observed_at':observed['checked_at'],
+        'license_source_reference':'test:scoped-license'})
+    Assessment.model_validate(s['assessment'])
+    facts,template=review_input(s)
+    assert facts['projected_budget']=='10.00'
+    assert '추가 비용: 0.00 USD' in template and '10.00 → 10.00 USD' in template
+    assert '참고 단가: 20.00 USD' in template and '다시 구매하지 않습니다' in template
+    observed['cost_assessment']['budget_monthly_amount']='20.00'
+    with pytest.raises(ValidationError):Assessment.model_validate(s['assessment'])
+
+
+def test_current_rag_cost_policy_and_generated_files_match():
+    import importlib.util
+    import sys
+    sys.path.insert(0,str(ROOT/'scripts'))
+    spec=importlib.util.spec_from_file_location('align_access_costs',ROOT/'scripts/align_access_costs.py')
+    module=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for path,content in module.outputs().items():assert path.read_text()==content
+    content=(ROOT/'data/phase2/policies/company-a-policy-v4.md').read_text()
+    current=dict(policy(),revision=4,content=content,source_hash=hashlib.sha256(content.encode()).hexdigest())
+    selected=approval_evidence(revision_index(**current,platform='NOTION').read(),'NOTION','ROLE','TF')
+    assert any('권한·라이선스·사용량 예산의 구분' in e['article'] and '추가 비용 0' in e['text'] for e in selected)
+    assert all(e['version']=='4' and e['text'] in content for e in selected)
+
+
 def test_budget_hold_does_not_claim_a_charge_or_an_approval_route():
     s = state()
     s["assessment"].update(status="ON_HOLD", reason="BUDGET_INSUFFICIENT", message="예산 부족으로 보류", plan=None)
