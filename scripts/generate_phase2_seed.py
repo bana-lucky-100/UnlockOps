@@ -11,6 +11,64 @@ def q(v):
 rows=[]
 def insert(table,**values):
     rows.append('INSERT INTO '+table+' ('+','.join(values)+') VALUES ('+','.join(q(v) for v in values.values())+') ON CONFLICT DO NOTHING;')
+
+def insert_notified_reclaim_history(company_code, company, assignment, scope, platform):
+    """R-04 is a synthetic past scan, including the report its delivered alert opens."""
+    case='R-04'
+    as_of='2026-10-21T09:00:00+09:00'
+    delivered='2026-10-21T09:00:01+09:00'
+    run=uid(case+'-run');snapshot=uid(case+'-snapshot')
+    target=uid(case+'-target');episode=uid(case+'-episode')
+    company_id=company['company_id']
+    policy_path='data/phase2/company-'+company_code.lower()+'-policy.md'
+    content=(root/policy_path).read_text()
+    source_hash=hashlib.sha256(content.encode()).hexdigest()
+    article='POL-06 제5조 — 회수 후보'
+    excerpt=('## '+article+'\n'+content.split('## '+article+'\n',1)[1].split('\n## ',1)[0]).strip()
+    policy={'policy_id':company['policy_id'],'revision':1,'company_id':company_id,
+        'doc_id':'P2-'+company_code+'-POLICY','article':'POL-06 제1~5조 / FLOW 제7조',
+        'source_path':policy_path,'source_hash':source_hash,'content':content,'is_mock':True}
+    rules=[{'rule_id':uid(company_code+'-'+code),'revision':1,'company_id':company_id,
+        'policy_id':company['policy_id'],'policy_revision':1,'code':code,'idle_days':idle,
+        'exclude_other_active_tf':code!='EMPLOYEE_LEFT','exclude_retention':code!='EMPLOYEE_LEFT'}
+        for code,idle in [('TF_ENDED_UNUSED_30D',30),('EMPLOYEE_LEFT',None)]]
+    evidence=[{'doc_id':policy['doc_id'],'article':article,'version':'1','source_hash':source_hash,'text':excerpt}]
+    cost={'status':'ESTIMATED','monthly_amount':'19.00','currency':'USD','basis':'SYNTHETIC_CONTRACT'}
+    report={'assignment_id':assignment,'target_id':target,'episode_id':episode,'platform':platform,
+        'candidate_status':'PENDING_REVIEW','candidate_reason_code':'TF_ENDED_UNUSED_30D',
+        'exclusion_reason_code':None,'skip_reason_code':None,'review_required':False,
+        'notified_at':delivered,'read_at':None,'action_taken':'NONE','generation_mode':'template',
+        'explanation':'합성 과거 점검: TF 종료 후 연속 30일 미사용 조건을 충족해 담당자 검토 후보로 알렸습니다. 실제 권한은 회수하지 않았습니다.',
+        'policy_evidence':evidence,'fact_evidence':[{'source':'reclaim_snapshot_items','record_id':assignment,'observed_at':as_of}],
+        'cost_impact':cost}
+    facts={'assignment_id':assignment,'company_id':company_id,'user_id':uid(case+'-user'),
+        'department_id':company['department_id'],'employee_name':'회수 R-04',
+        'resource_name':'Phase 2 '+company_code+' '+platform,'platform':platform,
+        'entitlement_id':uid(company_code+'-'+platform+'-entitlement'),'employment_status':'ACTIVE',
+        'origin_tf_id':company['ended_tf_id'],'granted_at':'2026-08-01T00:00:00+09:00',
+        'tf_ends_on':'2026-09-20','last_used_at':'2026-09-05T09:00:00+09:00',
+        'observation_status':'KNOWN','observed_at':as_of,'other_active_tf':False,'retention':False,
+        'price':{'monthly_amount':19,'currency':'USD','source_kind':'SYNTHETIC_CONTRACT'}}
+    # Freeze the original pre-notification facts. Never reconstruct past evidence from today's state.
+    candidate={**report,'target_id':None,'episode_id':None,'notified_at':None}
+    insert('reclaim_runs',id=run,company_id=company_id,scope_id=scope,trigger='DAILY_SCHEDULE',
+        scheduled_for=as_of,schedule_date='2026-10-21',request_hash=hashlib.sha256(scope.encode()).hexdigest(),
+        status='DONE',reason_code='SCAN_COMPLETED',message='합성 과거 점검: 신규 후보 1건 · 월 19.00 USD. 실제 회수 없음.',
+        snapshot_id=snapshot,as_of=as_of,scan_complete=True,new_candidate_count=1,
+        created_at=as_of,updated_at=delivered)
+    insert('reclaim_snapshots',id=snapshot,company_id=company_id,run_id=run,as_of=as_of,
+        policy_id=company['policy_id'],policy_revision=1,expected_count=1,
+        context={'policy':policy,'rules':rules,'policy_hash':source_hash})
+    insert('reclaim_snapshot_items',snapshot_id=snapshot,company_id=company_id,ordinal=1,
+        assignment_id=assignment,facts={'facts':facts,'candidate':candidate})
+    insert('reclaim_targets',id=target,company_id=company_id,assignment_id=assignment,episode_id=episode,
+        rule_code='TF_ENDED_UNUSED_30D',candidate_status='PENDING_REVIEW',opened_at=as_of,notified_at=delivered)
+    insert('reclaim_run_items',run_id=run,company_id=company_id,assignment_id=assignment,target_id=target,
+        candidate_status='PENDING_REVIEW',candidate_reason_code='TF_ENDED_UNUSED_30D',review_required=False,
+        report=report,policy_evidence=evidence,fact_evidence=report['fact_evidence'],generation_mode='template',
+        cost_status='ESTIMATED',monthly_amount='19.00',currency='USD')
+    insert('reclaim_notifications',id=uid(case+'-notification'),company_id=company_id,target_id=target,
+        recipient_id=company['users']['operator'],channel='IN_APP',delivery_status='DELIVERED',delivered_at=delivered,attempts=1)
 platforms=['SNOWFLAKE','DATABRICKS','SALESFORCE','DATADOG','TABLEAU_CLOUD','FIGMA','GITHUB','JIRA','SLACK','NOTION']
 items=[('SNOWFLAKE','WAREHOUSE','ANALYST','ROLE','120.00','USAGE_ESTIMATE'),('DATABRICKS','WORKSPACE','NOTEBOOK_JOB_USER','PERMISSION_SET','80.00','USAGE_ESTIMATE'),('SALESFORCE','CUSTOMER_SCOPE','ASSIGNED_CUSTOMER_EDITOR','PERMISSION_SET','0.00','NO_ADDITIONAL_COST'),('DATADOG','SERVICE','SERVICE_VIEWER','ROLE','0.00','NO_ADDITIONAL_COST'),('TABLEAU_CLOUD','PROJECT','PROJECT_PUBLISHER','ROLE','70.00','SEAT_MONTHLY'),('FIGMA','PROJECT','EDITOR_SEAT','SEAT','15.00','SEAT_MONTHLY'),('GITHUB','SEAT','COPILOT_SEAT','SEAT','19.00','SEAT_MONTHLY'),('JIRA','PROJECT','DEVELOPER','ROLE','0.00','NO_ADDITIONAL_COST'),('SLACK','CHANNEL','MEMBER','MEMBERSHIP','0.00','NO_ADDITIONAL_COST'),('NOTION','PAGE','EDITOR','ROLE','20.00','SEAT_MONTHLY')]
 manifest={'schema_version':2,'dataset_id':'phase2-baseline-v1','is_mock':True,'as_of':'2026-10-22T09:00:00+09:00','timezone':'Asia/Seoul','companies':{},'catalog':[],'reclaim_fixtures':{},'scenarios':[]}
@@ -69,15 +127,13 @@ for case in ['R-01','R-02','R-03','R-04','X-11','MISSING_USAGE','X-10-GITHUB','X
     insert('assignment_usage',assignment_id=assignment,company_id=co,last_used_at=None if case=='MISSING_USAGE' else '2026-09-05T09:00:00+09:00',observation_status='UNKNOWN' if case=='MISSING_USAGE' else 'KNOWN',observed_at=manifest['as_of'],source_reference='SYNTHETIC:'+case)
     if case=='R-02': insert('tf_members',tf_id=c['active_tf_id'],user_id=user,company_id=co,active=True,joined_at='2026-10-01T00:00:00+09:00')
     if case=='R-03': insert('retention_exceptions',id=uid(case+'-retention'),company_id=co,assignment_id=assignment,approved_by=c['users']['operator'],valid_from='2026-10-01T00:00:00+09:00',valid_until='2026-11-01T00:00:00+09:00',reason='합성 데이터: 인수인계용 유지 승인')
-    if case=='R-04':
-        target=uid(case+'-target')
-        insert('reclaim_targets',id=target,company_id=co,assignment_id=assignment,episode_id=uid(case+'-episode'),rule_code='TF_ENDED_UNUSED_30D',candidate_status='PENDING_REVIEW',opened_at='2026-10-21T09:00:00+09:00',notified_at='2026-10-21T09:00:01+09:00')
-        insert('reclaim_notifications',id=uid(case+'-notification'),company_id=co,target_id=target,recipient_id=c['users']['operator'],channel='IN_APP',delivery_status='DELIVERED',delivered_at='2026-10-21T09:00:01+09:00',attempts=1)
     scope=c['scope_id'] if case=='R-01' or case.startswith('X-10') else uid(case+'-scope')
     if scope!=c['scope_id']:
         insert('reclaim_scopes',id=scope,company_id=co,department_id=c['department_id'],scope_key='phase2:'+company_code+':'+case,platforms=[platform],enabled=False,selection_mode='ASSIGNMENTS')
     insert('reclaim_scope_assignments',scope_id=scope,company_id=co,assignment_id=assignment)
     manifest['reclaim_fixtures'][case]={'user_id':user,'assignment_id':assignment,'scope_id':scope,'company':company_code,'platform':platform}
+    if case=='R-04':
+        insert_notified_reclaim_history(company_code,c,assignment,scope,platform)
 # Scenario overrides are per-test input, never global DB changes on an already running demo.
 scenario_defs=[('E-01','GITHUB','WAITING_APPROVAL','ELIGIBLE',{}),('E-02','NOTION','ON_HOLD','BUDGET_INSUFFICIENT',{'budget':'10.00'}),('E-03','SLACK','DONE','ALREADY_HAS_ACCESS',{'already_assigned':True}),('E-04','JIRA','REJECTED','HUMAN_REJECTED',{'reject_step':1}),('E-05','NOTION','REJECTED','HUMAN_REJECTED',{'reject_step':2})]
 scenario_defs += [(f'P-0{i+1}',item[0],'WAITING_APPROVAL','ELIGIBLE',{}) for i,item in enumerate(items[:6])]

@@ -48,6 +48,11 @@ class EvaluationTest(unittest.TestCase):
             policy = (ROOT / f"data/phase2/company-{company}-policy.md").read_text()
             self.assertIn(policy, literals)
             self.assertIn(hashlib.sha256(policy.encode()).hexdigest(), literals)
+        snapshots = [json.loads(value) for value in literals if value.startswith('{"facts":')]
+        self.assertTrue(snapshots)
+        for snapshot in snapshots:
+            self.assertEqual(snapshot["facts"]["observed_at"], "2027-01-14T09:00:00+09:00")
+            self.assertEqual(snapshot["candidate"]["fact_evidence"][0]["observed_at"], snapshot["facts"]["observed_at"])
         self.assertEqual(prepare(RUN, "smoke", NOW), (bundle, sql))
 
     def test_mismatches_fail_even_with_assertions_disabled(self):

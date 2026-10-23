@@ -167,6 +167,17 @@ class Suite:
 
     def reclaim(self, case, result):
         manager = self.user(case["login_prefix"] + "it_head")
+        if case["id"] == "R-04":
+            # A delivered alert must open before a new scan happens to create another report.
+            operator = self.user(case["login_prefix"] + "operator")
+            notifications = operator.call("GET", "/api/reclaim/notifications")
+            check(len(notifications) == 1, "initial R-04 notification missing")
+            target_id = notifications[0]["target_id"]
+            target = operator.call("GET", "/api/reclaim/targets/" + target_id)
+            check(target["assignment_id"] in case["expected_assignments"], "initial notification belongs to another assignment")
+            overview = operator.call("GET", "/api/reclaim/overview")
+            check(any(t["target_id"] == target_id for t in overview["targets"]), "initial R-04 report missing from overview")
+            result["checks"].append("initial_notification_report_before_scan")
         body, key = {"scope_id": case["scope_id"]}, str(uuid4())
         created = manager.call("POST", "/api/reclaim/runs", expected=202, json=body, headers={"Idempotency-Key": key})
         rid = created["run_id"]
