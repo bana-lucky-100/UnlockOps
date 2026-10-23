@@ -6,8 +6,8 @@ from importlib.resources import files
 
 from ..common.workflow_contracts import ReclaimCandidate, ReclaimEvent
 from ..common.runtime import guarded, failure_event
-from ..common.reporting import report
 from ..common.settings import settings
+from .narration import report
 from .verification import verify_reports  # Compatibility export for existing callers.
 
 
