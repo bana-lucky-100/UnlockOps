@@ -786,3 +786,23 @@ R-04의 '이미 전달한 알림' 시드는 후보와 알림만 준비하고 당
 - 로컬 결과: `test-results/phase2/213c94e9-07b9-43cf-adc7-7d330e192638/report.json`, `existing-seed-repair.json`. 검증은 별도 UUID 스택에서 실행했으며 사용자 실행 중 DB에는 적용하지 않았다. 실제 SaaS·실제 모델 호출·브라우저 클릭은 미검증이다.
 
 기존 시연 DB 적용은 수정 seed 재적용 또는 `DEMO_SEED_PATH`를 사용하는 백엔드 재시작으로 수행한다. 정책 revision 3을 이전 revision으로 되돌릴 필요가 없다. 절차는 `data/phase2/README.md`에 기록했다. 전체 회수 조회 구조 개선과 기존 미해결 CR-03 등은 별도 작업으로 유지한다.
+
+## 환경변수 예제 전수 조사·동기화 — 2026-10-23 · #53
+
+현재 단계: 예제·문서 수정과 정적/Compose 설정 검증 완료. 이슈 #53에서 공유하고 main 대상 PR로 검토한다.
+
+- Python 환경 접근(AST, `project_path` 포함), Spring YAML/Java 주입, Compose/Dockerfile, Vite, VS Code·CI·평가·선택 테스트와 README를 대조했다. 직접 참조 45개 중 자동화/내장 4개를 제외한 41개가 예제에 모두 안내되도록 했다. 설정의 기본값·우선순위·로컬/Compose 적용 범위와 제외 이유는 `docs/environment.md`에 정리했다.
+- 할당 예시 누락 16개를 보완했다. `RECLAIM_SCHEDULE_ENABLED`, `RECLAIM_CRON`, `DEMO_SEED_PATH`, DB·RabbitMQ 연결 변수, `RABBITMQ_URL`, MCP 프로세스 host/port, Vite 모의 모드, 선택 live 검사 설정이 대상이다. 기존 예제에 MCP host/port는 이름 설명만 있었다.
+- 예제의 정식 `RECLAIM_*` 설정을 활성 항목으로 두고 스케줄 기본값 `false`를 유지했다. 이전 `PHASE2_*`와 `DEMO_PHASE2_SEED_PATH`는 주석 별칭으로 보존했다. Compose는 구 스케줄 별칭을 전달하지 않으므로 기존 `.env`의 이름을 옮겨야 한다. Spring도 두 이름이 함께 설정되면 정식 이름이 우선한다.
+- 소비 코드가 없는 `ACCESS_MATRIX_PATH`·`LOG_LEVEL`과 Compose에 전달되지 않는 루트 `TZ`를 예제에서 제거했다. 스케줄 시간대는 코드에서 Asia/Seoul 고정이다. `DATA_DIR`의 현재 미사용 필드와 `EMBEDDING_*`의 유틸 전용 범위, LangSmith의 로컬 라이브러리 설정 범위를 명시했다.
+- 루트·Backend·Worker·MCP·Frontend·RAG·테스트 README와 문서 색인을 갱신했다. 프론트 설정은 `frontend/.env.local`에 두며, 공통 MCP 포트 지정은 두 로컬 프로세스 간 충돌을 일으킬 수 있음을 안내한다. 제품 로직·Compose 전달 정책·DB·외부 계약은 변경하지 않았다.
+
+실제 검증 결과:
+
+- 동일한 일회성 Python AST/placeholder 대조: 변경 전 할당 예시 누락 **16개 → 변경 후 0개**. 예제 활성/주석 할당 **52개**의 중복·공백/cron 인용 검사 통과.
+- `docker compose --env-file .env.example config --format json`: 기본 스케줄 비활성·cron·시연 seed/DB 경로·내부 토큰 일치·Worker MCP URL/체크포인트 경로 확인.
+- 프로세스 환경으로 `RECLAIM_SCHEDULE_ENABLED=true`, `RECLAIM_CRON='0 30 10 * * MON-FRI'`를 전달한 config에서 두 값이 backend에 보간됨을 확인. 구 `PHASE2_*`만 덮어쓰면 정식 예제 기본값이 유지되는 Compose 경계도 확인했다. 최소 프로세스 환경과 예제 파일만 사용해 사용자 `.env`와 분리했다.
+- `docker compose --env-file .env.example -f compose.yaml -f infra/compose.debug.yaml config --format json`: backend 설정 일치와 localhost 공개 포트 확인. 새 문서의 로컬 링크와 추가한 환경변수 안내 링크, `git diff --check` 통과.
+- 문서·예제만 수정하여 Maven/Python/frontend 실행 테스트와 DB·브로커·전체 스택·실제 모델 호출은 수행하지 않았다. Compose 파싱 검증으로 실제 스케줄 실행 성공을 주장하지 않는다. 사용자 `.env`·실행 서비스·DB는 변경하지 않았다.
+
+다음 작업: PR 리뷰 후 병합. 기존 로컬 환경 사용자는 필요한 새 이름을 `.env`에 반영하고 서비스를 재생성한다. 이후 환경변수 변경 시 CONTRIBUTING의 예제·서비스 README 동시 갱신 규칙을 따른다.

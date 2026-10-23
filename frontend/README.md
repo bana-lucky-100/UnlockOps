@@ -4,6 +4,9 @@ A1 담당입니다. Vue 3, TypeScript, Vite를 사용하며 Node 22.12 이상을
 접수·본인 상태 조회·승인 카드·처리 이력·내 승인 현황이 구현되어 있습니다.
 API는 세션 쿠키와 CSRF를 사용하며 개발 서버는 /api를 localhost:8080으로 프록시합니다.
 
+`VITE_UO_MOCK=true`는 일부 비용·회수 화면을 모의 데이터로 표시하는 선택 설정이며 기본은 꺼져 있습니다.
+설정은 `frontend/.env.local`에 두고 Vite를 재시작하거나 재빌드합니다. 루트 `.env`는 읽지 않으며 `VITE_*` 값은 브라우저에 공개됩니다. 전체 설정 경계는 [환경변수 안내](../docs/environment.md)를 참고하세요.
+
 이 폴더에서 실행합니다.
 
 ```sh
@@ -70,7 +73,7 @@ Docker 화면은 localhost:8088, Vite 개발 화면은 localhost:5173입니다.
 요청·점검 시작의 재시도 키는 사용자와 작업별로 분리하여 보관하며 원문은 sessionStorage에 저장하지 않습니다.
 
 Compose 시연 환경은 [mock seed 안내](../data/phase2/README.md)의 초기 데이터를 기동 시 준비합니다.
-개별 백엔드 실행에서는 DEMO_ENABLED=true와 DEMO_PHASE2_SEED_PATH를 설정하거나 초기 데이터를 수동 적용해야 합니다.
+개별 백엔드 실행에서는 DEMO_ENABLED=true와 DEMO_SEED_PATH를 설정하거나 초기 데이터를 수동 적용해야 합니다. DEMO_PHASE2_SEED_PATH는 이전 Spring 호환 별칭입니다.
 A사 승인 경로는 p2_a_requester → p2_a_head → p2_a_operator이며, B사 통합 회수 점검 계정은 p2_b_it_head입니다.
 
 신규 핵심 테스트는 phase2.test.mjs 3건입니다. 지정 버전 의존성 설치·브라우저·전체 스택 검증의 제한과 대체 검증 결과는

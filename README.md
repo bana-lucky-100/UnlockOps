@@ -138,6 +138,8 @@ cp .env.example .env
 docker compose up --build
 ```
 
+환경변수의 기본값·호환 별칭·로컬/Compose 적용 범위는 [환경변수 안내](docs/environment.md)를 참고하세요. 기존 `.env`의 `PHASE2_RECLAIM_*`는 `RECLAIM_*`로 옮겨야 Compose에 반영됩니다.
+
 - 서비스 화면: <http://localhost:8088>
 - RabbitMQ 관리 화면: <http://localhost:15672>
 
