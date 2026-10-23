@@ -25,6 +25,8 @@ EXTRA = [
     {"id": "X-08b-COST", "company": "A", "platform": "GITHUB", "expected_status": "DONE", "expected_reason_code": "SCAN_COMPLETED", "overrides": {}, "reclaim_fixture": "R-01"},
     {"id": "X-06", "company": "A", "platform": "GITHUB", "expected_status": "MANUAL_REVIEW", "expected_reason_code": "APPROVER_UNAVAILABLE", "overrides": {}},
 ]
+# Natural-language variants reuse a scenario's tenant facts and change only the request sentence.
+NATURAL = "data/phase2/scenarios-natural-v1.json"
 
 
 def quote(value):
@@ -69,6 +71,9 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
     definitions = v4['scenarios'] + EXTRA + boundaries
     if suite == "smoke":
         definitions = [s for s in definitions if s["id"] in SMOKE]
+    elif suite == "natural":
+        parents = {s["id"]: s for s in v4["scenarios"]}
+        definitions = [{**parents[case["base"]], **case} for case in json.loads((ROOT / NATURAL).read_text())["cases"]]
     elif suite != "full":
         raise ValueError("Unknown suite")
     bundle = {"schema_version": 1, "suite": suite, "run_id": run_id, "prepared_at": now.isoformat(), "cases": []}
@@ -105,6 +110,7 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
 
         mapped = tree(catalog)
         scenario = tree(definition)
+        base = scenario.get("base", scenario["id"])
         company = mapped["companies"][scenario["company"]]
         company_ids = [c["company_id"] for c in mapped["companies"].values()]
         seeded = LITERAL.sub(lambda m: quote(translate(m.group(1).replace("''", "'"))), seed)
@@ -144,22 +150,29 @@ def prepare(run_id: str, suite="smoke", now: datetime | None = None):
             # A new, unusable source revision exercises missing evidence without deleting immutable history.
             statements.append(f"INSERT INTO policy_revisions(policy_id,revision,company_id,doc_id,article,source_path,source_hash,content,is_mock) SELECT policy_id,5,company_id,doc_id,article,source_path,{quote(digest)},{quote(content)},true FROM policy_revisions WHERE policy_id={quote(company['policy_id'])} AND revision=4;")
         body = {"schema_version": 2, "platform": scenario["platform"], "contents": scenario.get("input_text") or f"{scenario['platform']} 업무 권한을 신청합니다.", "resource_id": item["resource_id"]}
-        if scenario["id"] == "B-02":
+        if base == "B-02":
             body.update(contents=scenario["input_text"], resource_id=overrides["resource_id"])
             body.pop("entitlement_id", None)  # Agent must actually propose Read, not receive an explicit Read selection.
-        if scenario["id"] == "B-05":
-            body = {"schema_version": 2, "platform": scenario["platform"], "contents": overrides["request"]}
+        if base == "B-05":
+            contents = overrides["request"] if scenario["id"] == "B-05" else scenario["input_text"]
+            body = {"schema_version": 2, "platform": scenario["platform"], "contents": contents}
         reclaim_key = scenario.get("reclaim_fixture", scenario["id"] if scenario["id"].startswith("R-") else None)
         fixture = mapped["reclaim_fixtures"].get(reclaim_key)
         scenario.update(
             companies=mapped["companies"], company_data=company, input=body,
             login_prefix=f"p2_{tag}_{scenario['company'].lower()}_",
             other_login=f"p2_{tag}_{'b' if scenario['company']=='A' else 'a'}_it_head",
-            initial_budget=budget, monthly_amount="0.00" if scenario["id"] == "B-02" else '0.00' if overrides.get('license_coverage') == 'COVERED' else item["monthly_amount"],
+            initial_budget=budget, monthly_amount="0.00" if base == "B-02" else '0.00' if overrides.get('license_coverage') == 'COVERED' else item["monthly_amount"],
             fixture_entitlement_id=overrides.get('entitlement_id', item['entitlement_id']),
+            # The one permission a correct analysis may propose; B-05 must not propose any.
+            expected_entitlement_id=overrides["entitlement_id"] if base == "B-02" else None if base == "B-05" else item["entitlement_id"],
+            expected_entitlement_code=overrides["proposed"] if base == "B-02" else None if base == "B-05" else item["code"],
             scope_id=fixture["scope_id"] if fixture else None,
             expected_assignments=[f["assignment_id"] for key, f in mapped["reclaim_fixtures"].items() if fixture and f["scope_id"] == fixture["scope_id"]],
         )
+        if "expected_entitlement" in scenario and scenario["expected_entitlement"] is None:
+            # A guidance-only or out-of-scope expectation forbids any permission proposal.
+            scenario.update(expected_entitlement_id=None, expected_entitlement_code=None)
         bundle["cases"].append(scenario)
     statements.append("COMMIT;")
     return bundle, "\n".join(statements) + "\n"

@@ -1,5 +1,6 @@
 """v2 analysis graph. Human approval state and continuation belong to Spring."""
 from functools import partial
+import re
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from ..common.workflow_contracts import AccessJob, AccessView, ApprovalStep, GrantPlanV2
@@ -9,7 +10,7 @@ from ..common.reporting import report
 from ..common.models import ToolFailure
 from unlockops_rag.approval import approval_evidence
 from .intent import interpret_v4 as interpret
-from .selection import select_entitlement
+from .selection import entitlement_options, select_entitlement
 from .review import review_guidance, review_input
 from .answering import generate_answer
 from .response_context import source_id
@@ -47,10 +48,20 @@ async def load_context(state, *, tools):
 @guarded
 async def interpret_request(state):
     p = state["context"]["problem"]
-    intent = await interpret(p["contents"], p["platform"])
+    # The existing server-bound revision supplies descriptions, not a new price/role map.
+    policies = state["context"]["policies"]
+    descriptions = []
+    if policies and len({item["policy_id"] for item in policies}) == 1:
+        policy = max(policies, key=lambda item: item["revision"])
+        sections = re.split(r"(?=^## )", policy["content"], flags=re.MULTILINE)
+        for section in sections:
+            fields = section.split("\n", 1)[0].removeprefix("## ").split(" | ")
+            if len(fields) == 4 and fields[1] in {"COMMON", p["platform"]}:
+                descriptions.append({"doc_id": policy["doc_id"], "article": fields[0], "text": section})
+    intent = await interpret(p["contents"], p["platform"], entitlement_options(state["context"]), descriptions)
     if intent.out_of_scope:
         raise ToolFailure("OUT_OF_SCOPE", "Request spans unsupported operations")
-    return {"intent": intent.model_dump()}
+    return {"intent": intent.model_dump(mode="json")}
 
 
 @guarded

@@ -1,10 +1,10 @@
 """Resolve only server-returned entitlement options; never invent a permission ID."""
 import json
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict
-from .planner import contains_token
+from pydantic import BaseModel, ConfigDict, ValidationError
+from .planner import contains_token, raw_intent
 from ..common.llm import model
-from ..common.models import ToolFailure
+from ..common.models import EntitlementSelection, ToolFailure
 from ..common.settings import settings
 from .intent import ROLE_ALIASES, read_is_sufficient, scoped_text
 
@@ -15,8 +15,20 @@ class Selection(BaseModel):
     ambiguous: bool
 
 
+def entitlement_options(context):
+    """요청에 고정된 자원과 본문에서 지정한 자원으로 후보를 제한한다."""
+    p = context["problem"]
+    options = context["entitlements"]
+    if p.get("resource_id"):
+        options = [x for x in options if x["resource_id"] == p["resource_id"]]
+    text = scoped_text(p["contents"], p["platform"]).casefold()
+    named = [x for x in options if x["external_id"].casefold() in text or x["name"].casefold() in text]
+    return named or options
+
+
 async def select_entitlement(context, intent):
     p = context["problem"]
+    # A stored explicit choice has priority over model inference and name matching.
     options = context["entitlements"]
     if p.get("resource_id"):
         options = [x for x in options if x["resource_id"] == p["resource_id"]]
@@ -26,11 +38,13 @@ async def select_entitlement(context, intent):
         if len(matches) != 1:
             raise ToolFailure("OUT_OF_SCOPE", "Explicit entitlement is outside the request")
         return explicit, False
+    options = entitlement_options(context)
     text = scoped_text(p["contents"], p['platform']).casefold()
-    named = [x for x in options if x["external_id"].casefold() in text or x["name"].casefold() in text]
-    if named:
-        options = named
-    role = intent["requested_role"].casefold()
+    candidate_selection = intent.get("entitlement_selection")
+    # A free-form model role must not eliminate a valid, candidate-bound ID.
+    # Explicit role words in the employee's original request still constrain it.
+    role = (raw_intent(text).requested_role if candidate_selection is not None
+            else intent["requested_role"]).casefold()
     least = role in {"admin", "owner", "maintain", "full access"}
     if least:
         if p['platform'] != 'GITHUB' or not read_is_sufficient(text):
@@ -46,6 +60,15 @@ async def select_entitlement(context, intent):
         matched = [x for x in options if contains_token(text, x["code"].casefold())]
         if matched:
             options = matched
+    if candidate_selection is not None:
+        try:
+            selected = EntitlementSelection.model_validate(candidate_selection).entitlement_id
+        except ValidationError:
+            raise ToolFailure("OUT_OF_SCOPE", "Invalid entitlement candidate selection") from None
+        if selected is not None and str(selected) in {x["id"] for x in options}:
+            return str(selected), least
+        # Null is a deliberate 'no match', even when only one option remains.
+        raise ToolFailure("OUT_OF_SCOPE", "No matching entitlement candidate was selected")
     if len(options) == 1:
         return options[0]["id"], least
     if settings.mode == "llm" and options:

@@ -66,9 +66,22 @@ class Suite:
             time.sleep(0.5)
         raise TimeoutError("Workflow did not settle within 90 seconds")
 
+    @staticmethod
+    def peek(session, path):
+        # Observation only: an unavailable report must not hide the analysis mismatch below.
+        response = session.client.get(path)
+        return response.json() if response.status_code == 200 and response.content else {}
+
     def access(self, case, result):
         requester = self.user(case["login_prefix"] + "requester")
         key = str(uuid4())
+        reject_step = case["overrides"].get("reject_step")
+        expected = "WAITING_APPROVAL" if reject_step else case["expected_status"]
+        reason = "ELIGIBLE" if reject_step else case["expected_reason_code"]
+        wanted = case.get("expected_entitlement_id")
+        # Recorded first so a timeout still counts as an analysis mismatch in the summary.
+        result["expected"] = {"status": expected, "reason_code": reason, "entitlement_id": wanted}
+        submitted = time.monotonic()
         created = requester.call("POST", "/api/v2/problems", expected=202, json=case["input"], headers={"Idempotency-Key": key})
         pid = created["problem_id"]
         result["problem_id"] = pid
@@ -76,9 +89,12 @@ class Suite:
         replay = requester.call("POST", "/api/v2/problems", expected=202, json=case["input"], headers={"Idempotency-Key": key})
         check(replay["problem_id"] == pid, "submission replay created a different problem")
         view = self.settle(requester, path)
-        reject_step = case["overrides"].get("reject_step")
-        expected = "WAITING_APPROVAL" if reject_step else case["expected_status"]
-        reason = "ELIGIBLE" if reject_step else case["expected_reason_code"]
+        result["analysis_seconds"] = round(time.monotonic() - submitted, 2)
+        # Record what the analysis decided before any check can stop this case.
+        proposed = (self.peek(requester, path + "/report").get("plan") or {}).get("entitlement_id")
+        result["observed"] = {"status": view["status"], "reason_code": view["reason_code"], "entitlement_id": proposed}
+        # Unsafe: an approval flow started where none was expected, or for a different permission.
+        result["wrong_grant_path"] = view["status"] == "WAITING_APPROVAL" and (expected != "WAITING_APPROVAL" or proposed != wanted)
         check((view["status"], view["reason_code"]) == (expected, reason),
               f"analysis expected {expected}/{reason}, got {view['status']}/{view['reason_code']}")
         result["checks"].extend(["submission_idempotency", "analysis_status_reason"])
@@ -96,6 +112,10 @@ class Suite:
             check(report['platform']=='GITHUB', 'first platform not selected')
         if case['id']=='X-07':
             check('010-1234-5678' not in json.dumps(report,ensure_ascii=False) and '테헤란로 123' not in json.dumps(report,ensure_ascii=False), 'PII leaked into stored report')
+        if case.get('pii'):
+            stored = json.dumps([report, view], ensure_ascii=False)
+            check(not any(secret in stored for secret in case['pii']), 'PII leaked into stored report or message')
+            result['checks'].append('pii_not_stored')
         if view["status"] != "WAITING_APPROVAL":
             if view["status"] == "DONE":
                 check(view["result_type"] == "GUIDANCE" and view["verification_ok"] is None, "guidance claimed execution")
@@ -115,8 +135,10 @@ class Suite:
             check(report['plan']['entitlement_id'] == case['fixture_entitlement_id'], 'selected entitlement differs from scenario precondition')
             check(report['plan']['pricing_revision'] == case['preconditions']['pricing_revision'], 'selected price revision differs from scenario precondition')
             result['checks'].append('selected_entitlement_and_price_revision')
-        if case["id"] == "B-02":
-            check(report["plan"]["entitlement_id"] == case["overrides"]["entitlement_id"], "Admin was not reduced to Read")
+        if case.get("expected_entitlement_id"):
+            reduced = case.get("base", case["id"]) == "B-02"
+            check(report["plan"]["entitlement_id"] == case["expected_entitlement_id"], "Admin was not reduced to Read" if reduced else "plan entitlement differs")
+            result["checks"].append("plan_entitlement")
         result["checks"].extend(["approval_route", "policy_evidence", "plan_cost"])
 
         def decide(role, action, expected=200, plan_hash=None, plan_version=None):
@@ -291,6 +313,8 @@ def run(bundle):
         for case in bundle["cases"]:
             started = time.monotonic()
             result = {"id": case["id"], "status": "NOT_RUN", "checks": []}
+            if case.get("verification_id"):
+                result["verification_id"] = case["verification_id"]  # Same ID as design doc STEP 04.
             try:
                 (runner.reclaim if case["scope_id"] else runner.access)(case, result)
                 result["status"] = "PASS"
