@@ -129,7 +129,8 @@ export function checksOf(p: Problem, docs: Doc[]): Check[] {
     const ok = ROLE_RANK[role] <= ROLE_RANK[max]
     out.push({ ok, text: ok ? '요청 권한이 회사 권한표 상한 안이에요' : '요청 권한이 회사 권한표 상한을 넘어요', detail: `요청 ${role} · 상한 ${max}`, ref: has('A-ACCESS-03') })
   }
-  if (f && (has('POL-02') || p.reason_code === 'NOT_TF_MEMBER')) {
+  // 서버가 TF 소속을 확인한 경우(tf_member 키가 있을 때)만 조건을 만든다. 키가 없으면 '명단에 없어요'로 단정하지 않는다.
+  if (f && 'tf_member' in f && (has('POL-02') || p.reason_code === 'NOT_TF_MEMBER')) {
     const ok = Boolean(f.tf_member)
     out.push({ ok, text: ok ? 'TF 명단에 있어요' : 'TF 명단에 없어요', ref: has('POL-02') })
   }

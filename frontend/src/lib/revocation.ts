@@ -28,6 +28,7 @@ export interface RevocationCandidate {
   candidate_reason_code: string            // TF_ENDED_UNUSED_30D, EMPLOYEE_LEFT …
   exclusion_reason_code?: string | null    // ACTIVE_OTHER_TF, RETENTION_APPROVED, USAGE_RESUMED
   notified_at: string | null               // 알림 성공 시각. 저장 · 전송 시도만으로는 채우지 않는다
+  already_notified?: boolean               // v2: 이번 점검에서 ALREADY_NOTIFIED로 건너뛴 후보
   cost_known?: boolean                     // v2: 비용 미확인이면 false. 0원으로 계산하지 않는다
 }
 export interface ScanRun {
@@ -61,11 +62,12 @@ export interface RevocationReport {
 
 /** 이번 점검에서 처음 알린 후보: 담당자 판단 대기 중이고, 알림 시각이 이번 점검 시작 뒤. */
 export function isNewInRun(c: RevocationCandidate, run: ScanRun | null): boolean {
-  return c.candidate_status === 'PENDING_REVIEW' && !!c.notified_at && !!run && c.notified_at >= run.started_at
+  return c.candidate_status === 'PENDING_REVIEW' && !!c.notified_at && !c.already_notified && !!run && c.notified_at >= run.started_at
 }
 /** 앞선 점검에서 이미 알렸고 아직 담당자 판단을 기다리는 후보. 다시 알리지 않는다. */
 export function isAlreadyNotified(c: RevocationCandidate, run: ScanRun | null): boolean {
-  return c.candidate_status === 'PENDING_REVIEW' && !isNewInRun(c, run)
+  // 알림 성공 시각이 있는 후보만. 아직 알리지 못한 후보(notified_at 없음)는 '전체' 탭에만 '알림 전'으로 보인다.
+  return c.candidate_status === 'PENDING_REVIEW' && !!c.notified_at && !isNewInRun(c, run)
 }
 export const EXCLUSION_TEXT: Record<string, string> = {
   ACTIVE_OTHER_TF: '다른 TF에서 사용 중',
@@ -155,8 +157,8 @@ export function fromOverview(o: {
         reason: t.explanation, policy_ref: (t.policy_evidence ?? []).map((e: any) => `${e.doc_id} ${e.article}`).join(' · '),
         candidate_status: t.candidate_status ?? 'PENDING_REVIEW', candidate_reason_code: t.candidate_reason_code ?? '',
         exclusion_reason_code: t.exclusion_reason_code ?? null,
-        // 이미 알린 후보는 이번 점검 시각보다 앞선 알림으로 둬서 '이미 알린 후보' 탭에 들어가게 한다.
-        notified_at: already && t.notified_at && asOf && t.notified_at >= asOf ? '' : (t.notified_at ?? null),
+        notified_at: t.notified_at ?? null,
+        already_notified: already,
       }
     }),
   }

@@ -40,7 +40,13 @@ const MOCK_IMPACT: CostImpact = {
 /** 서버 값이 있으면 그대로, 없으면 목업 모드에서만 목업 값을 쓴다. 둘 다 없으면 카드를 숨긴다. */
 export function costImpactOf(p: Problem): { impact: CostImpact; mock: boolean } | null {
   const raw = (p as Problem & { cost_impact?: CostImpact | null }).cost_impact
-  if (raw && (raw.kind === 'NEW_COST' || raw.kind === 'NO_COST')) return { impact: raw, mock: false }
+  if (raw && (raw.kind === 'NEW_COST' || raw.kind === 'NO_COST')) {
+    // 계약 초안이라 숫자 필드가 빠질 수 있다. 빠진 금액은 0으로 꾸미지 않는다: 월 비용이 없으면 카드를 숨기고, 예산은 null(표시 안 함).
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+    const monthly = num(raw.monthly_cost)
+    if (monthly === null && raw.kind === 'NEW_COST') return null
+    return { impact: { ...raw, monthly_cost: monthly ?? 0, budget_before: num(raw.budget_before), budget_after: num(raw.budget_after) }, mock: false }
+  }
   if (MOCK && ['WAITING_APPROVAL', 'ON_HOLD', 'EXECUTING', 'DONE', 'REJECTED', 'MANUAL_REVIEW'].includes(p.status)) {
     // 예산 부족 요청은 데이터팀(잔여 $10) 예시로 보여 준다.
     const impact = p.reason_code === 'BUDGET_INSUFFICIENT' ? { ...MOCK_IMPACT, budget_before: 10, budget_after: -110 } : MOCK_IMPACT

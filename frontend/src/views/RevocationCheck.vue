@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError } from '../api'
 import AppShell from '../components/AppShell.vue'
 import { CANDIDATE_REASON_TEXT, daysSince, EXCLUSION_TEXT, isAlreadyNotified, isNewInRun, isPartial, isRunning, latestReport, needsReviewCount, needsReviewRow, runNow, type RevocationCandidate, type RevocationReport } from '../lib/revocation.ts'
@@ -71,6 +71,15 @@ async function runScan() {
   try { ({ report: report.value, mock: mock.value } = await runNow()); tab.value = 'NEW' } catch (e) { fail(e) } finally { running.value = false }
 }
 onMounted(load)
+// 10. 점검이 진행 중(접수 · 선별 · 결과 저장)인 보고서를 받으면 끝날 때까지 3초마다 다시 불러온다. 화면을 떠나면 멈춘다.
+let follow: number | undefined
+watch(report, () => {
+  window.clearTimeout(follow)
+  if (isRunning(run.value) && !running.value) follow = window.setTimeout(async () => {
+    try { ({ report: report.value, mock: mock.value } = await latestReport()) } catch (e) { fail(e) }
+  }, 3000)
+}, { immediate: true })
+onBeforeUnmount(() => window.clearTimeout(follow))
 
 const help = {
   howto: [
@@ -195,7 +204,8 @@ const help = {
                 <span v-if="c.candidate_status === 'RETAINED'" class="rv-badge kept">유지 승인</span>
                 <span v-else-if="c.candidate_status === 'EXCLUDED'" class="rv-badge kept">제외 · {{ EXCLUSION_TEXT[c.exclusion_reason_code ?? ''] ?? '조건 미충족' }}</span>
                 <span v-else-if="isNewInRun(c, run)" class="rv-badge new">신규</span>
-                <span v-else class="rv-badge sent">알림 {{ when(c.notified_at) }}</span>
+                <span v-else-if="c.notified_at" class="rv-badge sent">알림 {{ when(c.notified_at) }}</span>
+                <span v-else class="rv-badge kept">알림 전</span>
               </td>
             </tr>
           </tbody>

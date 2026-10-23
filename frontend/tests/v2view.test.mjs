@@ -135,3 +135,17 @@ test('이미 보유는 안내 완료와 구분해 "이미 보유"로 보이고 �
   assert.match(summaryOf(p), /이미 보유하고 있어요/)
   assert.match(judgmentOf(p, true), /있어요/)
 })
+
+import { costImpactOf } from '../src/lib/costImpact.ts'
+import { checksOf } from '../src/lib/evidenceView.ts'
+test('리뷰 반영: 알림 시각 없는 후보는 이미 알림이 아니고, 빠진 금액은 $NaN이 되지 않고, TF 사실이 없으면 미충족으로 단정하지 않는다', () => {
+  const run = { id: 'r', task_type: 'RECLAIM_SCAN', trigger: 'UNKNOWN', status: 'DONE', reason_code: 'SCAN_COMPLETED', started_at: '2026-10-23T00:00:00Z', finished_at: null }
+  const c = { candidate_status: 'PENDING_REVIEW', notified_at: null }
+  assert.equal(isAlreadyNotified(c, run), false)
+  assert.equal(isNewInRun(c, run), false)
+  assert.equal(costImpactOf({ status: 'WAITING_APPROVAL', cost_impact: { kind: 'NEW_COST' } }), null)
+  const ok = costImpactOf({ status: 'WAITING_APPROVAL', cost_impact: { kind: 'NEW_COST', monthly_cost: 19 } })
+  assert.equal(ok.impact.budget_before, null)
+  const p = { requested_role: 'Write', reason_code: 'ELIGIBLE', evidence: [{ kind: 'employee_facts', maximum_role: 'Write' }, { doc_id: 'POL-02', text: '제1조 TF' }] }
+  assert.ok(!checksOf(p, [{ id: 'POL-02' }]).some(x => x.text.includes('TF 명단')))
+})

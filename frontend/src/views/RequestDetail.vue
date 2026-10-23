@@ -524,7 +524,7 @@ const requesterHelp = {
 .rd-main { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
 .rd-side { flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
 /* 넓은 화면에서는 근거를 읽으며 내려가도 승인 상자가 옆에 남아 있게 한다. */
-@media (min-width: 1100px) { .rd-side { position: sticky; top: 24px; } }
+@media (min-width: 1100px) { .rd-side { position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; overscroll-behavior: contain; } }
 .rd-card { background: #fff; border: 1px solid var(--uo-line); border-radius: 20px; padding: 24px; }
 .rd-card h2, .rd-side h2 { margin: 0 0 14px; font-size: 18px; font-weight: 700; }
 .rd-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 18px; }

@@ -304,8 +304,12 @@ export const REJECT_CHIPS = ['업무에 필요하지 않음', '더 낮은 권한
 export function approverNoticeOf(p: Problem): { tone: 'bad' | 'review'; title: string; body: string } | null {
   if (isGuidanceComplete(p)) return null
   if (needsName(p)) return { tone: 'review', title: '대상이 정해지지 않은 요청이에요', body: '요청자가 저장소 · 프로젝트 이름을 적지 않아 AI가 대상을 정하지 못했어요. 요청자에게는 이름을 넣어 다시 보내도록 안내하고 있고, 다시 보내면 새 요청으로 승인함에 올라와요.' }
-  if (p.status === 'ON_HOLD') return { tone: 'review', title: p.reason_code === 'HELD_BY_APPROVER' ? '보류한 요청이에요' : '예산 부족으로 보류된 요청이에요',
-    body: p.reason_code === 'HELD_BY_APPROVER' ? '보류 사유가 해소되면 최신 규정과 예산으로 다시 검토해요. 기존 승인은 요청 범위가 그대로일 때만 이어져요.' : '부서 예산이 확보되면 최신 규정과 예산으로 다시 검토해요. 지금은 승인할 수 없어요.' }
+  // 보류 안내는 사유 코드로 나눈다. 예산 부족이 아직 REJECTED · MANUAL_REVIEW로 오는 구 서버(임시 추측)도 같은 보류 안내를 쓴다.
+  if (p.status === 'ON_HOLD' || isLegacyBudgetHold(p)) {
+    if (p.reason_code === 'HELD_BY_APPROVER') return { tone: 'review', title: '보류한 요청이에요', body: '보류 사유가 해소되면 최신 규정과 예산으로 다시 검토해요. 기존 승인은 요청 범위가 그대로일 때만 이어져요.' }
+    if (p.reason_code === 'BUDGET_INSUFFICIENT') return { tone: 'review', title: '예산 부족으로 보류된 요청이에요', body: '부서 예산이 확보되면 최신 규정과 예산으로 다시 검토해요. 지금은 승인할 수 없어요.' }
+    return { tone: 'review', title: (reasonOf(p)?.title ?? '보류된 요청이에요'), body: '보류 조건이 해소되면 최신 규정과 예산으로 다시 검토해요.' }
+  }
   if (p.status === 'MANUAL_REVIEW') return { tone: 'review', title: '담당자 확인이 필요한 요청이에요', body: 'AI가 자동으로 판단하지 못했어요. 왼쪽의 진단과 판단 근거를 확인해 주세요. 이 화면에서 바로 처리하는 기능은 아직 없어요.' }
   if (p.status === 'FAILED') return { tone: 'bad', title: '권한 부여에 실패했어요', body: '승인 뒤 처음 시도를 포함해 총 3번 시도했지만 권한을 넣지 못했어요. 대상 플랫폼의 상태를 확인해 주세요.' }
   if (p.status === 'REJECTED' && !p.decided_at) return { tone: 'bad', title: '규정상 자동으로 거절된 요청이에요', body: '거절 이유는 왼쪽 판단 근거에서 확인할 수 있어요. 요청자에게는 이유 대신 승인자에게 문의하라고 안내돼요.' }
@@ -315,7 +319,7 @@ export function approverNoticeOf(p: Problem): { tone: 'bad' | 'review'; title: s
 export function approverSummaryOf(p: Problem): string {
   if (isGuidanceComplete(p)) return summaryOf(p)
   if (needsName(p)) return '요청자가 대상 이름을 적지 않아 AI가 대상을 정하지 못했어요.'
-  if (p.status === 'ON_HOLD') return (reasonOf(p)?.title ?? '보류된 요청이에요') + '.'
+  if (p.status === 'ON_HOLD' || isLegacyBudgetHold(p)) return (reasonOf(p)?.title ?? '보류된 요청이에요') + '.'
   if (p.status === 'MANUAL_REVIEW') return 'AI가 자동으로 판단하지 못해 담당자 확인이 필요해요.'
   if (p.status === 'REJECTED' && !p.decided_at) return '규정에 맞지 않아 AI가 바로 거절했어요.'
   return summaryOf(p)
