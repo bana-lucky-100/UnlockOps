@@ -12,7 +12,7 @@ def operation(summary,response,body=None,parameters=None,code='200'):
 key={'name':'Idempotency-Key','in':'header','required':True,'schema':{'type':'string','minLength':1,'maxLength':128}}
 def identifier(name):return {'name':name,'in':'path','required':True,'schema':{'type':'string','format':'uuid'}}
 read={'type':'object','required':['read_at'],'properties':{'read_at':{'type':'string','format':'date-time'}},'additionalProperties':False}
-overview={'type':'object','required':['last_run','active_run','summary','targets'],'properties':{'last_run':{'anyOf':[ref('ReclaimRunView'),{'type':'null'}]},'active_run':{'anyOf':[ref('ReclaimRunView'),{'type':'null'}]},'summary':{'type':['object','null'],'description':'Final server aggregates; null before first scan or when the latest result is unconfirmed.','properties':{n:{'type':'integer','minimum':0} for n in ['review_target_count','new_candidate_count','newly_notified_count','needs_review_count','unread_count','unknown_cost_target_count']}},'targets':{'type':'array','items':ref('ReclaimCandidate')}},'additionalProperties':False}
+overview={'type':'object','required':['last_run','active_run','summary','targets'],'properties':{'last_run':{'anyOf':[ref('ReclaimRunView'),{'type':'null'}]},'active_run':{'anyOf':[ref('ReclaimRunView'),{'type':'null'}]},'summary':{'type':['object','null'],'description':'Final server aggregates; null before first scan or when the latest result is unconfirmed.','properties':{n:{'type':'integer','minimum':0} for n in ['review_target_count','new_candidate_count','newly_notified_count','needs_review_count','unread_count','unknown_cost_target_count']}},'targets':{'type':'array','items':ref('ReclaimTargetView')}},'additionalProperties':False}
 overview['properties']['summary']['properties']['monthly_saving_by_currency']={'type':'object','additionalProperties':{'type':'string','pattern':r'^(0|[1-9][0-9]*)\.[0-9]{2}$'}}
 paths={
 '/api/v2/problems':{'post':operation('권한 요청 접수',ref('AccessView'),'AccessRequestInput',[key],code='202')},
@@ -24,6 +24,15 @@ paths={
 '/api/reclaim/runs/{run_id}':{'get':operation('회수 실행 조회',ref('ReclaimRunView'),parameters=[identifier('run_id')])},
 '/api/reclaim/targets/{target_id}':{'get':operation('저장된 후보 상세 조회',ref('ReclaimCandidate'),parameters=[identifier('target_id')])},
 '/api/reclaim/notifications/{notification_id}/read':{'patch':operation('본인 알림 읽음, 최초 read_at 보존',read,parameters=[identifier('notification_id')])}}
+# Human-confirmed mock revocation is synchronous and never executes through Worker/MCP.
+paths['/api/reclaim/targets/{target_id}/execution']={'get':operation('현재 모의 회수 가능 여부와 기존 영수증',ref('ReclaimExecutionState'),parameters=[identifier('target_id')])}
+paths['/api/reclaim/targets/{target_id}/revoke']={'post':operation('담당자 확정 후 모의 권한 회수·검증·영수증 원자 저장',ref('ReclaimExecutionReceipt'),'ReclaimRevokeInput',[identifier('target_id'),key])}
+paths['/api/reclaim/executions']={'get':operation('담당 범위의 모의 회수 완료 영수증 목록',ref('ReclaimExecutionPage'),parameters=[{'name':'cursor','in':'query','required':False,'schema':{'type':'integer','minimum':0,'default':0}}])}
+for route in ['/api/reclaim/targets/{target_id}/execution','/api/reclaim/targets/{target_id}/revoke','/api/reclaim/executions']:
+    for op in paths[route].values():
+        op['description']='Synchronous session-authenticated mock operation. Mutations require CSRF and demo/mock mode; no Worker or external SaaS call.'
+        op['responses']['400']={'description':'Invalid input, cursor or missing Idempotency-Key'}
+paths['/api/reclaim/targets/{target_id}/revoke']['post']['responses']['409']={'description':'Execution conflict; refetch state before deciding to retry.','content':{'application/json':{'schema':ref('ReclaimExecutionError')}}}
 # Additional read endpoints needed by the UI and service-only MCP endpoints.
 array=lambda item:{'type':'array','items':item}
 obj={'type':'object'}

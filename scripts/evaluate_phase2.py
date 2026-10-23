@@ -138,7 +138,13 @@ def main(argv=None):
             if case["scope_id"]:
                 ids = ",".join(quote(i) for i in case["expected_assignments"])
                 active = int(database(f"SELECT count(*) FROM access_assignments WHERE id IN ({ids}) AND status='ACTIVE' AND ended_at IS NULL;"))
-                correct = correct and active == len(case["expected_assignments"])
+                revoked = outcome.get("revoked_assignment_ids", [])
+                correct = correct and set(revoked).issubset(case["expected_assignments"])
+                correct = correct and active == len(case["expected_assignments"]) - len(revoked)
+                if revoked:
+                    revoked_sql = ",".join(quote(i) for i in revoked)
+                    confirmed = int(database(f"SELECT count(*) FROM access_assignments a JOIN reclaim_execution_receipts e ON e.assignment_id=a.id WHERE a.id IN ({revoked_sql}) AND a.status='INACTIVE' AND a.ended_at IS NOT NULL AND e.verification_ok AND NOT EXISTS(SELECT 1 FROM mock_entitlement_memberships m WHERE m.assignment_id=a.id) AND NOT EXISTS(SELECT 1 FROM reclaim_targets t WHERE t.assignment_id=a.id AND t.closed_at IS NULL);"))
+                    correct = correct and confirmed == len(revoked)
             else:
                 pid = quote(outcome["problem_id"])
                 receipts = int(database(f"SELECT count(*) FROM access_execution_receipts WHERE problem_id={pid};"))

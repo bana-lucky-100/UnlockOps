@@ -69,7 +69,8 @@ for name,s in defs.items():
         if 'enum' in effective: pattern='^('+'|'.join(effective['enum'])+')$'
         if isinstance(effective.get('const'),str): pattern='^'+effective['const']+'$'
         if pattern: annotations.append('@Pattern(regexp='+json.dumps(pattern)+')')
-        if isinstance(effective.get('const'),int): annotations += ['@Min('+str(effective['const'])+')','@Max('+str(effective['const'])+')']
+        if isinstance(effective.get('const'),bool): annotations.append('@AssertTrue' if effective['const'] else '@AssertFalse')
+        elif isinstance(effective.get('const'),int): annotations += ['@Min('+str(effective['const'])+')','@Max('+str(effective['const'])+')']
         fields.append('        '+' '.join(annotations)+' '+java_type(p)+' '+camel(key))
         ts.append('  '+key+('' if required else '?')+': '+ts_type(p)+';')
     java.append('    public record '+name+'(\n'+',\n'.join(fields)+'\n    ) {}')

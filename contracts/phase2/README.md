@@ -73,7 +73,11 @@ Worker는 완료 결과를 먼저 체크포인트에 저장하고 발행 확인 
 
 PENDING_REVIEW/RETAINED/EXCLUDED는 후보 분류이며 실행 상태와 다릅니다.
 비용 UNKNOWN은 null이고 0이 아닙니다. 같은 후보 발생 건과 이미 전달한 알림을 재사용합니다.
-인앱 알림은 DB 전달 기록으로 완료하며 읽음·전달·해결은 구분합니다. 실제 회수·예산 환입은 하지 않습니다.
+인앱 알림은 DB 전달 기록으로 완료하며 읽음·전달·해결은 구분합니다. 점검/Worker 자체는 권한을 회수하지 않습니다.
+담당자 확정 모의 회수는 별도 공개 HTTP API의 ReclaimTargetView/ReclaimExecutionState/ReclaimRevokeInput/ReclaimExecutionReceipt/ReclaimExecutionPage/ReclaimExecutionError를 사용합니다.
+같은 트랜잭션에서 모의 제공자 부재·INACTIVE 할당·후보 종결을 검증하고 불변 영수증을 저장합니다. 예산 자동 환입은 없습니다.
+점검 스냅샷·원본 보고서는 보존하고 현재 overview의 ReclaimTargetView에 RECLAIMED·REVOKED·reclaimed_at·can_revoke를 반영합니다.
+POST revoke 본문은 {}이고 이미 처리한 후보는 같은 키 재요청도 409입니다. Worker 점검 모델의 분류/action_taken=NONE은 유지합니다. 권한·재시도·오류 계약은 [전달 문서](../../docs/reclaim-execution-api.md)를 참고하세요.
 회수 Worker는 최종 DONE을 보내지 않으며 서버가 결과 저장과 필수 알림을 확인한 후 확정합니다.
 
 **이력과 적용**

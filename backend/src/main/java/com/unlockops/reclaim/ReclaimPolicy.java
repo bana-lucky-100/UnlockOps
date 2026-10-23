@@ -37,7 +37,7 @@ public final class ReclaimPolicy {
                 if(!observed.isAfter(asOf) && !observed.atZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDate().isBefore(asOf.atZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDate())) {
                     var start=end.isAfter(granted)?end:granted;if(last.isAfter(start))start=last;
                     if(!start.plusDays(r.path("idle_days").intValue()).isAfter(asOf)) {
-                        status="PENDING_REVIEW";message="TF 종료 후 연속 미사용 기준을 충족한 좌석입니다. 실제 권한 변경 없이 검토 후보로 알립니다.";
+                        status="PENDING_REVIEW";message="TF 종료 후 연속 미사용 기준을 충족한 좌석입니다. 담당자가 근거를 확인한 뒤 회수할 수 있습니다.";
                     } else {status="EXCLUDED";exclude="USAGE_RESUMED";message="TF 종료 후 연속 미사용 기간 기준을 충족하지 않습니다.";}
                 }
             } else if(f.path("tf_ends_on").isNull()) {

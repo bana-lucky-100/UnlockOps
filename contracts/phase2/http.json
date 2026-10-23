@@ -327,7 +327,7 @@
                     "targets": {
                       "type": "array",
                       "items": {
-                        "$ref": "./schema.json#/$defs/ReclaimCandidate"
+                        "$ref": "./schema.json#/$defs/ReclaimTargetView"
                       }
                     }
                   },
@@ -561,6 +561,181 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/reclaim/targets/{target_id}/execution": {
+      "get": {
+        "summary": "현재 모의 회수 가능 여부와 기존 영수증",
+        "description": "Synchronous session-authenticated mock operation. Mutations require CSRF and demo/mock mode; no Worker or external SaaS call.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema.json#/$defs/ReclaimExecutionState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          },
+          "400": {
+            "description": "Invalid input, cursor or missing Idempotency-Key"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "target_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/reclaim/targets/{target_id}/revoke": {
+      "post": {
+        "summary": "담당자 확정 후 모의 권한 회수·검증·영수증 원자 저장",
+        "description": "Synchronous session-authenticated mock operation. Mutations require CSRF and demo/mock mode; no Worker or external SaaS call.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema.json#/$defs/ReclaimExecutionReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "Execution conflict; refetch state before deciding to retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema.json#/$defs/ReclaimExecutionError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input, cursor or missing Idempotency-Key"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema.json#/$defs/ReclaimRevokeInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "target_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ]
+      }
+    },
+    "/api/reclaim/executions": {
+      "get": {
+        "summary": "담당 범위의 모의 회수 완료 영수증 목록",
+        "description": "Synchronous session-authenticated mock operation. Mutations require CSRF and demo/mock mode; no Worker or external SaaS call.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema.json#/$defs/ReclaimExecutionPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Login required"
+          },
+          "403": {
+            "description": "Outside permitted organization/role"
+          },
+          "404": {
+            "description": "Not found in permitted scope"
+          },
+          "409": {
+            "description": "State, plan hash, or idempotency conflict"
+          },
+          "400": {
+            "description": "Invalid input, cursor or missing Idempotency-Key"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
             }
           }
         ]

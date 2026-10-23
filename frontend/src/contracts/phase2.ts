@@ -56,6 +56,7 @@ export interface ApprovalStep {
   reason?: string | null;
   acted_at?: string | null;
 }
+export type AssignmentStatus = "ACTIVE" | "INACTIVE";
 export interface CandidatePage {
   run_id: string;
   snapshot_id: string;
@@ -151,6 +152,54 @@ export interface ReclaimEvent {
   result: ReclaimRunView;
   targets?: (ReclaimCandidate)[];
 }
+export type ReclaimExecutionBlockReason = "EXECUTION_FORBIDDEN" | "MOCK_ONLY" | "ALREADY_REVOKED" | "CANDIDATE_CHANGED" | "RECHECK_REQUIRED";
+export interface ReclaimExecutionError {
+  message: string;
+  code: "IDEMPOTENCY_CONFLICT" | "ALREADY_REVOKED" | "CANDIDATE_CHANGED" | "RECHECK_REQUIRED" | "EXECUTION_FORBIDDEN" | "MOCK_ONLY";
+  receipt_id: string | null;
+}
+export interface ReclaimExecutionPage {
+  schema_version: 2;
+  items: (ReclaimExecutionReceipt)[];
+  next_cursor: number | null;
+}
+export interface ReclaimExecutionReceipt {
+  schema_version: 2;
+  id: string;
+  target_id: string;
+  assignment_id: string;
+  episode_id: string;
+  review_run_id: string;
+  employee_name: string;
+  resource_name: string;
+  executed_by: string;
+  executed_by_name: string;
+  executed_at: string;
+  reason: string;
+  verification_ok: true;
+  assignment_status_before: "ACTIVE";
+  assignment_status_after: "INACTIVE";
+  provider_present_before: boolean;
+  provider_present_after: false;
+  policy_revision: number;
+  policy_hash: string;
+  current_facts: Record<string, unknown>;
+}
+export interface ReclaimExecutionState {
+  schema_version: 2;
+  target_id: string;
+  assignment_id: string;
+  episode_id: string;
+  review_run_id: string | null;
+  employee_name: string;
+  resource_name: string;
+  assignment_status: AssignmentStatus;
+  can_revoke: boolean;
+  block_reason: ReclaimExecutionBlockReason | null;
+  execution_status: ReclaimExecutionStatus;
+  receipt: ReclaimExecutionReceipt | null;
+}
+export type ReclaimExecutionStatus = "NOT_EXECUTED" | "SUCCEEDED";
 export interface ReclaimJob {
   schema_version: 2;
   event_id: string;
@@ -160,6 +209,8 @@ export interface ReclaimJob {
   trigger: "DAILY_SCHEDULE" | "MANUAL_DEMO";
   scope_key: string;
   scheduled_for: string;
+}
+export interface ReclaimRevokeInput {
 }
 export interface ReclaimRunView {
   schema_version: 2;
@@ -188,5 +239,29 @@ export interface ReclaimSummary {
   needs_review_count: number;
   new_candidate_count: number;
   pending_notification_count: number;
+}
+export type ReclaimTargetStatus = "PENDING_REVIEW" | "RETAINED" | "EXCLUDED" | "RECLAIMED";
+export interface ReclaimTargetView {
+  assignment_id: string;
+  target_id?: string | null;
+  episode_id?: string | null;
+  platform: Platform;
+  candidate_status?: ReclaimTargetStatus | null;
+  candidate_reason_code?: "TF_ENDED_UNUSED_30D" | "EMPLOYEE_LEFT" | null;
+  exclusion_reason_code?: "ACTIVE_OTHER_TF" | "RETENTION_APPROVED" | "USAGE_RESUMED" | null;
+  skip_reason_code?: "ALREADY_NOTIFIED" | null;
+  review_required?: boolean;
+  notified_at?: string | null;
+  read_at?: string | null;
+  action_taken?: "NONE" | "REVOKED";
+  generation_mode?: "template" | "llm";
+  explanation: string;
+  policy_evidence?: (PolicyEvidence)[];
+  fact_evidence?: (FactEvidence)[];
+  cost_impact: CostImpact;
+  can_revoke: boolean;
+  reclaimed_at: string | null;
+  employee_name: string;
+  resource_name: string;
 }
 export type Status = "RECEIVED" | "DIAGNOSING" | "WAITING_APPROVAL" | "ON_HOLD" | "EXECUTING" | "DONE" | "REJECTED" | "MANUAL_REVIEW" | "FAILED";

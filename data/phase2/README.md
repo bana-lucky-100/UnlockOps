@@ -95,6 +95,12 @@ python3 scripts/evaluate_phase2.py --run --suite full
 | X-06 | MANUAL_REVIEW / APPROVER_UNAVAILABLE | 평가 실행기 케이스 `X-06`(`scripts/phase2/fixtures.py` EXTRA) | 격리 회사 복사본에서 A사 담당자(operator)를 `employment_status='LEFT'`로 바꿔 승인자를 지정할 수 없게 함. 분석 단계에서 MANUAL_REVIEW로 끝나 승인·실행·예산 차감이 없어야 함 |
 | X-09 | FAILED / SCAN_FAILED | `agent/tests/test_phase2_workflows.py::test_reclaim_requires_all_unique_rows_and_never_claims_done`(중복 행 → FAILED, `scan_complete=False`) | 서버가 사유 코드를 SCAN_FAILED로 기록하는 부분(`ReclaimResultService`)은 테스트 없음. 시나리오의 불완전 조회 조건은 데이터만으로 재현 불가라 평가 실행기에 없음 |
 
+## 담당자 확정 모의 회수
+
+점검 시나리오는 기존처럼 후보·보고서·알림을 생성합니다. 추가된 모의 회수 API는 담당자가 확정한 ACTIVE SEAT를 종료하고 완료 영수증을 저장합니다. 시드만 준비된 할당은 mock_entitlement_memberships가 없을 수 있으므로 영수증의 provider_present_before=false도 정상이며, 실제 부여로 멤버십이 존재하는 경로는 별도 DB 통합 테스트로 검증합니다.
+
+회수 후 시드를 재적용해도 INACTIVE 할당·회수 영수증·종결된 후보는 보존합니다. 실행 중인 개발 DB의 회수 사례를 재현하려고 시드를 무단 초기화하지 않습니다. API와 상태 계약은 [전달 문서](../../docs/reclaim-execution-api.md)를 따릅니다.
+
 ## 승인 판단 조건과 준비 검증
 
 현재 비용 기준은 `scenarios-current.json`이며 `scripts/align_access_costs.py`가 revision 3 비교 자료에서 생성한다. 기존 baseline과 정책 revision을 덮어쓰지 않는다. V10 migration 후 `policies/apply-costs.sql`이 정책・가격・경로・회수 규칙 revision 4와 비용 규칙・대상 조직의 라이선스 관측을 추가한다. Compose 시연은 누락된 revision 4를 자동 준비한다.
