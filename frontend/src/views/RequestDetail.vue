@@ -324,7 +324,7 @@ const requesterHelp = {
 
 
           <section v-if="evidence.facts.length || docs.length" id="ev-top" class="rd-card" aria-labelledby="rd-bs">
-            <h2 id="rd-bs">{{ showChecks ? '판단 근거' : '규정 원문' }} <span class="rd-only">승인자에게만 보여요</span></h2>
+            <h2 id="rd-bs">{{ showChecks || checks.length ? '판단 근거' : '규정 원문' }} <span class="rd-only">승인자에게만 보여요</span></h2>
             <p v-if="who && checks.length" class="rd-who">요청자 <b>{{ who }}</b></p>
             <dl v-if="evidence.facts.length && !checks.length" class="rd-facts-dl">
               <template v-for="f in evidence.facts" :key="f.k"><dt>{{ f.k }}</dt><dd>{{ f.v }}</dd></template>
@@ -349,7 +349,7 @@ const requesterHelp = {
             <!-- 규정 원문: 기본은 접어 둔다. 회사 권한표 → 사내 규정 → 공식 도움말 순. -->
             <div v-if="docs.length" class="rd-docs">
               <p v-if="showChecks" class="rd-docs-k">규정 원문 <span>{{ docs.length }}건</span><em>필요할 때만 펼쳐 보세요</em></p>
-              <p v-else class="rd-docs-k"><span>{{ docs.length }}건</span><em>요약의 근거예요. 필요할 때만 펼쳐 보세요</em></p>
+              <p v-else class="rd-docs-k">규정 원문 <span>{{ docs.length }}건</span><em>요약의 근거예요. 필요할 때만 펼쳐 보세요</em></p>
               <template v-for="(d, di) in docs" :key="d.id">
                 <p v-if="di === 0 || docs[di - 1].group !== d.group" class="rd-grp">{{ GROUP_LABEL[d.group] }}</p>
                 <details :id="`ev-${d.id}`" class="rd-doc" :class="{ flash: flashDoc === d.id }" :open="openDocs.has(d.id)"
