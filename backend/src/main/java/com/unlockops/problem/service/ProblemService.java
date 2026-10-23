@@ -37,6 +37,8 @@ public class ProblemService {
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public Status create(AppUser user, Create request, String idempotencyKey) {
+        if (problems.isPhase2User(user.id()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"Phase 2 계정은 /api/v2/problems를 사용해 주세요.");
         ClientRequestKey key = idempotencyKey == null ? null : new ClientRequestKey(idempotencyKey);
         if (key != null) {
             var previous = problems.findByClientRequestKey(user.id(), key);

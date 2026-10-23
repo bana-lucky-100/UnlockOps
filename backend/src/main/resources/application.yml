@@ -36,3 +36,4 @@ app:
   internal-api-token: ${INTERNAL_API_TOKEN:replace-this-local-internal-api-token}
   demo-enabled: ${DEMO_ENABLED:false}
   demo-password: ${DEMO_PASSWORD:}
+  phase2-reclaim-schedule-enabled: ${PHASE2_RECLAIM_SCHEDULE_ENABLED:false}

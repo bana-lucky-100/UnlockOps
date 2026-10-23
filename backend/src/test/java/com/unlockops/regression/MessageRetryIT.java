@@ -79,7 +79,7 @@ class MessageRetryIT {
     }
 
     @BeforeEach void reset() {
-        jdbc.execute("TRUNCATE grant_receipts,problem_events,outbox,inbox_events,problems,retry_fault");
+        jdbc.execute("TRUNCATE access_execution_receipts,mock_entitlement_memberships,reclaim_scope_assignments,approval_steps,access_plan_versions,assignment_usage,retention_exceptions,reclaim_run_items,reclaim_notifications,reclaim_targets,reclaim_snapshot_items,access_assignments,grant_receipts,problem_events,outbox,inbox_events,problems,retry_fault");
         jdbc.execute("ALTER SEQUENCE retry_attempts RESTART WITH 1");
         new RabbitAdmin(rabbit).purgeQueue("unlockops.dead");
         problemId = UUID.randomUUID();

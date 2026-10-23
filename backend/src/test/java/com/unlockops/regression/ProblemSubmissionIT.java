@@ -74,7 +74,7 @@ class ProblemSubmissionIT {
     }
 
     @BeforeEach void resetRequests() throws Exception {
-        jdbc.execute("TRUNCATE grant_receipts,problem_events,outbox,inbox_events,problems RESTART IDENTITY");
+        jdbc.execute("TRUNCATE access_execution_receipts,mock_entitlement_memberships,reclaim_scope_assignments,approval_steps,access_plan_versions,assignment_usage,retention_exceptions,reclaim_run_items,reclaim_notifications,reclaim_targets,reclaim_snapshot_items,access_assignments,grant_receipts,problem_events,outbox,inbox_events,problems RESTART IDENTITY");
         requester = login("kim_dev");
     }
 

@@ -1,7 +1,7 @@
 package com.unlockops.messaging.model;
 
 public enum QueueRoute {
-    ANALYSIS("analysis"), EXECUTION("execution"), RESULTS("results"), DEAD("dead");
+    ANALYSIS("analysis"), EXECUTION("execution"), RESULTS("results"), V2_ANALYSIS("v2.analysis"), V2_EXECUTION("v2.execution"), DEAD("dead");
 
     public static final String EXCHANGE = "unlockops";
     public static final String RESULTS_QUEUE = "unlockops.results";

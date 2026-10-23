@@ -24,6 +24,10 @@ public class ProblemRepository {
 
     public ProblemRepository(JdbcTemplate jdbc, Jsons json) { this.jdbc = jdbc; this.json = json; }
 
+    public boolean isPhase2User(UUID id) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT company_id<>'00000000-0000-0000-0000-000000000000'::uuid FROM users WHERE id=?",Boolean.class,id));
+    }
+
     public boolean insertIfNew(UUID id, UUID requester, UUID approver, Platform platform, String contents,
                                boolean simulateFailure, ClientRequestKey key) {
         return jdbc.update("""
@@ -35,24 +39,24 @@ public class ProblemRepository {
     }
 
     public Optional<Problem> findByClientRequestKey(UUID requester, ClientRequestKey key) {
-        return jdbc.query(SELECT + " WHERE p.requester_id=? AND p.client_request_key=?", this::map,
+        return jdbc.query(SELECT + " WHERE p.contract_version=1 AND p.requester_id=? AND p.client_request_key=?", this::map,
             requester, key.value()).stream().findFirst();
     }
 
     public Optional<Problem> find(UUID id) {
-        return jdbc.query(SELECT + " WHERE p.id=?", this::map, id).stream().findFirst();
+        return jdbc.query(SELECT + " WHERE p.contract_version=1 AND p.id=?", this::map, id).stream().findFirst();
     }
 
     public Optional<Problem> lock(UUID id) {
-        return jdbc.query(SELECT + " WHERE p.id=? FOR UPDATE OF p", this::map, id).stream().findFirst();
+        return jdbc.query(SELECT + " WHERE p.contract_version=1 AND p.id=? FOR UPDATE OF p", this::map, id).stream().findFirst();
     }
 
     public List<Problem> findMine(UUID requester) {
-        return jdbc.query(SELECT + " WHERE p.requester_id=? ORDER BY p.created_at DESC LIMIT 100", this::map, requester);
+        return jdbc.query(SELECT + " WHERE p.contract_version=1 AND p.requester_id=? ORDER BY p.created_at DESC LIMIT 100", this::map, requester);
     }
 
     public List<Problem> findAssigned(UUID approver, boolean operations) {
-        String filter = operations ? "" : " WHERE p.approver_id=?";
+        String filter = operations ? " WHERE p.contract_version=1" : " WHERE p.contract_version=1 AND p.approver_id=?";
         Object[] parameters = operations ? new Object[]{} : new Object[]{approver};
         return jdbc.query(SELECT + filter + " ORDER BY p.created_at DESC LIMIT 100", this::map, parameters);
     }

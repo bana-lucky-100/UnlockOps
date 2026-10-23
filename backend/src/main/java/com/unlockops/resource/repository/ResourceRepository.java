@@ -23,7 +23,7 @@ public class ResourceRepository {
         return jdbc.query("""
             SELECT id,platform,external_id,name,aliases,access_scope,owner_department_id,
                    tf_id,security_grade,designated_department_id
-            FROM resources WHERE platform=? ORDER BY external_id
+            FROM resources WHERE company_id='00000000-0000-0000-0000-000000000000' AND platform=? ORDER BY external_id
             """, (rs, n) -> new ResourceCandidate(rs.getObject("id", UUID.class),
                 Platform.valueOf(rs.getString("platform")), rs.getString("external_id"), rs.getString("name"),
                 Arrays.asList(json.read(json.tree(rs.getString("aliases")), String[].class)),

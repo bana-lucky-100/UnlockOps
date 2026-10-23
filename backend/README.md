@@ -216,3 +216,26 @@ Can edit 검증을 지원해도 기존 자동 부여 범위는 확대하지 않�
 이 API는 권한·예산·영수증·작업 상태를 변경하거나 재실행·재시도를 수행하지 않습니다. 기존 worker의 검증 재시도 및 최종 결과 처리는 유지합니다.
 Business MCP verify_permission이 이 API를 호출합니다. platform은 기존 MCP 입력에 없으므로 생략 가능하며 실제 자원에서 확정합니다.
 실제 서비스는 모의 SaaS 테이블 기준이며 외부 SaaS API를 호출하지 않습니다.
+
+## Phase 2 서버 베이스라인
+
+구현 의도·변경 이력은 [IMPLEMENTATION.md](../IMPLEMENTATION.md)에 누적합니다.
+공개 API 계약은 [contracts/phase2/http.json](../contracts/phase2/http.json), 메시지·내부 API 설명은
+[contracts/phase2/README.md](../contracts/phase2/README.md)를 확인하세요.
+
+- 신규 회사의 승인 요청은 `/api/v2/problems`를 사용합니다. 기존 세션·CSRF 인증을 그대로 사용합니다.
+- `/api/reclaim/runs` POST만 수동 점검을 시작합니다. GET은 저장된 결과를 조회합니다.
+- V7까지 migration 후 `data/phase2/seed.sql`을 local/demo DB에 명시적으로 적용합니다. 자동 seed가 아닙니다.
+- 수동 점검·모의 권한 부여에는 `DEMO_ENABLED=true`가 필요합니다. 시연 계정 비밀번호는 기존 DemoSeed가 설정합니다.
+- `PHASE2_RECLAIM_SCHEDULE_ENABLED=false`가 기본입니다. v2 Worker 연결 후 이 설정과 각 `reclaim_scopes.enabled`를 켜면 매일 09:00 KST에 점검을 접수합니다.
+- 새 큐는 `unlockops.v2.analysis`, `unlockops.v2.execution`입니다. 결과는 기존 `unlockops.results`에서 버전별로 처리합니다.
+- **3단계 Worker가 v2 큐를 소비합니다.** Agent·Business/Policy MCP·서버 API를 연결했으며 실제 DB·RabbitMQ 전체 스택 검증은 아직 남아 있습니다. 승인 분석 해시가 서버의 최신 계획과 다르면 수동 검토로 전환합니다.
+- v2의 모의 SaaS 상태는 `mock_entitlement_memberships`에 저장하며 기존 v1 GitHub 팀/Jira 권한 writer와 공유하지 않습니다.
+- 이번 단계의 실제 PostgreSQL 통합 실행은 Docker 미실행으로 확인하지 못했습니다. DB 적용 전 통합 검증이 남아 있습니다.
+
+### 4단계 화면 조회 연결
+
+로그인/profile 응답에 회사 기준 workflow_version과 담당 권한 기준 can_reclaim을 추가했습니다.
+GET /api/v2/problems/catalog는 현재 회사 자원·권한 항목, GET /api/v2/problems/summaries는 기존 ACL의 화면용 목록을 제공합니다.
+기존 목록 응답은 유지하고 report에 요청자·승인자 이름, 자원·권한 표시값, 접수 시각을 추가했습니다.
+새 migration은 없습니다. 프론트와 서버를 함께 갱신해야 새 회사의 v2 진입 정보와 화면 조회를 사용할 수 있습니다.

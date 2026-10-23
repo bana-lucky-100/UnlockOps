@@ -11,7 +11,7 @@ public class GrantRepository {
     public GrantRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
     public Resource resource(UUID id) {
-        return jdbc.queryForObject("SELECT * FROM resources WHERE id=?", (rs, n) -> new Resource(
+        return jdbc.queryForObject("SELECT * FROM resources WHERE id=? AND company_id='00000000-0000-0000-0000-000000000000'", (rs, n) -> new Resource(
             rs.getObject("id", UUID.class), Platform.valueOf(rs.getString("platform")), rs.getString("external_id"),
             AccessScope.valueOf(rs.getString("access_scope")), rs.getObject("owner_department_id", UUID.class),
             rs.getObject("tf_id", UUID.class), rs.getString("security_grade") == null ? null :

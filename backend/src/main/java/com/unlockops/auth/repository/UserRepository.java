@@ -22,12 +22,15 @@ public class UserRepository {
 
     public UserProfileResponse profile(UUID id) {
         return jdbc.queryForObject("""
-            SELECT u.id,u.login_id,u.employee_no,u.name,u.role,u.job_grade,u.job_family,d.name department
-            FROM users u JOIN departments d ON d.id=u.department_id WHERE u.id=?
+            SELECT u.id,u.login_id,u.employee_no,u.name,u.role,u.job_grade,u.job_family,d.name department,
+              CASE WHEN c.code='LEGACY' THEN 1 ELSE 2 END workflow_version,
+              (u.role='APPROVER' AND u.employment_status='ACTIVE' AND EXISTS(SELECT 1 FROM operator_assignments o
+                WHERE o.user_id=u.id AND o.company_id=u.company_id AND o.capability IN ('RECLAIM_REVIEWER','IT_HEAD'))) can_reclaim
+            FROM users u JOIN departments d ON d.id=u.department_id JOIN companies c ON c.id=u.company_id WHERE u.id=?
             """, (rs, n) -> new UserProfileResponse(rs.getObject("id", UUID.class), rs.getString("login_id"),
                 rs.getString("employee_no"), rs.getString("name"), UserRole.valueOf(rs.getString("role")),
                 JobGrade.from(rs.getString("job_grade")), JobFamily.valueOf(rs.getString("job_family")),
-                rs.getString("department")), id);
+                rs.getString("department"), rs.getInt("workflow_version"), rs.getBoolean("can_reclaim")), id);
     }
 
     public EmployeeProfile employee(UUID id) {
