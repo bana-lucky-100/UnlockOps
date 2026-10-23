@@ -81,7 +81,7 @@ test('마지막 결정자 이름과 사유를 단계 기록에서 가져온다',
   assert.equal(p.decided_at, '2026-10-23T03:00:00Z')
 })
 
-import { fromOverview, isNewInRun, isAlreadyNotified, needsReviewRow } from '../src/lib/revocation.ts'
+import { fromOverview, isNewInRun, isAlreadyNotified, needsReviewRow, pickScope } from '../src/lib/revocation.ts'
 
 test('v2 회수 개요: 이번 점검에 알린 후보는 신규, 이미 알린 후보는 다시 알리지 않고, 비용 미확인은 0원으로 세지 않는다', () => {
   const asOf = '2026-10-23T00:00:00Z'
@@ -148,4 +148,16 @@ test('리뷰 반영: 알림 시각 없는 후보는 이미 알림이 아니고, 
   assert.equal(ok.impact.budget_before, null)
   const p = { requested_role: 'Write', reason_code: 'ELIGIBLE', evidence: [{ kind: 'employee_facts', maximum_role: 'Write' }, { doc_id: 'POL-02', text: '제1조 TF' }] }
   assert.ok(!checksOf(p, [{ id: 'POL-02' }]).some(x => x.text.includes('TF 명단')))
+})
+
+test('수동 회수 점검은 평가용 범위가 아니라 기본 유료 좌석 범위를 고른다', () => {
+  const scopes = [
+    { id: 'm', scope_key: 'phase2:A:MISSING_USAGE', enabled: false },
+    { id: 'r2', scope_key: 'phase2:A:R-02', enabled: false },
+    { id: 'main', scope_key: 'phase2:A:paid-seats', enabled: false },
+  ]
+  assert.equal(pickScope(scopes).id, 'main')
+  assert.equal(pickScope([...scopes, { id: 'on', scope_key: 'phase2:A:X-11', enabled: true }]).id, 'on')
+  assert.equal(pickScope([{ id: 'x', scope_key: 'other', enabled: false }]).id, 'x')
+  assert.equal(pickScope([]), undefined)
 })

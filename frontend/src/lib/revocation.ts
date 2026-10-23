@@ -197,8 +197,7 @@ export async function runNow(): Promise<{ report: RevocationReport; mock: boolea
     const [{ phase2 }, { currentUser }] = await Promise.all([import('../phase2/api.ts'), import('../session.ts')])
     const owner = currentUser.value?.id
     const scopes = await phase2.scopes()
-    // 자동 점검이 꺼진 범위도 수동 점검은 된다(#29 화면과 같은 기준: 허용된 범위 중 첫 번째).
-    const scope = scopes.find(s => s.enabled) ?? scopes[0]
+    const scope = pickScope(scopes)
     if (!owner || !scope) throw new Error('점검할 담당 범위가 없어요.')
     await phase2.start(owner, scope.id)
     for (let i = 0; i < 30; i++) {
@@ -210,6 +209,15 @@ export async function runNow(): Promise<{ report: RevocationReport; mock: boolea
   }
   await api<{ run_id: string }>('/revocation-checks', { method: 'POST' })
   return latestReport()
+}
+
+/**
+ * 수동 점검할 범위 고르기. 켜진 범위 → 기본 유료 좌석 범위(scope_key …:paid-seats) → 첫 범위 순서.
+ * 시드에는 평가용 범위(R-02 · X-11 · MISSING_USAGE 등)가 함께 있고 목록이 scope_key 순이라,
+ * '첫 범위'만 고르면 대문자 키인 평가용 범위가 먼저 잡혀 R-01(기본 점검) 대신 다른 시나리오가 돌았다.
+ */
+export function pickScope<T extends { scope_key: string; enabled: boolean }>(scopes: T[]): T | undefined {
+  return scopes.find(s => s.enabled) ?? scopes.find(s => s.scope_key.endsWith(':paid-seats')) ?? scopes[0]
 }
 
 export function daysSince(iso: string | null): number | null {
