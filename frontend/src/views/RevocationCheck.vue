@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ApiError } from '../api'
 import AppShell from '../components/AppShell.vue'
 import { CANDIDATE_REASON_TEXT, daysSince, EXCLUSION_TEXT, isAlreadyNotified, isNewInRun, isPartial, isRunning, latestReport, needsReviewCount, needsReviewRow, revoke, runNow, type RevocationCandidate, type RevocationReport } from '../lib/revocation.ts'
@@ -80,7 +80,27 @@ const revoking = ref(false)
 const revokeError = ref('')
 const done = ref('')
 const canRevokeAny = computed(() => all.value.some(c => c.can_revoke))
-function askRevoke(c: RevocationCandidate) { confirming.value = c; revokeError.value = ''; done.value = '' }
+// 확인 창: 열 때 창 안으로 초점을 옮기고, 열린 동안 Tab을 창 안에 가두고, 닫을 때 원래 버튼으로 돌려준다.
+const modalBox = ref<HTMLElement | null>(null)
+let opener: HTMLElement | null = null
+async function askRevoke(c: RevocationCandidate) {
+  opener = document.activeElement as HTMLElement | null
+  confirming.value = c; revokeError.value = ''; done.value = ''
+  await nextTick()
+  modalBox.value?.querySelector<HTMLElement>('.rv-btn-ghost')?.focus()
+}
+function closeRevoke() {
+  if (revoking.value) return // 요청 중에는 닫지 않는다(진행 중인 회수를 놓치지 않게)
+  confirming.value = null
+  opener?.focus(); opener = null
+}
+function trapTab(e: KeyboardEvent) {
+  const items = Array.from(modalBox.value?.querySelectorAll<HTMLElement>('button:not([disabled])') ?? [])
+  if (!items.length) return
+  const first = items[0], last = items[items.length - 1]
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+}
 async function doRevoke() {
   const c = confirming.value
   if (!c || revoking.value) return
@@ -88,11 +108,14 @@ async function doRevoke() {
   try {
     await revoke(c.id)
     done.value = `${c.user_name || '대상자'}님의 ${c.platform} 권한을 회수했어요${c.cost_known !== false ? ` · 월 ${usd(c.monthly_cost)} 절감` : ''}`
-    confirming.value = null
+    revoking.value = false; closeRevoke()
     await load()
   } catch (e) {
-    revokeError.value = e instanceof ApiError && e.status === 409 ? '이미 처리된 후보예요. 목록을 다시 불러올게요.' : `회수하지 못했어요. ${(e as Error)?.message ?? ''}`
-    if (e instanceof ApiError && e.status === 409) { confirming.value = null; await load() }
+    if (e instanceof ApiError && e.status === 409) {
+      // 창을 닫으므로 안내는 창 밖(하단 안내)에 남긴다.
+      done.value = '이미 처리된 후보예요. 목록을 다시 불러왔어요.'
+      revoking.value = false; closeRevoke(); await load()
+    } else revokeError.value = `회수하지 못했어요. ${(e as Error)?.message ?? ''}`
   } finally { revoking.value = false }
 }
 // 10. 점검이 진행 중(접수 · 선별 · 결과 저장)인 보고서를 받으면 끝날 때까지 3초마다 다시 불러온다. 화면을 떠나면 멈춘다.
@@ -253,9 +276,9 @@ const help = {
       </section>
     </div>
     <p v-if="done" class="rv-done" role="status">{{ done }}</p>
-    <div v-if="confirming" class="rv-modal" role="dialog" aria-modal="true" aria-labelledby="rv-modal-t" @keydown.esc="confirming = null">
-      <button type="button" class="rv-scrim" aria-label="닫기" @click="confirming = null" />
-      <div class="rv-modal-box">
+    <div v-if="confirming" class="rv-modal" role="dialog" aria-modal="true" aria-labelledby="rv-modal-t" @keydown.esc="closeRevoke" @keydown.tab="trapTab">
+      <button type="button" class="rv-scrim" aria-label="닫기" tabindex="-1" :disabled="revoking" @click="closeRevoke" />
+      <div ref="modalBox" class="rv-modal-box">
         <h2 id="rv-modal-t">이 권한을 회수할까요?</h2>
         <dl class="rv-modal-dl">
           <dt>대상자</dt><dd>{{ confirming.user_name || '이름 미제공' }}</dd>
@@ -266,7 +289,7 @@ const help = {
         <p class="rv-modal-note">회수하면 이 사용자는 바로 쓸 수 없어요. 다시 필요하면 새로 요청해야 해요.</p>
         <p v-if="revokeError" class="rv-modal-err" role="alert">{{ revokeError }}</p>
         <div class="rv-modal-act">
-          <button type="button" class="rv-btn-ghost" :disabled="revoking" @click="confirming = null">취소</button>
+          <button type="button" class="rv-btn-ghost" :disabled="revoking" @click="closeRevoke">취소</button>
           <button type="button" class="rv-btn-danger" :disabled="revoking" @click="doRevoke">{{ revoking ? '회수 중…' : '회수하기' }}</button>
         </div>
       </div>

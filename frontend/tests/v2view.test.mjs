@@ -198,4 +198,5 @@ test('헤더 프로필은 로그인 카드와 같은 이니셜 · 색을 쓴다'
   assert.equal(personaAvatar({ login_id: 'p2_a_head', name: '김동빈' }).initial, '동')
   assert.equal(personaAvatar({ login_id: 'p2_a_operator', name: '신형철' }).fg, '#2B3480')
   assert.equal(personaAvatar({ login_id: 'p2_b_requester', name: '박요청(B)' }).initial, '요')
+  assert.equal(personaAvatar({ name: '😀' }).initial, '😀')
 })

@@ -28,5 +28,7 @@ export function personaAvatar(user: { login_id?: string; name: string }): Person
   const known = user.login_id ? AVATAR[user.login_id] : undefined
   if (known) return known
   const name = personaName(user.name).replace(/\(.*\)$/, '').trim()
-  return { initial: name.length >= 3 ? name.charAt(1) : name.charAt(0), bg: '#DDE2FF', fg: '#3B4BD8' }
+  // 이모지 · 결합 문자도 한 글자로 다루도록 코드 포인트 단위로 나눈다(charAt은 서로게이트 쌍을 자른다).
+  const chars = Array.from(name)
+  return { initial: (chars.length >= 3 ? chars[1] : chars[0]) ?? '', bg: '#DDE2FF', fg: '#3B4BD8' }
 }
