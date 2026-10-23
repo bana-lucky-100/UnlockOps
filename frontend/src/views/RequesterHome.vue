@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ApiError, type Platform, type Problem } from '../api'
 import { isV2, listMine, submitV2 } from '../lib/data'
@@ -75,6 +75,17 @@ const recent = computed(() => items.value.slice(0, 5))
 // 플랫폼은 문장에서 찾아 제안하고(하나만 걸리면 자동 선택), 틀리면 직접 고른다. 직접 고른 값은 문장이 바뀌어도 유지한다.
 const manual = ref(false)
 const pfOpen = ref(false)
+// 목록 밖을 누르거나 Esc를 누르면 닫는다.
+const pfBtn = ref<HTMLElement | null>(null)
+const pfPop = ref<HTMLElement | null>(null)
+function closeOutside(e: Event) {
+  if (!pfOpen.value) return
+  if (e instanceof KeyboardEvent) { if (e.key === 'Escape') pfOpen.value = false; return }
+  const t = e.target as Node
+  if (!pfBtn.value?.contains(t) && !pfPop.value?.contains(t)) pfOpen.value = false
+}
+onMounted(() => { document.addEventListener('pointerdown', closeOutside); document.addEventListener('keydown', closeOutside) })
+onBeforeUnmount(() => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeOutside) })
 const guessLabels = computed(() => guesses.value.map(g => PLATFORMS[g].label).join(' · '))
 const guesses = computed(() => guessPlatforms(contents.value).filter(p => ORDER.value.includes(p)))
 watch(guesses, g => {
@@ -157,12 +168,14 @@ const help = {
 
         <form class="rh-form" novalidate @submit.prevent="send">
           <div class="rh-pf">
-            <button type="button" class="rh-pf-btn" :class="{ on: !!selected }" :style="selected ? { '--c': PLATFORMS[selected].color, '--s': PLATFORMS[selected].soft } : {}"
+            <button ref="pfBtn" type="button" class="rh-pf-btn" :class="{ on: !!selected }" :style="selected ? { '--c': PLATFORMS[selected].color, '--s': PLATFORMS[selected].soft } : {}"
               aria-haspopup="true" :aria-expanded="pfOpen" @click="pfOpen = !pfOpen">
               <svg v-if="selected" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="PLATFORMS[selected].icon" /></svg>
-              {{ selected ? PLATFORMS[selected].label : '플랫폼' }}<span aria-hidden="true">▾</span>
+              <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" /></svg>
+              {{ selected ? PLATFORMS[selected].label : '플랫폼 선택' }}
+              <svg class="rh-pf-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
             </button>
-            <div v-if="pfOpen" class="rh-pf-pop" role="group" aria-label="플랫폼 고르기">
+            <div v-if="pfOpen" ref="pfPop" class="rh-pf-pop" role="group" aria-label="플랫폼 고르기">
               <button v-for="p in ORDER" :key="p" type="button" class="rh-pf-item" :class="{ hint: guesses.includes(p) }"
                 :aria-pressed="selected === p" :style="{ '--c': PLATFORMS[p].color, '--s': PLATFORMS[p].soft }" @click="pick(p); pfOpen = false">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="PLATFORMS[p].icon" /></svg>
@@ -226,9 +239,12 @@ const help = {
 .rh-chip[aria-pressed="false"]:hover, .rh-chip[aria-pressed="false"]:focus-visible { background: var(--s); }
 .rh-chip[aria-pressed="true"] { background: var(--c); color: #fff; }
 .rh-pf { position: relative; align-self: flex-start; padding-top: 4px; }
-.rh-pf-btn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 10px; border: 1.5px dashed var(--uo-line-strong); background: #fff; color: var(--uo-ink-2); font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
-.rh-pf-btn.on { border-style: solid; border-color: var(--c); background: var(--s); color: var(--c); }
-.rh-pf-btn span { font-size: 11px; opacity: .7; }
+.rh-pf-btn { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 12px 0 14px; border-radius: 12px; border: 0; background: var(--uo-primary-soft); color: var(--uo-primary-ink); font: inherit; font-size: 14px; font-weight: 700; white-space: nowrap; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(59,75,216,.18); transition: background-color .15s ease, box-shadow .15s ease; }
+.rh-pf-btn:hover, .rh-pf-btn:focus-visible, .rh-pf-btn[aria-expanded="true"] { background: #DCDFFB; box-shadow: inset 0 0 0 1.5px var(--uo-primary); }
+.rh-pf-btn.on { background: var(--c); color: #fff; box-shadow: none; }
+.rh-pf-btn.on:hover, .rh-pf-btn.on[aria-expanded="true"] { filter: brightness(1.08); }
+.rh-pf-chev { margin-left: 2px; transition: transform .15s ease; }
+.rh-pf-btn[aria-expanded="true"] .rh-pf-chev { transform: rotate(180deg); }
 .rh-pf-pop { position: absolute; z-index: 5; top: 46px; left: 0; width: 520px; max-width: calc(100vw - 48px); display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 10px; background: #fff; border: 1px solid var(--uo-line); border-radius: 14px; box-shadow: 0 16px 40px rgba(20,26,51,.16); }
 .rh-pf-item { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border: 1px solid transparent; border-radius: 10px; background: #fff; color: var(--c); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
 .rh-pf-item:hover, .rh-pf-item:focus-visible { background: var(--s); }

@@ -56,7 +56,7 @@ async function signOut() {
         <!-- 자물쇠는 화면 전체가 아니라 본문 폭(최대 1180px) 안에서 오른쪽에 붙인다. 넓은 화면에서 로그아웃 버튼 바깥으로 나가지 않게. -->
         <img v-if="props.showLock" class="sh-lock" :src="lockImg" alt="" aria-hidden="true">
         <header class="sh-head">
-          <div class="sh-brand">UnlockOps <span>권한 진단 Agent</span></div>
+          <div class="sh-brand">UnlockOps <span>SaaS 권한 승인 · 회수 Agent</span></div>
           <div class="sh-me">
             <button type="button" class="sh-pill" @click="openHelp">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 0 1 4.9.7c0 1.7-2.4 2.1-2.4 3.6M12 17h.01" /></svg>도움말
@@ -104,7 +104,7 @@ async function signOut() {
 /* 배경 장식은 잘라 내되 스크롤 영역은 만들지 않는다(clip). hidden이면 안쪽의 position: sticky가 동작하지 않는다. */
 .sh-main { flex: 999 1 560px; min-width: 0; position: relative; overflow: hidden; overflow: clip; }
 .sh-glow { position: absolute; top: -220px; right: -160px; width: 820px; height: 720px; border-radius: 50%; background: radial-gradient(closest-side at 55% 50%, rgba(122,92,240,0.38), rgba(59,75,216,0.22) 45%, rgba(246,247,252,0) 100%); filter: blur(10px); pointer-events: none; }
-.sh-lock { position: absolute; top: 110px; right: 48px; width: 284px; height: 284px; object-fit: contain; mix-blend-mode: multiply; pointer-events: none; }
+.sh-lock { position: absolute; top: 64px; right: 64px; width: 236px; height: 236px; object-fit: contain; mix-blend-mode: multiply; pointer-events: none; }
 .sh-inner { position: relative; max-width: 1180px; margin: 0 auto; padding: 44px 48px 64px; box-sizing: border-box; }
 .sh-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .sh-brand { font-family: var(--uo-font-en); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; }
