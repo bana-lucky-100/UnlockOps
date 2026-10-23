@@ -362,3 +362,40 @@ async def test_reclaim_redelivery_reuses_durable_result_without_another_scan(mon
     assert await run_job(tools.job, saver, tools) == first
     assert tools.calls == first_calls
     assert len(calls) == 1
+
+
+async def test_worker_owns_mcp_cancel_scope_and_replay_does_not_reopen(monkeypatch):
+    """Real AnyIO task ownership catches the Docker-only MCP teardown failure."""
+    import asyncio
+    import anyio
+    from langgraph.checkpoint.memory import InMemorySaver
+    from unlockops_worker import phase2 as worker
+
+    tools = SnapshotTools([[needs_review()]])
+    owner = asyncio.current_task()
+    lifetime = []
+
+    class TaskBoundMCP:
+        async def __aenter__(self):
+            lifetime.append(("open", asyncio.current_task()))
+            self.scope = anyio.CancelScope()
+            self.scope.__enter__()
+            return self
+
+        async def __aexit__(self, *args):
+            lifetime.append(("close", asyncio.current_task()))
+            self.scope.__exit__(*args)
+
+        async def call(self, name, arguments):
+            return await tools.call(name, arguments)
+
+    monkeypatch.setattr(worker, "MCPTools", TaskBoundMCP)
+    saver = InMemorySaver()
+    first = await worker.run_job(tools.job, saver)
+    assert first["event_type"] == "RECLAIM_CHECKED"
+    assert first["result"]["scan_complete"] is True
+    assert lifetime == [("open", owner), ("close", owner)]
+    calls = list(tools.calls)
+    assert await worker.run_job(tools.job, saver) == first
+    assert tools.calls == calls
+    assert lifetime == [("open", owner), ("close", owner)]

@@ -73,12 +73,16 @@ class LazyMCP:
     def __init__(self, stack):
         self.stack, self.tools = stack, None
 
-    async def call(self, name, arguments):
+    async def open(self):
+        """Enter MCP cancel scopes in the same Worker task that will close them."""
         if self.tools is None:
             try:
                 self.tools = await self.stack.enter_async_context(MCPTools())
             except Exception:
                 raise ToolFailure("MCP_UNAVAILABLE", "MCP connection could not be established", True) from None
+
+    async def call(self, name, arguments):
+        await self.open()
         return await self.tools.call(name, arguments)
 
 
@@ -97,6 +101,11 @@ async def run_job(job, saver, tools=None):
             return validate_event(snapshot.values["result_event"], job) if snapshot.values["result_event"] else None
         value = None if snapshot.values else {"job": serialized, "events": []}
         try:
+            # Graph nodes run in child tasks. MCP/AnyIO scopes must be opened
+            # here, not lazily inside a node and closed in this parent task.
+            # Completed checkpoint replay above still needs no MCP connection.
+            if isinstance(selected_tools, LazyMCP):
+                await selected_tools.open()
             await graph.ainvoke(value, config)
         except (OSError, ConnectionError, sqlite3.Error):
             # Checkpoint storage failures must be redelivered, not converted into a durable business failure.
