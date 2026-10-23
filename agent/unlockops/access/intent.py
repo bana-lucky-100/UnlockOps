@@ -24,12 +24,12 @@ def scoped_text(text, platform):
     return text[:end]
 
 
-async def interpret_v4(contents, platform):
+async def interpret_v4(contents, platform, entitlement_options=None, policy_context=None):
     text = scoped_text(contents, platform)
     if re.search(r'부서\s*이동|일괄\s*승인|(?:\bdb\b|데이터베이스)\s*배포', text, re.I):
         from ..common.models import ToolFailure
         raise ToolFailure('OUT_OF_SCOPE', 'Operation is outside the scenario-v4 permission workflow')
-    return await interpret(text, platform)
+    return await interpret(text, platform, entitlement_options, policy_context)
 
 
 ROLE_ALIASES = {
