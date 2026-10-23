@@ -62,6 +62,50 @@ revision 2까지 적용했다면 마지막 명령만 실행한다. revision 3 �
 .venv/bin/python -m pytest agent/tests/test_policy_import.py agent/tests/test_approval_review.py agent/tests/test_workflows.py -q
 ```
 
+### 시연 DB 적용 절차와 확인
+
+| 단계 | 적용 주체 | 재실행 |
+|---|---|---|
+| V1~V8 | backend 기동 시 Flyway 자동 | Flyway가 이력으로 건너뜀 |
+| `seed.sql` | backend 기동 시 `DemoSeed` 자동 (`DEMO_ENABLED=true`, `DEMO_PHASE2_SEED_PATH`). postgres 컨테이너 init 스크립트가 아님 | `ON CONFLICT DO NOTHING`, 기동마다 다시 실행돼도 기존 행 보존 |
+| `apply.sql` (revision 2) | 수동 `psql` | revision 2만 있으면 중복 없이 통과. **revision 3 적용 후에는 "later revision" 예외로 롤백**(데이터 변화 없음) |
+| `apply-v4.sql` (revision 3) | 수동 `psql` | 동일 내용 재실행 안전. 단 SYNTHETIC·KNOWN `assignment_usage.observed_at`을 실행 시각으로 다시 갱신 |
+
+compose 시연 DB를 시나리오 값(Figma 16.00 USD, B사 예산 100.00 → 84.00)으로 맞추는 순서:
+
+```sh
+docker compose up -d --build          # V8 + seed.sql 자동 적용, backend healthy까지 대기
+psql_demo() { docker compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'; }
+# 아래 확인 쿼리의 revision이 1이면 apply.sql부터, 2이면 apply-v4.sql만, 3이면 생략
+psql_demo < data/phase2/policies/apply.sql
+psql_demo < data/phase2/policies/apply-v4.sql
+```
+
+확인 쿼리(`psql_demo <<'SQL' ... SQL`로 실행):
+
+```sql
+-- 회사별 현재 정책 revision: P2_A·P2_B 모두 3
+SELECT c.code, max(p.revision) AS policy_revision
+FROM policy_revisions p JOIN companies c ON c.id = p.company_id
+WHERE c.code IN ('P2_A','P2_B') GROUP BY c.code ORDER BY c.code;
+
+-- revision 3의 Figma 가격: 16.00 USD / PUBLIC_LIST_PRICE / policy_revision 3 (revision 1·2의 15.00은 보존)
+SELECT c.code, pr.revision, pr.monthly_amount, pr.currency, pr.source_kind, pr.policy_revision
+FROM pricing_revisions pr
+JOIN companies c ON c.id = pr.company_id
+JOIN entitlements e ON e.id = pr.entitlement_id
+JOIN resources r ON r.id = e.resource_id
+WHERE r.platform = 'FIGMA' ORDER BY c.code, pr.revision;
+
+-- P-06(B사 Figma) 계산 기준 예산: 100.00. 84.00은 저장값이 아니라 새 요청 계획에서 100.00 - 16.00으로 계산
+SELECT d.code, b.remaining_monthly_amount, b.currency
+FROM department_budgets b JOIN departments d ON d.id = b.department_id
+WHERE d.code = 'P2_B_DEV';
+```
+
+예산이 100.00이 아니면 이전 시연 요청이 예산을 사용한 상태다. 이 절차는 예산을 되돌리지 않는다.
+
+평가 실행기는 격리 회사에 세 SQL을 순서대로 적용하고 v4 자연어 입력·근거 조항을 사용한다. DB의 과거 계획은 수정하지 않으며 새 요청·재분석·새 점검부터 revision 3을 사용한다.
 현재 생성 결과를 검사하려면 `--check`를 쓴다. 의도적으로 다시 생성할 때만 이를 생략한다.
 배포한 revision을 변경하려면 새 revision 생성기·연결 SQL·서버 규칙·평가를 함께 준비해야 한다.
 보고서 지침과 이번 근거 선택·서버 조회 필드 보완에는 새 정책 revision이나 DB migration이 필요하지 않다.
