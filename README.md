@@ -1,162 +1,322 @@
-# UnlockOps
+<img align="right" src="docs/images/readme/agent-character.png" alt="UnlockOps 보라색 AI Agent 캐릭터" width="142">
 
-> 사내 서비스 접근 문제를 진단하고, 규정 검토와 담당자 승인을 거쳐 권한 변경까지 연결하는 AI 업무 지원 서비스
+<h1><img src="docs/images/readme/logo.png" alt="" width="38"> UnlockOps</h1>
 
-UnlockOps는 “프로젝트가 보이지 않아요”, “저장소에 코드를 올릴 수 없어요”와 같은 사내 SaaS 접근 문제를 처리합니다.
+<p>
+  <strong>SaaS 권한 승인과 회수를 돕는 AI 에이전트</strong><br>
+  권한을 줄 때는 근거와 비용을 보여주고,<br>
+  안 쓰는 유료 좌석은 회수까지 연결합니다.
+</p>
 
-사용자의 요청과 현재 권한, 직무·직급, TF 소속, 회사 규정을 함께 확인하여 해결 방법을 안내하거나 권한 변경을 제안합니다. 권한 변경은 지정 승인자의 승인을 받은 뒤 실행하며, 변경 후 실제 반영 여부를 다시 조회합니다.
+<p>SKALA 4기 5반 2조 <strong>Bana100</strong></p>
 
-## 1. 프로젝트 배경
+<p>
+  <a href="#agent-workflows"><img src="https://img.shields.io/badge/LangGraph-4F46E5?style=flat-square" alt="LangGraph"></a>
+  <a href="#rag-design"><img src="https://img.shields.io/badge/RAG-6554C0?style=flat-square" alt="RAG"></a>
+  <a href="#mcp-design"><img src="https://img.shields.io/badge/MCP-7A5CA3?style=flat-square" alt="MCP"></a>
+  <a href="#agent-workflows"><img src="https://img.shields.io/badge/AI Agent-6B647E?style=flat-square" alt="AI Agent"></a>
+</p>
 
-사내 서비스 접근 문제를 해결하려면 사용자가 필요한 권한과 승인 담당자를 직접 확인해야 합니다. 관리자는 요청자의 소속과 권한 기준을 확인하고, 변경 결과까지 점검해야 합니다.
+<br clear="right">
 
-UnlockOps는 이 과정을 **접수 → 진단 → 규정 검토 → 승인 → 실행 → 검증**으로 연결하여 반복적인 확인 업무를 줄이고, 판단 근거와 처리 이력을 남기는 것을 목표로 합니다.
+<p align="center">
+  <a href="#architecture">시스템 아키텍처</a>&emsp;
+  <a href="#agent-workflows">Agent 워크플로우</a>&emsp;
+  <a href="#rag-design">RAG</a>&emsp;
+  <a href="#mcp-design">MCP</a>&emsp;
+  <a href="#agent-harness">하네스</a>&emsp;
+  <a href="#tech-stack">기술 스택</a>&emsp;
+  <a href="#team">팀 소개</a>
+</p>
 
-## 2. 주요 기능
+## 어떤 문제를 해결하나요?
 
-| 기능 | 설명 |
-|---|---|
-| 접근 문제 분석 | 요청에서 플랫폼·대상 자원·필요 권한을 파악하고 현재 접근 조건 조회 |
-| 규정 기반 권한 검토 | 회사 권한표와 정책 문서를 검색하여 직무·직급·TF·예산 조건 확인 |
-| 근거 기반 해결 안내 | 권한 변경이 필요하지 않은 문의에 문서 근거를 활용한 안내 제공 |
-| 승인 요청 및 반려 | 지정 승인자가 대상·권한·근거를 확인하여 승인하거나 사유와 함께 반려 |
-| 승인된 권한 변경 | 승인 계획과 최신 자격을 재검증한 뒤 모의 SaaS 권한 변경 |
-| 변경 결과 검증 | 실행 후 권한을 재조회하여 반영 여부 확인 |
-| 요청·승인 현황 조회 | 요청자 본인 이력, 승인자 담당 요청, 운영 담당자 전체 이력 조회 |
+IT 권한 담당자는 신청이 들어올 때마다 회사 규정, 부서 예산, 현재 권한을 따로 확인합니다. 업무가 끝난 뒤 남은 유료 좌석도 직접 찾아야 합니다. UnlockOps는 **승인 전 판단과 부여 후 관리**를 하나의 흐름으로 연결합니다.
 
-기본 화면은 현재 승인·회수 흐름이며 Snowflake, Databricks, Salesforce, Datadog, Tableau Cloud, Figma, GitHub, Jira, Slack, Notion의 10개 플랫폼을 지원합니다. 현재 권한 변경 대상은 **모의 SaaS 환경**이며, 실제 외부 SaaS API와는 연결하지 않습니다. 과거 계정·요청 이력은 DB에 보존하며 현재 실행 경로는 하나입니다.
+| 사용자         | 겪는 문제                                             | UnlockOps가 제공하는 것                                         |
+| -------------- | ----------------------------------------------------- | --------------------------------------------------------------- |
+| 직원           | 어떤 권한을 신청해야 하는지 모르고 처리 상황을 재문의 | 문장으로 신청하고 처리 과정과 결과 확인                         |
+| 부서장         | 요청의 필요성과 예산 영향을 일일이 대조               | 필요한 권한과 규정 근거, 예산 변화를 담은 판단안                |
+| IT 권한 담당자 | 승인 검토와 미사용 좌석 정리가 수작업에 집중          | 승인한 권한의 반영 여부를 확인하고 회수 후보와 예상 절감액 제공 |
 
-## 3. 시스템 아키텍처
+## 핵심 기능과 실제 화면
+
+### 1. 근거와 비용을 확인하고 권한 승인
+
+> “추천 모델 분석용 Snowflake 웨어하우스 USAGE 권한이 필요해요.”
+
+**요청 → 규정과 예산 검토 → 단계별 사람 승인 → 권한 부여 → 반영 확인**
+
+|                                                     문장으로 요청                                                     |                                                                      판단안을 보고 승인                                                                      |
+| :-------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| <img src="docs/images/readme/request.png" alt="직원 요청 화면: 플랫폼 선택, 자연어 입력, 요청 진행 현황" width="400"> | <img src="docs/images/readme/approval.png" alt="승인 화면: Snowflake 권한, 규정 근거, 월 예상 비용 120달러와 예산 500달러에서 380달러로의 변화" width="400"> |
+|                                     플랫폼과 업무 목적을 입력하고 진행 상황 확인                                      |                                                          필요한 권한부터 비용과 승인 순서까지 확인                                                           |
+
+A사는 **부서장 → IT 담당자**, B사는 **팀장 → 부서장 → SaaS 담당자** 순서로 승인합니다. B사는 예상 월 비용이 100 USD 이상이면 IT 총괄 승인을 추가합니다. 사용법 문의는 문서를 근거로 안내합니다. 예산이 부족하면 보류하고, 정보나 근거가 불확실하면 수동 검토로 넘깁니다.
+
+### 2. 미사용 유료 좌석을 찾아 담당자 확인 후 회수
+
+**점검 실행 → 회수 후보와 근거 확인 → 담당자 확정 → 모의 회수 후 반영 확인**
+
+![회수 점검 화면에서 신규 후보와 예상 절감액, 규정 근거를 확인하는 모습](docs/images/readme/reclaim.png)
+
+- **후보 선별:** TF(프로젝트 전담 조직) 종료 후 30일 이상 미사용한 유료 좌석, 퇴사자 좌석 등을 규정에 따라 점검합니다.
+- **오회수 방지:** 다른 활성 TF에서 사용하거나 유지 승인이 있으면 제외합니다. 사용 기록을 조회하지 못한 경우는 미사용으로 간주하지 않습니다.
+- **담당자 확정:** 확인 창에서 회수를 결정하면 권한을 종료합니다. 이후 상태를 다시 조회하고 처리 영수증을 저장합니다. 같은 후보의 알림은 중복 생성하지 않습니다.
+
+<br/>
+
+### 시연 대상 10개 플랫폼
+
+<table width="100%">
+  <tr>
+    <td align="center" width="20%"><img src="frontend/public/logos/mark/github.png" alt="GitHub 로고" width="24"><br><strong>GitHub</strong></td>
+    <td align="center" width="20%"><img src="frontend/public/logos/mark/jira.png" alt="Jira 로고" width="24"><br><strong>Jira</strong></td>
+    <td align="center" width="20%"><img src="frontend/public/logos/mark/slack.png" alt="Slack 로고" width="24"><br><strong>Slack</strong></td>
+    <td align="center" width="20%"><img src="frontend/public/logos/mark/notion.png" alt="Notion 로고" width="24"><br><strong>Notion</strong></td>
+    <td align="center" width="20%"><img src="frontend/public/logos/mark/snowflake.png" alt="Snowflake 로고" width="24"><br><strong>Snowflake</strong></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="frontend/public/logos/mark/databricks.png" alt="Databricks 로고" width="24"><br><strong>Databricks</strong></td>
+    <td align="center"><img src="frontend/public/logos/mark/salesforce.png" alt="Salesforce 로고" width="24"><br><strong>Salesforce</strong></td>
+    <td align="center"><img src="frontend/public/logos/mark/datadog.png" alt="Datadog 로고" width="24"><br><strong>Datadog</strong></td>
+    <td align="center"><img src="frontend/public/logos/mark/tableau.png" alt="Tableau Cloud 로고" width="24"><br><strong>Tableau Cloud</strong></td>
+    <td align="center"><img src="frontend/public/logos/mark/figma.png" alt="Figma 로고" width="24"><br><strong>Figma</strong></td>
+  </tr>
+</table>
+
+<a id="architecture"></a>
+
+## 시스템 아키텍처
+
+**AI는 요청을 해석하고 근거를 설명합니다. Spring은 정책에 따라 판단하고 승인을 관리하며 권한을 변경합니다.** 화면과 Agent 사이의 작업과 결과는 큐로 전달하고, 업무 데이터는 내부 API를 통해 조회하거나 변경합니다.
 
 ```mermaid
 flowchart TD
-    UI["Vue 3 사용자·승인자 화면"] --> API["Spring Boot API"]
-    API <--> DB[("PostgreSQL")]
-    API -->|"작업 발행 · outbox"| Jobs["RabbitMQ 작업 큐"]
-    Jobs --> Worker["Python Worker · LangGraph"]
-    Worker <--> Policy["Policy MCP"]
-    Worker <--> Business["Business MCP"]
-    Policy --> Docs["정책·권한 문서"]
-    Business --> Docs
-    Business -->|"내부 API · 서비스 토큰"| API
-    Worker -->|"분석·실행 결과"| Results["RabbitMQ 결과 큐"]
-    Results -->|"결과 반영 · inbox"| API
-    Worker <--> State[("SQLite 체크포인트")]
+    UI["Vue 3와 Nginx<br/>요청과 승인, 회수 화면"] --> API["Spring Boot<br/>인증과 업무 판정<br/>승인 상태 관리"]
+    API <--> DB[("PostgreSQL<br/>업무 데이터와 승인 이력<br/>모의 SaaS")]
+    API -->|"Outbox에서 작업 발행"| Jobs["RabbitMQ 작업 큐<br/>분석과 실행, 회수 점검"]
+    Jobs --> Worker["Python Worker<br/>업무별 LangGraph와 하네스"]
+    Worker <--> Policy["Policy MCP<br/>정책 검색과 원문 조회"]
+    Worker <--> Business["Business MCP<br/>업무 조회와 승인 계획 실행<br/>결과 검증"]
+    Policy -->|"작업에 연결된 정책 조회"| API
+    Business -->|"서비스 토큰으로 내부 API 호출"| API
+    Policy --> Index["회사와 정책 revision별 RAG<br/>로컬 TF-IDF 색인"]
+    Worker <--> LLM["LLM API<br/>요청 해석과 후보 선택<br/>설명 작성 및 검토"]
+    Worker <--> State[("SQLite 체크포인트<br/>작업 상태와 최종 결과")]
+    Worker -->|"분석과 실행, 점검 결과"| Results["RabbitMQ 결과 큐"]
+    Results -->|"Inbox에서 중복 검사 후 반영"| API
+    UI -->|"담당자 확정 후 모의 회수"| API
+    classDef agent fill:#ede9fe,stroke:#7c3aed,color:#2e1065
+    class Worker,LLM agent
 ```
 
-| 구성 요소 | 책임 |
-|---|---|
-| Vue 3 | 요청 접수, 본인 이력, 승인 카드와 담당 현황 표시 |
-| Spring Boot | 인증, 요청·승인 상태, 업무 데이터, 권한 변경 트랜잭션 관리 |
-| LangGraph Worker | 요청 분석, 규정 검토, 안내·보고서, 승인 후 실행·검증 진행 |
-| Policy MCP / Business MCP | 문서 검색과 업무 조회·변경 기능을 에이전트 도구로 제공 |
-| RabbitMQ | API와 에이전트 사이의 작업·결과 비동기 전달 |
-| PostgreSQL / SQLite | 업무 데이터·처리 이력 / 에이전트 체크포인트 저장 |
+Compose 서비스는 `frontend`, `backend`, `postgres`, `rabbitmq`, `agent`, `policy-mcp`, `business-mcp`의 7개입니다. 작업 큐와 결과 큐는 같은 RabbitMQ에 있습니다. SQLite는 Worker의 체크포인트 볼륨을 사용합니다. [Compose 구성](compose.yaml), [발표용 구성도](docs/images/readme/architecture.svg)
 
-Business MCP는 Spring 내부 API를 호출하며 업무 DB에 직접 접근하지 않습니다. Spring은 실행 직전에도 승인된 계획과 최신 자격을 검증합니다.
+<a id="agent-workflows"></a>
 
-## 4. Agent 워크플로우
+## AI Agent 설계와 워크플로우
 
-승인 분석·승인 후 실행·회수 점검을 업무별 LangGraph로 실행합니다. 사람의 승인 대기·보류·재개는 Spring이 관리합니다.
+승인 분석, 승인 후 실행, 회수 점검을 각각 별도의 LangGraph로 구성했습니다. **단계별 상태와 조건 분기를 정의하고 체크포인트에 진행 상황을 저장합니다.** 입력과 결과를 검증하다 오류가 발생하거나 이미 지난 작업을 받으면 `finish`에서 정리하고 종료합니다.
 
-| 경로 | 처리 |
-|---|---|
-| 승인 분석 `access/graph.py` | 요청 문맥 → 의도 해석 → 회사 정책 검색·정확 조회 → 서버 자격·예산 판정 → 안내 또는 승인 보고서 |
-| 승인 후 실행 `access/execution.py` | 저장된 최종 승인·계획 재조회 → 모의 권한 부여 → 별도 최신 상태 검증 |
-| 회수 점검 `reclaim/graph.py` | 고정 스냅샷 → 전체 페이지 확인 → 알림 이력 확인 → 후보 설명 → 서버 저장·필수 알림 |
+| 판단 주체      | 맡는 일                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------ |
+| **LLM**        | 요청을 해석하고 실제 권한 후보를 선택. 근거를 바탕으로 안내와 판단안을 작성하고 회수 사유를 설명 |
+| **Agent 코드** | 그래프를 진행하면서 호출 범위를 제한. 후보와 인용, 응답 형식을 검증하고 오류 처리                |
+| **Spring**     | 최신 자격과 라이선스, 예산으로 판정. 승인 기록을 관리하고 권한 변경과 최종 상태 확정             |
 
-권한 변경이 필요하지 않은 문의는 회사·플랫폼에 고정한 공식 요약·진단 힌트로 안내합니다.
-일반 안내 성공은 `DONE / result_type=GUIDANCE`, 권한 반영 확인은 `DONE / result_type=ACCESS_VERIFIED`입니다.
-문서에 없는 절차를 만들지 않으며 안내 근거 부족·모델 장애는 수동 검토로 넘깁니다. 승인 보고서 모델 실패는 검증된 템플릿을 사용합니다.
+아래 그래프에서 보라색은 `llm` 모드로 모델을 사용하는 주요 단계입니다. `demo` 모드에서는 외부 LLM 없이 규칙과 템플릿으로 흐름을 재현합니다.
 
-분석 결과는 실행 허가가 아닙니다. 모든 필수 승인 후에만 서버가 EXECUTE 작업을 발행하고 실행 직전 최신 조건을 다시 검사합니다.
+### 1. 승인 요청 분석
 
-## 5. RAG와 MCP
+```mermaid
+flowchart LR
+    C["context<br/>요청과 직원 정보<br/>권한 후보 조회"] --> I["interpret<br/>요청 의도 해석<br/>필요 권한 선택"]
+    I --> P["policy<br/>근거 검색과 원문 검증"]
+    P --> A["assess<br/>안내 또는 서버 판정"]
+    A --> R["report<br/>설명 작성과 근거 검토"]
+    R --> F["finish<br/>결과 이벤트"]
+    classDef llm fill:#ede9fe,stroke:#7c3aed,color:#2e1065
+    class I,R llm
+```
 
-### RAG
+`interpret`는 권한을 고를 때 서버가 제공한 **실제 후보의 ID 하나 또는 `null`**을 선택합니다. 권한 신청은 `assess`에서 후보를 다시 확인하고 Business MCP를 통해 Spring의 판정을 받습니다. 이때 직무와 TF 소속, 라이선스 보유 여부, 비용과 예산, 승인자를 확인합니다. 권한만 추가하는 경우와 좌석 구매가 필요한 경우, 사용량 예산을 배정하는 경우도 구분합니다.
 
-정책 문서와 회사 접근 권한표를 청크로 나누어 검색하고, 관련 근거를 권한 검토와 답변 생성에 활용합니다.
+다음은 `assess`와 `report` 내부에서 처리하는 분기입니다. 승인 대기로 판정해도 분석 그래프에서는 권한을 변경하지 않습니다.
 
-| 항목 | 구현 내용 |
-|---|---|
-| 기본 검색 | 문자 n-gram TF-IDF·코사인 유사도 |
-| 검색 범위 | 서버에 연결된 회사·정책 revision·플랫폼 |
-| 정책 원문 | `data/phase2/policies/policy_corpus.md` |
-| 회사 적용 자료 | DB에 저장한 회사별 정책 묶음 revision |
-| 근거 관리 | 문서 ID, 조항, 버전, 원문 SHA-256 보존 |
-| 답변 검증 | 인용 ID와 원문 발췌 일치 여부 검사 |
+| 요청과 조건                                  | 결과                                                  |
+| -------------------------------------------- | ----------------------------------------------------- |
+| 사용법이나 절차 문의                         | 근거를 인용해 안내<br>`DONE` (`result_type=GUIDANCE`) |
+| 자격과 예산을 충족하고 근거와 승인 경로 확인 | 판단안과 승인 계획 작성<br>`WAITING_APPROVAL`         |
+| 예산 부족                                    | 실행 계획 없이 보류<br>`ON_HOLD`                      |
+| 정보나 근거, 대상이 불명확                   | 추측하지 않고 수동 검토<br>`MANUAL_REVIEW`            |
+| 이미 보유한 권한                             | 변경 없이 완료<br>`DONE`                              |
+| 정책 조건 불충족                             | 신청 반려<br>`REJECTED`                               |
 
-직원 정보·현재 권한·예산은 업무 API에서 조회합니다. 선택 권한은 서버의 자격·가격·승인 경로와 대조하며, 필수 근거가 부족하거나 변경되면 실행을 차단합니다.
+구현: [분석 그래프](agent/unlockops/access/graph.py), [후보 선택](agent/unlockops/access/selection.py), [서버 판정](backend/src/main/java/com/unlockops/access/AccessPlanningService.java), [비용 판정](backend/src/main/java/com/unlockops/access/AccessCosting.java)
 
-### MCP
+### 2. 사람 승인과 승인 후 실행
 
-| 서버 | 제공 기능 |
-|---|---|
-| Policy MCP | 정책 문서 검색, 원문 조항 조회 |
-| Business MCP | 직원·자원·권한·TF·예산·회사 규정 조회, 승인된 권한 변경 및 검증 |
+**분석 그래프는 판단안을 반환하고 종료합니다.** 이후 Spring이 순차 승인과 보류, 반려를 관리합니다. 모든 필수 승인을 확인하면 별도의 `EXECUTE` 작업을 발행합니다. 사람의 승인 대기는 Spring이 관리하며 LangGraph의 `interrupt`를 사용하지 않습니다.
 
-조회 도구와 변경 도구를 구분하며, 변경 도구는 서버에 저장된 승인 계획을 기준으로 실행합니다. 실행 도구의 입력은 `problem_id`, `job_event_id`, `plan_hash`, `idempotency_key`로 제한하여 모델이 사용자·자원·역할을 임의로 지정하지 못하도록 합니다.
+```mermaid
+flowchart LR
+    Human["지정 승인자<br/>단계별 승인"] -->|"모든 필수 승인 완료"| Server["Spring<br/>EXECUTE 작업 발행"]
+    Server --> C
+    subgraph Execution["승인 후 실행 그래프"]
+        C["context<br/>승인 계획 재조회"] --> E["execute<br/>모의 권한 부여"]
+        E --> V["verify<br/>별도 최신 상태 조회"]
+        V --> F["finish<br/>검증 결과 이벤트"]
+    end
+    classDef human fill:#fef3c7,stroke:#d97706,color:#78350f
+    class Human human
+```
 
-## 6. 하네스와 실행 통제
+- **실행 전:** Agent와 Spring이 승인 순서와 전체 승인 여부를 확인하고, 계획 해시와 실행 키를 대조합니다. 실행 직전 조건이 달라졌다면 수동 검토로 전환합니다.
+- **실행 후:** 저장된 영수증만 믿지 않고 별도 API로 현재 제공자 권한을 재조회합니다. 일치하면 `DONE` (`reason_code=VERIFIED`, `result_type=ACCESS_VERIFIED`), 불일치하면 `FAILED` (`reason_code=VERIFICATION_FAILED`)로 처리합니다.
+- **보류나 수동 검토 후 재개:** 최신 조건으로 새 분석 작업과 승인 계획을 만들고 다시 승인받습니다.
 
-에이전트의 판단을 실제 업무에 연결하기 위해 다음 통제를 적용했습니다.
+구현: [실행 그래프](agent/unlockops/access/execution.py), [승인 상태 관리](backend/src/main/java/com/unlockops/access/AccessWorkflowService.java), [실행과 검증](backend/src/main/java/com/unlockops/access/AccessExecutionService.java)
 
-| 통제 항목 | 적용 내용 |
-|---|---|
-| 도구 사용 제한 | 요청자의 직원·플랫폼·자원 범위와 호출 횟수·시간 제한 |
-| 입출력 검증 | 도구 입력·응답 스키마와 필수 값 검사 |
-| 승인 게이트 | 서버의 단계별 승인 기록과 현재 계획 버전·해시 검사 |
-| 승인 계획 검증 | 계획 해시 비교, 실행 직전 승인·규정·자격 재검증 |
-| 중복 처리 방지 | 실행 키와 영수증, outbox/inbox를 통한 중복 반영 제어 |
-| 장애 대응 | 일시 오류의 제한 재시도와 처리 이벤트 기록 |
-| 결과 확인 | 실행 후 최신 권한 재조회 |
+### 3. 회수 점검과 역할별 서브그래프
 
-권한 변경·예산 차감·실행 영수증은 하나의 DB 트랜잭션으로 처리합니다. 메시지는 중복 전달될 수 있으며, 실행 키·영수증·DB 잠금으로 권한과 예산의 중복 반영을 제어합니다.
+```mermaid
+flowchart LR
+    C["context<br/>고정 스냅샷 확인"] --> P["policy_review<br/>policy"]
+    P --> A["candidate_review<br/>scan → history"]
+    A --> R["report_writer<br/>report → verify"]
+    R --> F["finish<br/>점검 결과 이벤트"]
+    classDef llm fill:#ede9fe,stroke:#7c3aed,color:#2e1065
+    class R llm
+```
 
-인증에는 세션·BCrypt·CSRF 보호를 적용하고, 지정 승인자 확인과 본인 승인 차단을 수행합니다. `MCP_TOKEN`은 Agent → MCP, `INTERNAL_API_TOKEN`은 Business MCP → Spring 인증에 사용합니다. 제공된 환경 설정은 로컬 데모용입니다.
+`policy_review`, `candidate_review`, `report_writer`는 각각 별도 StateGraph로 구성한 **순차 역할 서브그래프**입니다.
 
-## 7. 기술 스택
+| 역할               | 검증 및 처리 내용                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------- |
+| 정책 검토          | 이번 점검에 고정된 정책 해시와 **POL-06 제5조** 원문을 확인                                       |
+| 후보 검토          | 고정 시점의 모든 페이지를 조회. 건수와 커서를 대조해 중복이나 누락을 검사하고 기존 알림 이력 확인 |
+| 보고서 작성과 검토 | 새로 확정된 후보의 설명을 작성하고 판정과 금액, 근거가 바뀌지 않았는지 검증                       |
 
-| 영역 | 기술 |
-|---|---|
-| Frontend | Vue 3, TypeScript, Vite |
-| Backend | Java 21, Spring Boot 3.5.7, Spring Security, JDBC, Flyway |
-| Agent | Python 3.11+, LangGraph, LangChain OpenAI |
-| 도구 연동 | MCP Python SDK |
-| 문서 검색 | 회사·revision에 고정한 TF-IDF·코사인 유사도 |
-| 메시지·저장소 | RabbitMQ, PostgreSQL, SQLite |
-| 실행 환경 | Docker Compose, uv, Maven |
+서버 규칙이 후보를 선별하면 LLM은 확인된 사실을 설명합니다. 인용 원문과 금액은 코드가 붙입니다. 모델 호출이나 검토에 실패하면 정형 설명으로 대체하고, 관측이 부족한 대상은 **추가 확인**으로 남깁니다.
 
-## 8. 실행 방법
+Agent가 `RECLAIM_CHECKED` 결과를 전달하면 Spring이 저장하고 필요한 인앱 알림을 보냅니다. **이 과정까지 끝나야 점검 상태를 `DONE`으로 확정합니다.** 담당자가 확정하는 **모의 회수는 화면 → Spring API** 경로로 실행합니다. 점검 Agent는 권한 변경 도구를 호출할 수 없습니다.
 
-### 전체 서비스 실행
+구현: [회수 그래프](agent/unlockops/reclaim/graph.py), [전체 조회](agent/unlockops/reclaim/scan.py), [불변 사실 검증](agent/unlockops/reclaim/verification.py), [설명 작성과 검토](agent/unlockops/reclaim/narration.py), [담당자 회수](backend/src/main/java/com/unlockops/reclaim/ReclaimExecutionService.java)
 
-Docker Desktop 실행 후 프로젝트 루트에서 아래 명령을 실행합니다.
+<a id="rag-design"></a>
+
+## RAG: 회사 정책의 버전에 맞춰 근거 검색
+
+```mermaid
+flowchart LR
+    Scope["작업 ID에서<br/>회사와 정책 revision 확인"] --> Chunk["정책 원문 해시 확인<br/>조항 단위 분할"]
+    Chunk --> Search["TF-IDF와 코사인 유사도로<br/>관련 조항 검색"]
+    Chunk --> Exact["정확 조회<br/>필수 조항 원문 보완"]
+    Search --> Check["문서 ID와 버전, 해시 확인<br/>원문 발췌 검증"]
+    Exact --> Check
+    Check --> Answer["근거를 인용해 설명 작성<br/>안내와 판단안 검토"]
+```
+
+| 항목      | 구현                                                                                                                                                           |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 자료      | 사내 규정과 제품 요약, 진단 힌트, 회사별 승인 흐름을 버전별 정책 묶음으로 관리                                                                                 |
+| 검색 방식 | 단어 및 문자 n-gram TF-IDF와 코사인 유사도 사용. 별도 벡터DB나 임베딩 API 없이 동작                                                                            |
+| 검색 범위 | 승인 분석은 해당 회사의 정책 revision에서 선택한 플랫폼과 공통 조항을 검색. 회수 점검은 실행에 고정된 정책에서 필수 회수 조항 조회                             |
+| 인용 검증 | `doc_id`, `article`, `version`, `source_hash`, 원문 발췌를 보존하고 실제 원문과 대조                                                                           |
+| 실패 처리 | 승인 분석의 필수 근거 부족은 수동 검토로 전환. 회수 점검의 필수 근거 검증 실패는 `FAILED / SCAN_FAILED`로 처리. 설명 작성이나 검토 실패는 정형 템플릿으로 대체 |
+
+승인 판정에는 **업무 API의 최신 사실**을 사용합니다. 회수 점검에서는 **스냅샷과 점검 시각에 고정된 사실**을 확인합니다. 문서 예시나 모델의 추론으로 사실을 채우지 않으며, 담당자가 회수를 실행하기 직전에 최신 조건을 다시 확인합니다.
+
+구현: [정책 색인과 검색](rag/unlockops_rag/revisions.py), [승인 근거 선택](rag/unlockops_rag/approval.py), [안내 인용 검증](agent/unlockops/access/answering.py), [보고서 검토](agent/unlockops/common/reporting.py)
+
+<a id="mcp-design"></a>
+
+## MCP: 정책 도구와 업무 도구의 실행 권한 분리
+
+두 MCP 서버에서 **정책 도구 2개와 업무 도구 7개**를 제공합니다. Agent와 서버는 같은 입출력 계약으로 도구를 호출합니다. MCP는 Spring 내부 API를 거쳐 업무 데이터를 조회하거나 변경합니다.
+
+| 서버의 역할                             | 도구                                                                                               |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| **Policy MCP**<br>근거 검색과 원문 조회 | `search_workflow_policy`, `read_workflow_policy`                                                   |
+| **Business MCP**<br>승인 분석과 실행    | `get_access_request_context`, `assess_access_request`, `execute_access_plan`, `verify_access_plan` |
+| **Business MCP**<br>회수 점검           | `get_reclaim_check_context`, `list_revocation_candidates`, `get_reclaim_notification_history`      |
+
+권한 변경 도구는 `execute_access_plan` 하나이며 **승인 후 실행 단계에서만** 호출할 수 있습니다. 입력을 아래 4개로 제한해 모델이 직원이나 자원, 역할을 임의로 바꿔 실행하지 못하게 합니다.
+
+```text
+execute_access_plan(problem_id, job_event_id, plan_hash, idempotency_key)
+```
+
+Worker → MCP는 `MCP_TOKEN`, MCP → Spring 내부 API는 `INTERNAL_API_TOKEN`으로 인증합니다. 사용자는 로그인 세션으로 인증하며 화면에서 보내는 요청에는 CSRF 보호를 적용합니다.
+
+구현: [Policy 도구](mcp/unlockops_mcp/policy_tools.py), [Business 도구](mcp/unlockops_mcp/business_tools.py), [공유 입출력 계약](agent/unlockops/common/tool_contracts.py), [내부 API 어댑터](mcp/unlockops_mcp/workflow_backend.py)
+
+<a id="agent-harness"></a>
+
+## 하네스: 모델의 판단부터 실제 실행까지 통제
+
+하네스는 Agent의 실행을 관리하는 코드입니다. **호출할 수 있는 도구와 업무 범위, 실행 시간을 제한하고 결과를 검증합니다.** 장애가 발생했을 때 어디서 다시 시작할지도 관리합니다.
+
+| 단계             | 위험                                                          | 적용한 통제                                                                                                        |
+| ---------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 입력과 도구 호출 | 업무 범위를 벗어나거나 호출을 끝없이 반복                     | 단계별 허용 목록과 요청 ID, 작업 ID 검사. 입출력 형식을 검증하고 도구 호출을 최대 **30회**, 호출당 **15초**로 제한 |
+| 판단안과 승인    | 모델이 권한이나 비용, 승인자를 지어냄                         | 실제 후보 ID만 선택. 서버가 자격과 비용을 판정하고 지정 승인자의 순차 승인 확인. 본인 승인 차단                    |
+| 실행 직전        | 승인 후 정책이나 자격, 예산이 바뀜                            | 계획 버전과 SHA-256, 전체 승인 여부, 실행 키를 대조하고 최신 조건으로 다시 판정                                    |
+| 권한과 예산 반영 | 재시도로 권한을 중복 부여하거나 예산을 중복 차감              | 실행 키와 영수증, DB 잠금으로 중복 반영 방지. 권한 변경과 예산 차감, 영수증 저장을 한 트랜잭션으로 처리            |
+| 실행 후          | 성공 응답과 실제 권한이 불일치                                | 캐시를 사용하지 않는 독립 재조회. 검증 실패를 완료로 처리하지 않음                                                 |
+| 메시지 전달      | 메시지가 유실되거나 중복 전달됨. 지난 작업의 결과가 늦게 도착 | Outbox와 발행 확인, Inbox의 중복 제거 적용. 현재 `job_event_id`와 대조                                             |
+| 장애와 재전달    | 같은 도구나 모델 작업을 반복 수행                             | SQLite에 작업 상태와 최종 결과 저장. 재전달된 작업은 저장된 결과 재사용. 재시도 가능한 오류만 제한 재시도          |
+| 설명 출력        | 설명을 작성하면서 사실이나 인용, 금액이 바뀜                  | 구조화된 출력을 원문과 서버 사실에 대조. 설명 작성이나 검토 실패 시 정형 템플릿 사용                               |
+
+체크포인트는 **작업 이벤트별로 분리**합니다. Worker는 최종 결과를 저장한 뒤 큐에 전달하고, 메시지가 재전달되면 저장된 결과를 재사용합니다. 이 구조와 서버의 중복 실행 방어를 함께 적용합니다.
+
+구현: [도구 범위와 재시도](agent/unlockops/common/runtime.py), [호출 시간 제한](agent/unlockops/common/tools.py), [실행 한도](agent/unlockops/common/settings.py), [체크포인트와 재전달](worker/unlockops_worker/runtime.py), [결과 중복 제어](backend/src/main/java/com/unlockops/messaging/workflow/WorkflowResults.java), [담당 범위 제어](backend/src/main/java/com/unlockops/common/workflow/WorkflowAccessControl.java)
+
+<a id="tech-stack"></a>
+
+## 기술 스택
+
+<p align="center">
+  <img src="docs/images/readme/architecture.svg" alt="발표자료의 시스템 아키텍처. Vue와 Nginx에서 Spring Boot, RabbitMQ, Agent Worker, 두 MCP 서버와 데이터 저장소로 이어지는 구성" width="1000">
+</p>
+
+화면과 AI Agent, 모의 SaaS의 구성을 나타낸 발표자료입니다. 작업과 결과 메시지가 오가는 경로, 내부 API 호출 관계는 [시스템 아키텍처](#architecture)에 정리했습니다.
+
+| 영역                     | 기술                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**             | <img src="https://img.shields.io/badge/Vue_3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white" alt="Vue 3"> <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript"> <img src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white" alt="Vite"> <img src="https://img.shields.io/badge/Nginx-009639?style=flat-square&logo=nginx&logoColor=white" alt="Nginx"> |
+| **Backend**              | <img src="https://img.shields.io/badge/Java_21-ED8B00?style=flat-square" alt="Java 21"> <img src="https://img.shields.io/badge/Spring_Boot_3.5.7-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot 3.5.7"> <img src="https://img.shields.io/badge/Spring_Security-6DB33F?style=flat-square&logo=springsecurity&logoColor=white" alt="Spring Security"> <br>JDBC, Flyway                                                                           |
+| **Agent와 도구**         | <img src="https://img.shields.io/badge/Python_3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11 이상"> <img src="https://img.shields.io/badge/LangGraph-1C3C3C?style=flat-square" alt="LangGraph"> <img src="https://img.shields.io/badge/LangChain_OpenAI-1C3C3C?style=flat-square" alt="LangChain OpenAI"> <img src="https://img.shields.io/badge/MCP_SDK-4F46E5?style=flat-square" alt="MCP Python SDK">                                   |
+| **RAG**                  | 로컬 TF-IDF와 코사인 유사도 사용. 정책 revision별로 색인 관리                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **메시징과 데이터 저장** | <img src="https://img.shields.io/badge/RabbitMQ-FF6600?style=flat-square&logo=rabbitmq&logoColor=white" alt="RabbitMQ"> <img src="https://img.shields.io/badge/PostgreSQL_16-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL 16"> <img src="https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite">                                                                                              |
+| **실행 환경**            | <img src="https://img.shields.io/badge/Docker_Compose-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker Compose"> <img src="https://img.shields.io/badge/uv-DE5FE9?style=flat-square" alt="uv"> <img src="https://img.shields.io/badge/Maven-C71A36?style=flat-square&logo=apachemaven&logoColor=white" alt="Maven">                                                                                                                                       |
+
+## 빠른 실행과 시연
+
+Docker Desktop을 실행하고 프로젝트 루트에서 시작합니다.
 
 ```sh
 cp .env.example .env
 docker compose up --build
 ```
 
-환경변수의 기본값·호환 별칭·로컬/Compose 적용 범위는 [환경변수 안내](docs/environment.md)를 참고하세요. 기존 `.env`의 `PHASE2_RECLAIM_*`는 `RECLAIM_*`로 옮겨야 Compose에 반영됩니다.
+**접속:** [서비스 화면](http://localhost:8088), [RabbitMQ 관리 화면](http://localhost:15672)
 
-- 서비스 화면: <http://localhost:8088>
-- RabbitMQ 관리 화면: <http://localhost:15672>
+기본 `AGENT_MODE=demo`에서는 외부 LLM 호출 없이 처리 흐름을 재현합니다. Compose가 데모 계정과 데이터, 정책 revision을 준비합니다. 로그인 화면의 역할 카드로 바로 로그인할 수 있습니다.
 
-중단은 `docker compose stop`입니다. DB와 체크포인트 볼륨은 유지됩니다.
+| 순서 | 역할                      | 시연                                                                           |
+| ---- | ------------------------- | ------------------------------------------------------------------------------ |
+| 1    | 직원 `p2_a_requester`     | “개발 업무에 필요한 GitHub Copilot 좌석을 신청합니다.” 입력                    |
+| 2    | 부서장 `p2_a_head`        | 승인함에서 근거와 비용을 확인하고 1차 승인                                     |
+| 3    | IT 담당자 `p2_a_operator` | 최종 승인 후 권한 반영 여부 확인. 회수 점검에서 후보를 검토하고 모의 회수 실행 |
 
-Compose 시연 환경에서는 backend가 마이그레이션 후 기본 계정·10개 플랫폼 데이터·누락된 정책 revision 2·3을 한 트랜잭션으로 준비합니다.
-로그인 화면에서 직원·승인자·권한 담당자 카드를 누르면 비밀번호 입력 없이 바로 로그인됩니다.
-기존 데이터·요청·승인 이력은 유지합니다. 계정·초기 데이터와 개별 실행 설정은 [mock 데이터 안내](data/phase2/README.md)를 참고하세요.
+회수 점검은 화면에서 수동 실행할 수 있습니다. 정기 점검은 기본 꺼짐이며, `RECLAIM_SCHEDULE_ENABLED=true`일 때 기본 매일 09:00(Asia/Seoul)에 실행합니다.
 
-### 실행 모드
+<details>
+<summary>LLM 모드 설정과 개발 검증</summary>
 
-| 모드 | 동작 |
-|---|---|
-| `AGENT_MODE=demo` | 외부 LLM 호출 없이 규칙 기반으로 처리 경로 재현 |
-| `AGENT_MODE=llm` | LLM 기반 요청 해석·권한 항목 선택·안내/보고서 생성·검토 |
-
-LLM 모드는 `.env`에서 다음 항목을 설정하고 서비스를 다시 실행합니다.
+루트 `.env`에 아래 값을 설정하고 `docker compose up --build`로 다시 실행합니다. 정책 검색은 로컬 TF-IDF를 사용하므로 별도 임베딩 API는 필요하지 않습니다.
 
 ```dotenv
 AGENT_MODE=llm
@@ -165,134 +325,39 @@ LLM_BASE_URL=<모델 API 주소>
 LLM_MODEL=<사용할 모델>
 ```
 
-기본 demo 모드는 외부 LLM을 호출하지 않습니다. 현재 정책 검색은 로컬 TF-IDF를 사용하며 임베딩 API 설정이 필요하지 않습니다.
-
-### 데모 계정
-
-시연 카드와 역할 선택은 서버의 `DEMO_PASSWORD` 설정으로 바로 로그인합니다. 직접 로그인할 때는 같은 비밀번호를 입력합니다.
-빠른 로그인은 `DEMO_ENABLED=true`에서 지정된 A/B사 합성 계정 12개에만 허용되며, CSRF와 세션 인증을 그대로 사용합니다.
-
-| 계정 | 역할 |
-|---|---|
-| `p2_a_requester` | A사 직원 · 기본 로그인 · 10개 플랫폼 권한 요청 |
-| `p2_a_head` | A사 부서장 · 1차 승인 |
-| `p2_a_operator` | A사 권한 담당자 · 최종 승인·회수 점검 |
-| `p2_b_requester` | B사 직원 · 다단계 승인 요청 |
-| `p2_b_it_head` | B사 IT 총괄 · GitHub/Figma 통합 회수 점검 |
-
-운영 담당자는 지정 승인자를 대신하여 승인할 수 없습니다.
-기본 진입 경로는 `/access`이며 새 요청은 `/access/new`에서 작성합니다. 로그인 화면에서 회사·담당 역할을 바로 선택합니다.
-기존 `kim_dev`, `choi_copilot` 등도 직접 로그인해 같은 `/access` 화면을 사용합니다. Flyway V9가 기존 조직의 정책·권한·현재 보유 내역을 통합 모델로 이관하며 계정 ID·비밀번호·잔여 예산은 유지합니다.
-과거 요청은 목록·상세에서 조회할 수 있습니다. 과거 대기 요청의 **재개**는 현재 정책으로 다시 분석하고 새 승인을 받으며, 완료·반려·실패 기록은 조회만 제공합니다.
-
-### 로컬 개발·검증
-
-Python 3.11+, uv, Node.js 22.12+, Java 21, Maven을 사용합니다.
+개발 환경: Python 3.11+, uv, Node.js 22.12+, Java 21, Maven
 
 ```sh
 uv --cache-dir .cache/uv sync --extra test
-.venv/bin/python -m pytest -q
+.venv/bin/python -m pytest agent/tests mcp/tests tests scripts/phase2/test_evaluation.py -q
 ```
 
-프론트엔드는 `frontend/`에서 `npm ci`, `npm test`, `npm run build`를 실행합니다. 백엔드는 `backend/`에서 `mvn test`를 실행합니다. Windows에서는 `.venv/bin/python` 대신 `.venv/Scripts/python.exe`를 사용합니다.
+프론트는 `frontend/`에서 `npm ci`, `npm test`, `npm run build`를, 백엔드는 `backend/`에서 `mvn test`를 실행합니다. Windows의 Python 경로는 `.venv/Scripts/python.exe`입니다. [개별 실행과 디버깅](docs/debugging.md), [환경변수 안내](docs/environment.md)
 
-MCP·Worker 개별 실행과 VS Code 디버깅은 [디버깅 안내](docs/debugging.md)를 참고하세요. 테스트 실행 범위와 실제 전체 스택 검증 여부는 [검증 기록](docs/verification.md)에 구분하여 정리했습니다.
+</details>
 
-## 9. 시연 시나리오
+<a id="team"></a>
 
-현재 입력·기대값은 `data/phase2/scenarios-current.json`(비용 정합화, 정책 revision 4)을 기준으로 합니다. `scenarios-v4.json`은 변경 전 비교 자료입니다.
+## Team Bana100
 
-| 시나리오 | 입력·처리 |
-|---|---|
-| 승인 | A사 직원이 “GitHub Copilot 좌석을 신청합니다.” 접수 → 부서장 → 권한 담당자 승인 → 모의 부여·독립 검증 |
-| 안내 | “GitHub Read와 Write 역할 차이를 설명해주세요” → 해당 회사 공식 요약을 검색·인용해 안내 |
-| 보류 | 예산 부족 또는 승인자 HOLD → 사유 표시 → 최신 조건으로 재분석·재승인 |
-| 최소 권한 | GitHub Admin 요청에서 코드 열람 목적만 확인되면 Read 승인안 제시 |
-| 회수 | 담당자가 회수 점검 실행 → 후보·유지·제외·추가 확인 구분 → 신규 확정 후보 인앱 알림 |
+|                                                                        변혜민                                                                         |                                                                           임채환                                                                           |                                                                        김지성                                                                        |                                                                          김동빈                                                                          |                                                                         김민지                                                                         |                                                                            신형철                                                                             |
+| :---------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| <a href="https://github.com/hmbyon"><img src="https://avatars.githubusercontent.com/u/304760662?v=4&s=160" alt="변혜민 GitHub 프로필" width="80"></a> | <a href="https://github.com/chaexove-ai"><img src="https://avatars.githubusercontent.com/u/301322262?v=4&s=160" alt="임채환 GitHub 프로필" width="80"></a> | <a href="https://github.com/zs0057"><img src="https://avatars.githubusercontent.com/u/52060729?v=4&s=160" alt="김지성 GitHub 프로필" width="80"></a> | <a href="https://github.com/hello2742"><img src="https://avatars.githubusercontent.com/u/304777065?v=4&s=160" alt="김동빈 GitHub 프로필" width="80"></a> | <a href="https://github.com/minzee09"><img src="https://avatars.githubusercontent.com/u/68258295?v=4&s=160" alt="김민지 GitHub 프로필" width="80"></a> | <a href="https://github.com/ShinHyeongcheol"><img src="https://avatars.githubusercontent.com/u/65026631?v=4&s=160" alt="신형철 GitHub 프로필" width="80"></a> |
+|                                                         [@hmbyon](https://github.com/hmbyon)                                                          |                                                       [@chaexove-ai](https://github.com/chaexove-ai)                                                       |                                                         [@zs0057](https://github.com/zs0057)                                                         |                                                        [@hello2742](https://github.com/hello2742)                                                        |                                                        [@minzee09](https://github.com/minzee09)                                                        |                                                    [@ShinHyeongcheol](https://github.com/ShinHyeongcheol)                                                     |
+|                                                         **PM과 RAG**<br>정책 문서와 평가 자료                                                         |                                                         **프론트엔드**<br>사용자 경험과 발표 시연                                                          |                                                     **백엔드**<br>단계별 승인과 개인정보 마스킹                                                      |                                                     **백엔드와 인프라**<br>메시지 신뢰성과 스케줄러                                                      |                                                        **회수 Agent**<br>회수 설계와 예외 처리                                                         |                                                            **승인 Agent**<br>실행 안전장치와 평가                                                             |
 
-회수 DONE은 후보 점검·저장·필수 알림 완료입니다. 실제 권한 말소나 예산 환입을 의미하지 않습니다.
-Notion E-02와 Tableau P-05는 대상 조직의 기존 라이선스로 권한만 추가하므로 추가 비용은 0입니다. Copilot·Figma 신규 좌석과 Snowflake·Databricks 사용량 예산은 구분합니다. [비용 판단 기준](docs/approval-decision-conditions.md)을 참고하세요.
-전체 smoke/full 평가는 격리 환경에서 실행합니다.
+## 코드와 상세 문서
 
-```sh
-python3 scripts/evaluate_phase2.py --run --suite smoke
-python3 scripts/evaluate_phase2.py --run --suite full
-```
+| 코드                                                         | 설계 문서                                                           | 시연과 평가                                 |
+| ------------------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------------- |
+| [Agent](agent/README.md), [Worker](worker/README.md)         | [아키텍처](docs/architecture.md)                                    | [평가 조건과 재현 방법](docs/evaluation.md) |
+| [Backend](backend/README.md), [Frontend](frontend/README.md) | [API 명세](docs/api-spec.md), [공통 계약](docs/contracts/README.md) | [시연 데이터](data/phase2/README.md)        |
+| [RAG](rag/README.md), [MCP](mcp/README.md)                   | [전체 문서](docs/README.md)                                         | [평가 항목별 구현](docs/rubric.md)          |
 
-## 10. 현재 구현 범위
+<br>
 
-- 한 요청에서 하나의 플랫폼·자원을 처리합니다.
-- 대상이나 필수 정보가 불명확하면 수동 검토로 전환합니다.
-- 실제 SaaS 연동, 복수 플랫폼 통합 승인, 추가 질문을 통한 대화 재개는 구현 범위에 포함하지 않습니다.
-- 체크포인트는 단일 Worker 운영을 기준으로 합니다.
-- 외부 Slack·이메일 알림 대신 웹 화면에서 처리 이력을 확인합니다.
-
-### 알려진 한계
-
-이번 구현에서 의도적으로 제외했거나 확인하지 못한 부분입니다. 시연과 평가는 아래 한계를 피하거나 전제로 두고 진행했습니다.
-
-**기능**
-
-| 한계 | 영향 | 현재 처리 |
-|---|---|---|
-| 미배정 선구매 좌석·라이선스 업그레이드·일할 청구를 자동 계산하지 않습니다. | 신규 구매 필요가 확인되지 않으면 정가를 자동 차감할 수 없습니다. | 대상 조직의 라이선스 사실·구매 필요 여부를 확인하고 미확인은 수동 검토합니다. |
-| Notion 기밀 문서 편집의 추가 부서장 승인과 Figma View 좌석 구분은 정책 문서에는 있으나 코드의 규칙은 구현하지 않았습니다. | 해당 요청은 일반 승인 경로로 처리됩니다. | 시연 범위에서 제외하고 설계 설명으로 대신합니다. |
-| 회수 알림은 앱 내 목록(IN_APP)만 지원하고, Slack·메일 전달은 구현하지 않았습니다. | 담당자가 회수 점검 화면을 열어야 후보를 확인합니다. | 향후 확장 항목입니다. |
-| 회수 자동 점검은 기본값이 꺼짐입니다. | 설정을 켜지 않으면 매일 09:00 자동 점검이 실행되지 않습니다. | 시연에서는 [지금 실행] 버튼으로 수동 실행합니다. |
-
-**검증**
-
-| 한계 | 영향 | 현재 처리 |
-|---|---|---|
-| 평가 실행기는 `AGENT_MODE=demo`로 실행합니다. | 상태·사유 코드와 DB 부수효과는 확인하지만 LLM이 쓴 설명 문장의 품질은 평가하지 않습니다. | 문장 품질은 별도로 확인해야 합니다. |
-| 시나리오 X-09(불완전 조회)는 데이터만으로 재현할 수 없어 평가 실행기 케이스가 없습니다. | 서버가 사유 코드를 `SCAN_FAILED`로 기록하는 부분은 단위 테스트가 없습니다. | 에이전트 단위 테스트가 `scan_complete=false`를 확인합니다. |
-| X-05의 `VERIFICATION_FAILED` 사유 코드 문자열은 v1 그래프 테스트로만 확인합니다. | 평가 실행기에는 검증 단계 실패를 주입하는 케이스가 없습니다. | 에이전트 단위 테스트가 검증 실패 시 `FAILED`와 `verification_ok=false`를 확인합니다. |
-| 평가 스크립트를 기본 설정으로 `--run` 하면 이미지 빌드 로그가 결과 JSON 앞에 섞여 `BLOCKED`로 판정됩니다. | 통과한 결과도 DB 검사를 건너뜁니다. | `COMPOSE_PROGRESS=quiet`로 실행합니다. |
-| 예산 영향 100 → 84달러는 DB에 저장된 값이 아니라 새 요청의 계획에서 계산되는 값입니다. | 이 계산은 P-06 요청 리허설로 확인하지 못했습니다. | 시연 전에 P-06을 직접 실행해 확인합니다. |
-
-**실행**
-
-| 한계 | 영향 | 현재 처리 |
-|---|---|---|
-| 시연 DB의 정책 revision 2(RAG v1.1)와 3(v4 가격)은 수동으로 적용합니다. 자동 적용은 `seed.sql`뿐입니다. | 적용하지 않으면 시나리오와 다른 값(Figma 15달러)이 나옵니다. | 적용 순서와 확인 쿼리는 [정책 문서 README](data/phase2/policies/README.md)를 참고하세요. |
-
-## 11. 향후 확장 방향
-
-현재의 단일 자원·모의 SaaS 처리 구조를 바탕으로 다음 기능을 확장할 계획입니다.
-
-| 확장 항목 | 주요 내용 |
-|---|---|
-| 실제 SaaS 연동 | GitHub·Jira·Slack·Notion API를 연결하여 실제 계정과 권한 조회·변경 지원 |
-| 복수 플랫폼 요청 처리 | 하나의 요청을 플랫폼별 작업으로 분리하고 승인·실행 결과와 부분 성공을 통합 관리 |
-| 추가 질문과 대화 재개 | 대상 자원이나 필요한 정보가 부족하면 사용자에게 질문하고 기존 상태에서 분석 재개 |
-| 권한 수명주기 관리 | 현재 후보 점검을 실제 SaaS 회수·승인·실행까지 확장 |
-| 외부 알림 연동 | 승인 요청, 반려 사유, 처리 결과를 Slack·이메일로 전달 |
-| Worker 확장 | 공유 체크포인트 저장소와 동시 처리 제어를 도입하여 여러 Worker에서 요청 처리 |
-
-## 12. 프로젝트 구조
-
-| 폴더 | 구현 내용 |
-|---|---|
-| [agent](agent/README.md) | LangGraph, 요청 해석, 권한 판정, 답변 생성, 도구 호출 통제 |
-| [rag](rag/README.md) | 문서 청킹, 검색, 원문 조항 조회 |
-| [mcp](mcp/README.md) | Policy·Business MCP, 도구 계약, 내부 API 어댑터 |
-| [worker](worker/README.md) | RabbitMQ 작업 소비·결과 발행, 체크포인트 재개 |
-| [backend](backend/README.md) | 인증, 요청·승인, 업무 데이터, outbox/inbox, 권한 실행·검증 |
-| [frontend](frontend/README.md) | 요청 접수, 본인 이력, 승인 카드, 담당 현황 |
-| [data](data/README.md) | 정책 문서와 회사 접근 권한표 |
-| [infra](infra/README.md) | Python Dockerfile, 로컬 디버깅용 Compose 설정 |
-| [tests](tests/README.md) | 실행 중인 전체 스택 대상 선택적 통합 테스트 |
-| [docs](docs/README.md) | 아키텍처, API·메시지 계약, 실행·검증 안내 |
-
-Python 의존성은 루트 `pyproject.toml`과 `uv.lock`으로 함께 관리합니다.
-
-## 13. 상세 문서
-
-- [아키텍처와 Agent 구현](docs/architecture.md)
-- [API 명세](docs/api-spec.md)
-- [MCP·메시지 계약](docs/contracts/README.md)
-- [검증 기록 및 재현 절차](docs/verification.md)
-- [평가 항목별 구현 위치](docs/rubric.md)
-- [정책 해석과 구현 범위](docs/policy-decisions.md)
-- [로컬 개발·디버깅](docs/debugging.md)
-- [기여 안내](CONTRIBUTING.md) · [Git 컨벤션](docs/git-convention.md)
+<p align="center">
+  <img src="docs/images/readme/agent-illustration.png" alt="UnlockOps 캐릭터가 열쇠로 자물쇠를 여는 장면" width="120"><br>
+  <strong>UnlockOps</strong><br>
+  <sub>Team Bana100</sub>
+</p>

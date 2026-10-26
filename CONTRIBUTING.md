@@ -12,7 +12,7 @@
 
 - 새 기능은 [Feature 이슈 템플릿](.github/ISSUE_TEMPLATE/feature.md)을 사용합니다.
 - PR 본문은 [PR 템플릿](.github/pull_request_template.md)을 따릅니다.
-- 자동 담당자 지정과 양식 설정은 [GitHub 협업 설정](.github/README.md)을 확인합니다.
+- 자동 담당자 지정과 양식 설정은 [GitHub 협업 설정](.github/GITHUB_SETUP.md)을 확인합니다.
 
 ## 3. 코드와 설정 작성
 
