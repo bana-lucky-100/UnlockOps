@@ -1,6 +1,6 @@
 <img align="right" src="docs/images/readme/agent-character.png" alt="UnlockOps 보라색 AI Agent 캐릭터" width="142">
 
-<h1><img src="docs/images/readme/logo.png" alt="" width="38"> UnlockOps</h1>
+<h3><img src="docs/images/readme/logo.png" alt="" width="38"><br>UnlockOps</h3>
 
 <p>
   <strong>SaaS 권한 승인과 회수를 돕는 AI 에이전트</strong><br>
